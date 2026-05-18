@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>IT Quiz — Daily Challenge</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#0a0a0f}
+/* Změna hlavního fontu na Inter pro maximální čitelnost */
+body{font-family:'Inter', sans-serif;color:#e0e8ff;overflow-x:hidden}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#0a0a0f}::-webkit-scrollbar-thumb{background:#2a3a6a;border-radius:3px}
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet"/>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+// ═══════════════════════════════════════════════════════
+// ⚙️  KONFIGURACE — VYPLŇ SVÉ SUPABASE ÚDAJE
+// ═══════════════════════════════════════════════════════
+const SUPABASE_URL  = 'https://nueprvtkefezraibnlyo.supabase.co';
+const SUPABASE_KEY  = 'sb_publishable_kEir70MApmMucBkp5BHpzg_jhDettKH';
+// ═══════════════════════════════════════════════════════
+
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const { useState, useEffect, useRef } = React;
+
+// ─── KONSTANTY ───────────────────────────────────────
+const QUIZ_DURATION = 120;
+const QUESTIONS_PER_QUIZ = 15;
+const MAX_PTS = 1000;
+const MIN_PTS = 100;
+const SCREENS = { HOME:'home', REGISTER:'register', QUIZ:'quiz', RESULT:'result', BOARD:'board' };
+
+const INSULTS = [
+  '💀 KATASTROFA! Ani klávesnice tě nezachránila!',
+  '🤦 Opravdu?! Tohle je ZÁKLADNÍ věc!',
+  '😱 Tím jsi způsobil fyzickou bolest síťovému technikovi!',
+  '🔥 Server by se styděl za takovou odpověď!',
+  '🗑️ Recykluješ vzduch nebo i vědomosti?',
+  '💔 Router plakal. ROUTER. PLAKAL.',
+  '🤡 Gratuluju — dokonalý scam na hodnocení!',
+  '⚰️ RIP tvoje IT kariéra. 2024–2024.',
+  '🦆 Gumová kachnička by tě přejela v testu!',
+  '😤 I BIOS ví víc než ty!',
+  '🧠 Chybí procesor nebo jen RAM?',
+  '💣 Tato odpověď by způsobila production outage!',
+  '🐛 Nalezl jsem chybu — v tvém mozku!',
+  '📡 Signál IQ: příliš slabý na příjem!',
+  '🔌 Unplugged from reality, are we?',
+];
+
+// ─── HELPERS ─────────────────────────────────────────
+function getTodayKey() { return new Date().toISOString().slice(0,10); }
+
+function seededShuffle(arr, seed) {
+  const a=[...arr]; let s=seed;
+  for(let i=a.length-1;i>0;i--){
+      s=(s*1664525+1013904223)&0xffffffff;
+      const j=Math.abs(s)%(i+1);
+      [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+function getDailyQuestions(dateKey) {
+  const seed=dateKey.split('-').reduce((a,b)=>a*31+parseInt(b),0);
+  const selectedQs = seededShuffle(ALL_QUESTIONS,seed).slice(0,QUESTIONS_PER_QUIZ);
+  
+  // DYNAMICKÉ PROMÍCHÁNÍ ODPOVĚDÍ (Aby B nebylo pořád správně)
+  // Používáme seed + index otázky, aby mixování bylo pro daný den u všech hráčů stejné
+  return selectedQs.map((q, idx) => {
+    const optSeed = seed + idx; 
+    const mappedOpts = q.opts.map((opt, originalIndex) => ({ opt, originalIndex }));
+    const shuffledOpts = seededShuffle(mappedOpts, optSeed);
+    
+    // Najdeme, kam se přesunula správná odpověď
+    const newA = shuffledOpts.findIndex(o => o.originalIndex === q.a);
+    
+    return {
+      ...q,
+      opts: shuffledOpts.map(o => o.opt),
+      a: newA
+    };
+  });
+}
+
+function calcPoints(tl) { return Math.round(MIN_PTS+(MAX_PTS-MIN_PTS)*(tl/QUIZ_DURATION)); }
+function ls(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}}
+function lss(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
+
+// ─── 500 OTÁZEK ──────────────────────────────────────
+const ALL_QUESTIONS = [
+  {id:1,cat:'Sítě',q:'Co znamená zkratka DNS?',opts:['Domain Name System','Data Network Service','Digital Node Switching','Direct Name Server'],a:0},
+  {id:2,cat:'Sítě',q:'Na jakém portu standardně běží HTTPS?',opts:['80','8080','443','22'],a:2},
+  {id:3,cat:'Sítě',q:'Co je to IP adresa třídy A?',opts:['0.0.0.0 – 127.255.255.255','128.0.0.0 – 191.255.255.255','192.0.0.0 – 223.255.255.255','224.0.0.0 – 239.255.255.255'],a:0},
+  {id:4,cat:'Sítě',q:'Jaký protokol se používá pro přenos e-mailů?',opts:['FTP','SMTP','HTTP','SSH'],a:1},
+  {id:5,cat:'Sítě',q:'Co je subnet maska /24?',opts:['255.0.0.0','255.255.0.0','255.255.255.0','255.255.255.128'],a:2},
+  {id:6,cat:'Sítě',q:'Co je to MAC adresa?',opts:['IP adresa síťového zařízení','Fyzická adresa síťového adaptéru','Adresa e-mailové schránky','Adresa webového serveru'],a:1},
+  {id:7,cat:'Sítě',q:'Jaký protokol slouží k automatickému přidělování IP adres?',opts:['DNS','HTTP','DHCP','ARP'],a:2},
+  {id:8,cat:'Sítě',q:'Co je to VPN?',opts:['Very Private Network','Virtual Private Network','Virtual Public Node','Verified Protocol Network'],a:1},
+  {id:9,cat:'Sítě',q:'Kolik bitů má IPv6 adresa?',opts:['32','64','128','256'],a:2},
+  {id:10,cat:'Sítě',q:'Na jakém portu běží SSH?',opts:['21','22','23','25'],a:1},
+  {id:11,cat:'Sítě',q:'Co je to NAT?',opts:['Network Address Translation','Node Access Terminal','Network Allocation Table','Node Authentication Transfer'],a:0},
+  {id:12,cat:'Sítě',q:'Co znamená CIDR?',opts:['Classless Inter-Domain Routing','Class Internet Data Routing','Central IP Domain Registry','Computer Internet Domain Routing'],a:0},
+  {id:13,cat:'Sítě',q:'Jaká je maximální přenosová rychlost 1000BASE-T?',opts:['100 Mbit/s','1 Gbit/s','10 Gbit/s','100 Gbit/s'],a:1},
+  {id:14,cat:'Sítě',q:'Co je to ping?',opts:['Protokol pro přenos souborů','Nástroj pro testování dostupnosti sítě','Typ síťového kabelu','Síťový přepínač'],a:1},
+  {id:15,cat:'Sítě',q:'Který protokol zajišťuje spolehlivý přenos dat?',opts:['UDP','IP','TCP','ICMP'],a:2},
+  {id:16,cat:'Sítě',q:'Co je to firewall?',opts:['Síťový prvek filtrující provoz','Záložní napájení','Typ pevného disku','Bezdrátový router'],a:0},
+  {id:17,cat:'Sítě',q:'Co je to OSI model?',opts:['Open Systems Interconnection','Operating System Interface','Open Source Initiative','Optical Signal Interface'],a:0},
+  {id:18,cat:'Sítě',q:'Na kolika vrstvách je postaven OSI model?',opts:['4','5','7','9'],a:2},
+  {id:19,cat:'Sítě',q:'Co je to router?',opts:['Přepínač pracující na 2. vrstvě OSI','Zařízení směrující provoz mezi sítěmi','Typ síťového kabelu','Bezdrátový přístupový bod'],a:1},
+  {id:20,cat:'Sítě',q:'Jaký protokol používá Traceroute?',opts:['TCP','ICMP','UDP','ARP'],a:1},
+  {id:21,cat:'Sítě',q:'Co je to BGP?',opts:['Border Gateway Protocol','Basic Graph Protocol','Binary Gateway Process','Broadcast Group Protocol'],a:0},
+  {id:22,cat:'Sítě',q:'Co je to switch (přepínač)?',opts:['Zařízení propojující sítě na síťové vrstvě','Zařízení pracující na linkové vrstvě','Typ bezdrátového přístupového bodu','Záložní zdroj napájení'],a:1},
+  {id:23,cat:'Sítě',q:'Jaký port používá FTP (data)?',opts:['20','21','22','23'],a:0},
+  {id:24,cat:'Sítě',q:'Co je to VLAN?',opts:['Virtual Local Area Network','Very Large Area Network','Virtual Link Access Node','Verified LAN Access'],a:0},
+  {id:25,cat:'Sítě',q:'Co je to spanning tree protokol (STP)?',opts:['Protokol pro WiFi','Protokol zabraňující smyčkám v síti','Typ routovacího protokolu','Protokol pro VPN'],a:1},
+  {id:26,cat:'Hardware',q:'Co znamená CPU?',opts:['Central Processing Unit','Computer Primary Unit','Core Processing Utility','Central Program Unit'],a:0},
+  {id:27,cat:'Hardware',q:'Co je to RAM?',opts:['Read-only Access Memory','Random Access Memory','Rapid Action Memory','Remote Access Module'],a:1},
+  {id:28,cat:'Hardware',q:'Co je to SSD?',opts:['Solid State Drive','Super Speed Disk','System Storage Device','Secure Server Drive'],a:0},
+  {id:29,cat:'Hardware',q:'Co znamená BIOS?',opts:['Basic Input Output System','Binary Internal Operating System','Base Integrated Output Software','Basic Interface Operating Setup'],a:0},
+  {id:30,cat:'Hardware',q:'Co je to PCIe?',opts:['Personal Computer Interface extension','Peripheral Component Interconnect Express','Primary Core Interface Express','Processor Connection Interface Extended'],a:1},
+  {id:31,cat:'Hardware',q:'Co je to NVMe?',opts:['Non-Volatile Memory Express','New Virtual Memory Extension','Network Volume Management Express','None Volatile Memory Encryption'],a:0},
+  {id:32,cat:'Hardware',q:'Co je to GPU?',opts:['General Processing Unit','Graphics Processing Unit','Global Protocol Unit','Graphical Program Utility'],a:1},
+  {id:33,cat:'Hardware',q:'Co je to RAID 1?',opts:['Stripe bez redundance','Zrcadlení disků','Stripe s paritou','Zrcadlení + stripe'],a:1},
+  {id:34,cat:'Hardware',q:'Co je to UEFI?',opts:['Unified Extensible Firmware Interface','Universal Extended File Interface','Unified External Function Interface','Ultra Extended Firmware Installation'],a:0},
+  {id:35,cat:'Hardware',q:'Co je to cache procesoru?',opts:['Rychlá paměť integrovaná v CPU','Záloha paměti RAM','Druh pevného disku','Chladič procesoru'],a:0},
+  {id:36,cat:'Hardware',q:'Co je to ECC paměť?',opts:['Extended Cache Control','Error Correcting Code memory','Enhanced Core Capacity','External Controller Chip'],a:1},
+  {id:37,cat:'Hardware',q:'Co je to PSU?',opts:['Primary System Unit','Power Supply Unit','Processing Speed Upgrade','Protocol Service Unit'],a:1},
+  {id:38,cat:'Hardware',q:'Co je to M.2 slot?',opts:['Typ RAM paměti','Formát konektoru pro SSD/WiFi karty','Typ CPU socketu','Typ napájecího konektoru'],a:1},
+  {id:39,cat:'Hardware',q:'Co je to thermal paste?',opts:['Typ maziva pro mechanické části','Materiál zlepšující přenos tepla mezi CPU a chladičem','Typ lepidla pro elektroniku','Ochranný nátěr PCB'],a:1},
+  {id:40,cat:'Hardware',q:'Co je to POST test?',opts:['Power-On Self Test – diagnostika HW při startu','Typ síťového testu','Zálohovací procedura','Typ aktualizace firmware'],a:0},
+  {id:41,cat:'Hardware',q:'Co je to overclocking?',opts:['Záloha dat','Provoz CPU/GPU nad výrobcem stanovenou frekvencí','Typ chlazení','Aktualizace firmware'],a:1},
+  {id:42,cat:'Hardware',q:'Co je to hot-swap?',opts:['Přetaktování CPU','Výměna komponenty za provozu bez vypnutí systému','Typ zálohy','Chladící systém'],a:1},
+  {id:43,cat:'Hardware',q:'Co je to JBOD?',opts:['Just a Bunch of Disks – disky bez RAID','Join Backup On Disk','Journal Based On Disk','Java Bundled Object Database'],a:0},
+  {id:44,cat:'Hardware',q:'Co je to blade server?',opts:['Typ pevného disku','Serverový modul zasunutý do chassis sdílející zdroje','Typ GPU','Zálohovací server'],a:1},
+  {id:45,cat:'Hardware',q:'Co je to CMOS baterie?',opts:['Hlavní napájecí baterie serveru','Malá baterie udržující BIOS nastavení a čas při vypnutém PC','Zálohovací baterie UPS','Baterie pro GPU'],a:1},
+  {id:46,cat:'Bezpečnost',q:'Co je to phishing?',opts:['Typ síťového útoku','Podvodná technika k získání citlivých údajů','Šifrování dat','Typ firewallu'],a:1},
+  {id:47,cat:'Bezpečnost',q:'Co je to DDoS útok?',opts:['Distributed Denial of Service','Data Deletion of Systems','Digital Defense of Servers','Distributed Data Override Service'],a:0},
+  {id:48,cat:'Bezpečnost',q:'Co je to SSL/TLS?',opts:['Protokoly pro šifrovanou komunikaci','Typ databáze','Síťový protokol pro e-mail','Typ firewallu'],a:0},
+  {id:49,cat:'Bezpečnost',q:'Co je to brute force útok?',opts:['Útok hrubou silou – zkoušení všech kombinací','Fyzický útok na hardware','Útok přes sociální inženýrství','Útok na DNS server'],a:0},
+  {id:50,cat:'Bezpečnost',q:'Co je to zero-day zranitelnost?',opts:['Zranitelnost bez záplaty exploitovaná okamžitě','Zranitelnost starší než rok','Zranitelnost v nultém dnu měsíce','Nová verze softwaru'],a:0},
+  {id:51,cat:'Bezpečnost',q:'Co je to ransomware?',opts:['Software pro zálohování','Malware šifrující data a požadující výkupné','Antivirový program','Typ VPN'],a:1},
+  {id:52,cat:'Bezpečnost',q:'Co je to 2FA?',opts:['Two Factor Authentication','Two File Access','Transfer File Authorization','Two Function Application'],a:0},
+  {id:53,cat:'Bezpečnost',q:'Co je to SQL injection?',opts:['Typ zálohovacího softwaru','Útok vkládající škodlivý SQL kód','Druh databáze','Typ šifrování'],a:1},
+  {id:54,cat:'Bezpečnost',q:'Co je to HTTPS?',opts:['HTTP over SSL/TLS','Hypertext Transfer Protocol Secure System','High-Speed Transfer Protocol','Hyper Transfer Protocol Service'],a:0},
+  {id:55,cat:'Bezpečnost',q:'Co je to malware?',opts:['Bezpečnostní aktualizace','Škodlivý software','Typ firewallu','Zálohovací protokol'],a:1},
+  {id:56,cat:'Bezpečnost',q:'Co je to penetrační test?',opts:['Test rychlosti sítě','Simulovaný útok k odhalení zranitelností','Test záložního systému','Test výkonu CPU'],a:1},
+  {id:57,cat:'Bezpečnost',q:'Co je to botnet?',opts:['Síť robotů pro automatizaci','Síť infikovaných počítačů ovládaná útočníkem','Bezpečnostní software','Typ VPN'],a:1},
+  {id:58,cat:'Bezpečnost',q:'Co je to XSS útok?',opts:['Cross-Site Scripting','Extended Security System','Cross System Storage','Extra Secure System'],a:0},
+  {id:59,cat:'Bezpečnost',q:'Co je to MITM útok?',opts:['Man In The Middle – odposlech komunikace','Multiple Internet Traffic Management','Machine Intrusion Traffic Monitor','Main IT Module'],a:0},
+  {id:60,cat:'Bezpečnost',q:'Co je to AES šifrování?',opts:['Asymetrické šifrování','Advanced Encryption Standard – symetrický šifrovací algoritmus','Autentizační protokol','Typ digitálního podpisu'],a:1},
+  {id:61,cat:'Bezpečnost',q:'Co je to RSA?',opts:['Symetrický šifrovací algoritmus','Asymetrický šifrovací algoritmus (Rivest-Shamir-Adleman)','Typ hashování','Protokol pro VPN'],a:1},
+  {id:62,cat:'Bezpečnost',q:'Co je to SHA-256?',opts:['Šifrovací algoritmus','Hashovací funkce produkující 256-bitový otisk','Typ certifikátu','Protokol pro e-mail'],a:1},
+  {id:63,cat:'Bezpečnost',q:'Co je to SIEM?',opts:['Security Information and Event Management','System Integrated Event Monitor','Secure Internet Exchange Module','Single Incident Event Management'],a:0},
+  {id:64,cat:'Bezpečnost',q:'Co je to WAF?',opts:['Web Application Firewall','Wide Area Filter','Wireless Access Framework','Web Authentication Function'],a:0},
+  {id:65,cat:'Bezpečnost',q:'Co je to zero trust bezpečnostní model?',opts:['Bez šifrování','Model kde nikomu není automaticky důvěřováno, vše je ověřováno','Model bez firewallu','Typ VPN'],a:1},
+  {id:66,cat:'OS',q:'Co je to kernel?',opts:['Grafické rozhraní OS','Jádro operačního systému','Typ souborového systému','Správce úloh'],a:1},
+  {id:67,cat:'OS',q:'Jaký souborový systém používá Windows standardně?',opts:['ext4','HFS+','NTFS','FAT32'],a:2},
+  {id:68,cat:'OS',q:'Co je to swap v Linuxu?',opts:['Záložní partition sloužící jako rozšíření RAM','Typ souborového systému','Nástroj pro správu disků','Zálohovací software'],a:0},
+  {id:69,cat:'OS',q:'Co je to virtualizace?',opts:['Typ šifrování','Provoz více OS na jednom fyzickém HW','Zálohovací technika','Typ síťového protokolu'],a:1},
+  {id:70,cat:'OS',q:'Co je to hypervisor?',opts:['Software spravující virtuální stroje','Typ síťového zařízení','Zálohovací software','Bezpečnostní nástroj'],a:0},
+  {id:71,cat:'OS',q:'Co je to root v Linuxu?',opts:['Typ souborového systému','Superuživatel s plnými právy','Základní adresář disku','Typ partitioningu'],a:1},
+  {id:72,cat:'OS',q:'Co je to cron v Linuxu?',opts:['Typ souborového systému','Plánovač úloh','Správce balíčků','Typ procesu'],a:1},
+  {id:73,cat:'OS',q:'Co je to Docker?',opts:['Typ hypervisoru','Platforma pro kontejnerizaci aplikací','Zálohovací software','Síťový monitor'],a:1},
+  {id:74,cat:'OS',q:'Co je to GPT partition scheme?',opts:['General Partition Table','GUID Partition Table','Generic Protocol Table','Global Partition Track'],a:1},
+  {id:75,cat:'OS',q:'Co je to zombie proces?',opts:['Proces spotřebovávající 100% CPU','Ukončený proces, jehož záznam zůstal v tabulce procesů','Skrytý proces','Systémový proces'],a:1},
+  {id:76,cat:'OS',q:'Co je to systemd?',opts:['Typ souborového systému','Init systém a správce služeb v Linuxu','Správce balíčků','Typ shellu'],a:1},
+  {id:77,cat:'OS',q:'Co je to memory leak?',opts:['Typ zálohy','Chyba kde program nealokuje správně paměť a ta se hromadí','Šifrování paměti','Typ cache'],a:1},
+  {id:78,cat:'OS',q:'Co je to deadlock?',opts:['Typ síťového útoku','Situace kde procesy čekají na sebe navzájem donekonečna','Typ zálohy','Přetaktování CPU'],a:1},
+  {id:79,cat:'OS',q:'Co je to context switching?',opts:['Přepnutí sítě','Přepnutí CPU mezi procesy se zachováním jejich stavu','Typ zálohy','Záloha kontextu'],a:1},
+  {id:80,cat:'OS',q:'Co je to /proc filesystem?',opts:['Zálohovací systém','Virtuální FS poskytující informace o procesech','Typ diskového oddílu','Síťový sdílený disk'],a:1},
+  {id:81,cat:'Databáze',q:'Co je to SQL?',opts:['Structured Query Language','System Query Library','Secure Query Layer','Sequential Query Logic'],a:0},
+  {id:82,cat:'Databáze',q:'Co je to primární klíč v databázi?',opts:['Index pro urychlení vyhledávání','Unikátní identifikátor záznamu','Odkaz na jiný záznam','Šifrovaný sloupec'],a:1},
+  {id:83,cat:'Databáze',q:'Co je to NoSQL databáze?',opts:['Databáze bez SQL jazyka','Databáze nevyužívající relační model','Databáze šifrovaná SQL','Databáze bez indexů'],a:1},
+  {id:84,cat:'Databáze',q:'Co je to ACID?',opts:['Atomicity, Consistency, Isolation, Durability','Access Control Identifier Database','Automated Consistent Index Design','Active Control Integrity Data'],a:0},
+  {id:85,cat:'Databáze',q:'Co je to index v databázi?',opts:['Záloha tabulky','Datová struktura urychlující dotazy','Typ relace','Šifrovací klíč'],a:1},
+  {id:86,cat:'Databáze',q:'Co je to JOIN v SQL?',opts:['Sloučení výsledků dotazu','Vytvoření nové tabulky','Smazání záznamů','Šifrování dat'],a:0},
+  {id:87,cat:'Databáze',q:'Co je to transakce v databázi?',opts:['Zálohování dat','Skupina operací provedených jako celek','Typ indexu','Typ relace'],a:1},
+  {id:88,cat:'Databáze',q:'Co je to MongoDB?',opts:['Relační databáze','Dokumentová NoSQL databáze','SQL databáze','Grafová databáze'],a:1},
+  {id:89,cat:'Databáze',q:'Co je to Redis?',opts:['Relační databáze','In-memory databáze pro cache a rychlé operace','Grafová databáze','Dokumentová databáze'],a:1},
+  {id:90,cat:'Databáze',q:'Co je to sharding v databázích?',opts:['Záloha databáze','Horizontální rozdělení dat mezi více databázových uzlů','Typ indexu','Replikace dat'],a:1},
+  {id:91,cat:'Cloud',q:'Co je to IaaS?',opts:['Infrastructure as a Service','Internet as a Software','Integrated Application System','Intelligent Access Service'],a:0},
+  {id:92,cat:'Cloud',q:'Co je to SaaS?',opts:['Software as a Service','System as a Software','Secure Application Service','Server as a System'],a:0},
+  {id:93,cat:'Cloud',q:'Co je to PaaS?',opts:['Platform as a Service','Program as a Software','Private Access System','Protocol as a Service'],a:0},
+  {id:94,cat:'Cloud',q:'Jaký je největší cloud provider na světě?',opts:['Google Cloud','Microsoft Azure','Amazon Web Services','IBM Cloud'],a:2},
+  {id:95,cat:'Cloud',q:'Co je to CDN?',opts:['Content Delivery Network','Central Data Node','Cloud Distribution Network','Core Data Network'],a:0},
+  {id:96,cat:'Cloud',q:'Co je to serverless computing?',opts:['Výpočty bez fyzického serveru','Spouštění funkcí bez správy serverů','Cloud bez internetu','Virtualizace bez hypervisoru'],a:1},
+  {id:97,cat:'Cloud',q:'Co je to Kubernetes?',opts:['Typ databáze','Orchestrační platforma pro kontejnery','Zálohovací software','Typ síťového protokolu'],a:1},
+  {id:98,cat:'Cloud',q:'Co je to auto-scaling?',opts:['Automatická záloha dat','Automatické přidávání/odebírání zdrojů podle zatížení','Automatická aktualizace OS','Automatické šifrování dat'],a:1},
+  {id:99,cat:'Cloud',q:'Co je to CI/CD?',opts:['Central Integration and Data Control','Continuous Integration/Continuous Deployment','Core Interface/Core Deployment','Central IT/Cloud Development'],a:1},
+  {id:100,cat:'Cloud',q:'Co je to multi-cloud strategie?',opts:['Záloha na více cloudech','Využití více cloudových providerů pro různé služby','Typ šifrování','Zálohovací strategie'],a:1},
+  {id:101,cat:'Konektory',q:'Kolik pinů má konektor DisplayPort?',opts:['15','19','20','24'],a:2},
+  {id:102,cat:'Konektory',q:'Co je to konektor HDMI Type A?',opts:['19-pinový audio/video konektor','15-pinový VGA konektor','9-pinový DVI konektor','24-pinový DVI konektor'],a:0},
+  {id:103,cat:'Konektory',q:'Co přenáší konektor SATA?',opts:['Napájení GPU','Data a napájení HDD/SSD','Síťový provoz','Video signál'],a:1},
+  {id:104,cat:'Konektory',q:'Jak se jmenuje optický audio konektor?',opts:['TOSLINK','S/PDIF koaxiální','3.5mm TRS','XLR'],a:0},
+  {id:105,cat:'Konektory',q:'Co je to PCIe x16 slot?',opts:['16-linkový slot pro GPU','Napájecí konektor','Typ RAM slotu','Typ M.2 slotu'],a:0},
+  {id:106,cat:'Konektory',q:'Co přenáší konektor VGA?',opts:['Digitální video signál','Analogový video signál','Audio signál','Data a video'],a:1},
+  {id:107,cat:'Konektory',q:'Co je to PoE?',opts:['Power over Ethernet – napájení zařízení přes síťový kabel','Port over Extension','Protocol over Ethernet','Private over Ethernet'],a:0},
+  {id:108,cat:'Konektory',q:'Co přenáší kabel Cat6?',opts:['Pouze analogový signál','Ethernet data až do 10 Gbit/s na krátké vzdálenosti','Pouze napájení','Video signál'],a:1},
+  {id:109,cat:'Konektory',q:'Co je to SFP modul?',opts:['Small Form-factor Pluggable – transceiver pro optické/měděné sítě','Standard Fiber Protocol','Secure Frame Protocol','Single Fiber Port'],a:0},
+  {id:110,cat:'Konektory',q:'Co je to konektor DB-9?',opts:['Typ optického konektoru','9-pinový sériový konektor RS-232','Typ napájecího konektoru','Typ USB konektoru'],a:1},
+  {id:111,cat:'WiFi',q:'Co je to standard WiFi 6 (802.11ax)?',opts:['Standard pro 60 GHz pásmo','Nejnovější WiFi standard s vyšší efektivitou','WiFi pro průmyslové použití','Satelitní WiFi'],a:1},
+  {id:112,cat:'WiFi',q:'Na jakém pásmu pracuje WiFi 802.11b?',opts:['5 GHz','2.4 GHz','60 GHz','900 MHz'],a:1},
+  {id:113,cat:'WiFi',q:'Co je to SSID?',opts:['Heslo WiFi sítě','Název bezdrátové sítě','IP adresa přístupového bodu','MAC adresa routeru'],a:1},
+  {id:114,cat:'WiFi',q:'Co je to WPA3?',opts:['WiFi Protected Access 3 – bezpečnostní protokol','Typ WiFi antény','Standard pro WiFi 6E','Typ routeru'],a:0},
+  {id:115,cat:'WiFi',q:'Co je to WPS?',opts:['Wireless Protocol System','WiFi Protected Setup','Wireless Power Supply','Wide Protocol Standard'],a:1},
+  {id:116,cat:'WiFi',q:'Co je to NFC?',opts:['Near Field Communication','Network Flow Control','Node Frequency Channel','New Frame Connector'],a:0},
+  {id:117,cat:'WiFi',q:'Co je to MIMO v kontextu WiFi?',opts:['Multiple Input Multiple Output','Minimum Input Maximum Output','Mobile Internet Mobile Output','Managed IP Multiple Origin'],a:0},
+  {id:118,cat:'WiFi',q:'Co je to MU-MIMO?',opts:['Multi-Unit MIMO','Multi-User MIMO – komunikace s více zařízeními současně','Maximum MIMO','Machine Unit MIMO'],a:1},
+  {id:119,cat:'WiFi',q:'Co je to WiFi 6E?',opts:['WiFi 6 s rozšířeným dosahem','WiFi 6 rozšířené na 6 GHz pásmo','Typ WiFi pro průmysl','WiFi 7 beta'],a:1},
+  {id:120,cat:'WiFi',q:'Co je to OFDMA ve WiFi 6?',opts:['Typ antény','Orthogonal Frequency Division Multiple Access – sdílení kanálu více zařízeními','Typ zabezpečení','Typ modulace pro WiFi 5'],a:1},
+  {id:121,cat:'Teorie',q:'Co je to Moore\'s Law?',opts:['Zákon o exponenciálním růstu internetu','Predikce zdvojnásobení počtu tranzistorů každé 2 roky','Zákon o rychlosti sítí','Zákon o snižování cen HDD'],a:1},
+  {id:122,cat:'Teorie',q:'Co je to open source software?',opts:['Software s otevřeným zdrojovým kódem','Bezplatný software','Software bez záruky','Software pro veřejnou správu'],a:0},
+  {id:123,cat:'Teorie',q:'Co je to API?',opts:['Application Programming Interface','Automated Process Integration','Active Protocol Index','Application Process Identifier'],a:0},
+  {id:124,cat:'Teorie',q:'Co je to latence?',opts:['Šířka pásma sítě','Zpoždění při přenosu dat','Rychlost CPU','Kapacita disku'],a:1},
+  {id:125,cat:'Teorie',q:'Co je to bandwidth (šířka pásma)?',opts:['Zpoždění sítě','Maximální množství dat přenesených za sekundu','Frekvence WiFi','Typ síťového kabelu'],a:1},
+  {id:126,cat:'Teorie',q:'Co je to DevOps?',opts:['Vývojový jazyk','Kultura spojující vývoj a provoz IT','Typ databáze','Bezpečnostní framework'],a:1},
+  {id:127,cat:'Teorie',q:'Co je to agile metodologie?',opts:['Typ databáze','Iterativní přístup k vývoji software','Bezpečnostní protokol','Typ sítě'],a:1},
+  {id:128,cat:'Teorie',q:'Co je to TCP handshake?',opts:['Jednorázové navázání spojení (SYN)','Třícestné navázání spojení (SYN, SYN-ACK, ACK)','Dvoufázové ukončení spojení','Typ šifrování'],a:1},
+  {id:129,cat:'Teorie',q:'Co je to TTL (Time To Live)?',opts:['Doba platnosti DNS záznamu / maximální počet skoků paketu','Typ šifrování','Rychlost přenosu dat','Kapacita cache'],a:0},
+  {id:130,cat:'Teorie',q:'Co je to redundance v IT?',opts:['Zbytečné duplicitní procesy','Záložní komponenty pro zvýšení spolehlivosti','Typ komprimace','Šifrování dat'],a:1},
+  {id:131,cat:'Úložiště',q:'Co je to RAID 0?',opts:['Zrcadlení disků','Striping bez redundance – zvýšení výkonu','Stripe s paritou','Vnořené RAID'],a:1},
+  {id:132,cat:'Úložiště',q:'Co je to RAID 5?',opts:['Zrcadlení','Striping s distribuovanou paritou (min. 3 disky)','Striping bez parity','Double parity'],a:1},
+  {id:133,cat:'Úložiště',q:'Co je to NAS?',opts:['Network Attached Storage','Node Access System','New Application Server','Network Authentication Service'],a:0},
+  {id:134,cat:'Úložiště',q:'Co je to SAN?',opts:['Storage Area Network','Secure Access Node','Server Application Network','System Area Networking'],a:0},
+  {id:135,cat:'Úložiště',q:'Co je to LVM?',opts:['Local Volume Manager','Logical Volume Management','Linux Virtual Machine','Large Volume Memory'],a:1},
+  {id:136,cat:'Úložiště',q:'Co je to iSCSI?',opts:['Internet Small Computer System Interface','Integrated Storage Control System Interface','Internal SCSI protocol','Internet Secure Connection Standard Interface'],a:0},
+  {id:137,cat:'Úložiště',q:'Jaká je typická RPM rychlost serverového HDD?',opts:['5400 RPM','7200 RPM','10000–15000 RPM','20000 RPM'],a:2},
+  {id:138,cat:'Úložiště',q:'Co je to thin provisioning?',opts:['Záloha dat','Alokace úložiště jen podle skutečného využití','Komprimace dat','Šifrování disku'],a:1},
+  {id:139,cat:'Úložiště',q:'Co je to 3-2-1 backup pravidlo?',opts:['3 zálohy, 2 média, 1 off-site','3 servery, 2 zálohy, 1 cloud','3 kopie, 2 servery, 1 RAID','3 disky, 2 zálohy, 1 NAS'],a:0},
+  {id:140,cat:'Úložiště',q:'Co je to journaling v souborovém systému?',opts:['Typ zálohy','Technika záznamu plánovaných změn pro obnovu po selhání','Typ indexu','Šifrování souborů'],a:1},
+  {id:141,cat:'Správa',q:'Co je to SNMP?',opts:['Simple Network Management Protocol','Secure Node Monitoring Protocol','Standard Network Message Protocol','System Node Management Process'],a:0},
+  {id:142,cat:'Správa',q:'Co je to Ansible?',opts:['Monitorovací nástroj','Automatizační a konfigurační management nástroj','Typ databáze','Zálohovací software'],a:1},
+  {id:143,cat:'Správa',q:'Co je to Terraform?',opts:['Typ databáze','Infrastructure as Code nástroj','Zálohovací software','Typ hypervisoru'],a:1},
+  {id:144,cat:'Správa',q:'Co je to SLA?',opts:['Service Level Agreement','System Logging Application','Secure Link Authorization','Server License Agreement'],a:0},
+  {id:145,cat:'Správa',q:'Co je to RTO?',opts:['Recovery Time Objective – max. doba obnovy','Recovery Transfer Object','Real Time Operation','Remote Task Operation'],a:0},
+  {id:146,cat:'Správa',q:'Co je to RPO?',opts:['Recovery Point Objective – max. přijatelná ztráta dat','Remote Protocol Option','Real Process Operation','Recovery Packet Objective'],a:0},
+  {id:147,cat:'Správa',q:'Co je to Prometheus?',opts:['Zálohovací software','Open-source monitorovací a alertovací nástroj','Typ databáze','Typ hypervisoru'],a:1},
+  {id:148,cat:'Správa',q:'Co je to Grafana?',opts:['Typ databáze','Vizualizační platforma pro metriky a logy','Zálohovací software','Typ firewallu'],a:1},
+  {id:149,cat:'Správa',q:'Co je to uptime?',opts:['Rychlost serveru','Doba, po kterou je systém dostupný a funkční','Výkon CPU','Kapacita disku'],a:1},
+  {id:150,cat:'Správa',q:'Co je to ITIL?',opts:['IT Infrastructure Library – best practices pro IT','Typ databáze','Bezpečnostní framework','Typ síťového protokolu'],a:0},
+  {id:151,cat:'Protokoly',q:'Co je to HTTP status kód 404?',opts:['Server error','Unauthorized','Not Found','Redirect'],a:2},
+  {id:152,cat:'Protokoly',q:'Co je to HTTP status kód 200?',opts:['Redirect','Not Found','OK – úspěšný požadavek','Server Error'],a:2},
+  {id:153,cat:'Protokoly',q:'Co je to HTTP status kód 500?',opts:['OK','Not Found','Internal Server Error','Forbidden'],a:2},
+  {id:154,cat:'Protokoly',q:'Co je to HTTP status kód 301?',opts:['Moved Permanently','Not Found','Server Error','Unauthorized'],a:0},
+  {id:155,cat:'Protokoly',q:'Co je to HTTP status kód 403?',opts:['Not Found','Forbidden – přístup odepřen','Server Error','OK'],a:1},
+  {id:156,cat:'Protokoly',q:'Co je to REST API?',opts:['Remote Execution State Transfer','Representational State Transfer – architektura API','Real-time Event Socket Transfer','Remote Service Terminal'],a:1},
+  {id:157,cat:'Protokoly',q:'Co je to WebSocket?',opts:['Typ webového serveru','Protokol pro full-duplex komunikaci přes TCP','Typ SSL certifikátu','Webový framework'],a:1},
+  {id:158,cat:'Protokoly',q:'Na jakém portu běží SMTP?',opts:['25','110','143','993'],a:0},
+  {id:159,cat:'Protokoly',q:'Co je to IMAP?',opts:['Internet Message Access Protocol','Integrated Mail Application Protocol','Internal Message Access Process','Internet Mail Authentication Protocol'],a:0},
+  {id:160,cat:'Protokoly',q:'Co je to JWT?',opts:['Java Web Tool','JSON Web Token – kompaktní formát pro přenos claims','Java Widget Token','JavaScript Online Node'],a:1},
+  {id:161,cat:'Virtualizace',q:'Co je to VMware ESXi?',opts:['Typ kontejneru','Type-1 hypervisor pro servery','Zálohovací software','Typ cloudu'],a:1},
+  {id:162,cat:'Virtualizace',q:'Co je to kontejner vs. VM?',opts:['Kontejner sdílí OS kernel, VM má vlastní OS','VM je rychlejší než kontejner','Kontejner má lepší izolaci než VM','Nejsou žádné rozdíly'],a:0},
+  {id:163,cat:'Virtualizace',q:'Co je to snapshot VM?',opts:['Záloha fyzického disku','Stav VM uložený v čase','Typ klonování','Snapshot není ve virtualizaci používán'],a:1},
+  {id:164,cat:'Virtualizace',q:'Co je to live migration?',opts:['Přesun dat bez výpadku','Přesun běžícího VM na jiný fyzický host bez výpadku','Záloha za provozu','Typ RAID'],a:1},
+  {id:165,cat:'Virtualizace',q:'Co je to Type-1 vs Type-2 hypervisor?',opts:['Type-1 běží na HW přímo, Type-2 běží nad OS','Type-1 je software, Type-2 hardware','Jsou to synonyma','Type-2 je výkonnější'],a:0},
+  {id:166,cat:'Virtualizace',q:'Co je to Docker Compose?',opts:['Typ kontejneru','Nástroj pro definici a spouštění multi-kontejnerových aplikací','Zálohovací software','Typ orchestrace'],a:1},
+  {id:167,cat:'Virtualizace',q:'Co je to KVM?',opts:['Keyboard Video Mouse přepínač','Kernel-based Virtual Machine','Kubernetes Volume Manager','Key Vault Management'],a:1},
+  {id:168,cat:'Virtualizace',q:'Co je to Hyper-V?',opts:['Typ antivirového programu','Microsoft hypervisor pro virtualizaci','Zálohovací software','Typ cloudu'],a:1},
+  {id:169,cat:'Virtualizace',q:'Co je to vMotion?',opts:['Typ grafické karty','Live migrace VM mezi hostiteli bez výpadku (VMware)','Zálohovací technologie','Typ síťového protokolu'],a:1},
+  {id:170,cat:'Virtualizace',q:'Co je to LXC?',opts:['Linux eXtended Configuration','Linux Containers – lehká virtualizace na úrovni OS','Linux Cross Compilation','Local Exchange Controller'],a:1},
+  {id:171,cat:'Windows',q:'Co je to Active Directory?',opts:['Typ databáze','Adresářová služba pro správu uživatelů a zdrojů','Typ firewallu','Zálohovací software'],a:1},
+  {id:172,cat:'Windows',q:'Co je to Group Policy?',opts:['Typ zabezpečení sítě','Centrální správa konfigurací v AD','Typ zálohy','Správce disků'],a:1},
+  {id:173,cat:'Windows',q:'Co je to LDAP?',opts:['Lightweight Directory Access Protocol','Local Data Access Protocol','Linux Directory Application Protocol','Large Data Access Process'],a:0},
+  {id:174,cat:'Windows',q:'Co je to RDP?',opts:['Remote Desktop Protocol – vzdálený přístup k desktopu','Remote Data Protocol','Reliable Data Process','Remote Device Protocol'],a:0},
+  {id:175,cat:'Windows',q:'Co je to BitLocker?',opts:['Zálohovací software','Šifrovací nástroj Microsoftu pro celý disk','Typ antivirového programu','Správce souborů'],a:1},
+  {id:176,cat:'Windows',q:'Co je to PowerShell?',opts:['Typ grafického rozhraní','Příkazový interpret a skriptovací jazyk Microsoftu','Typ antivirového programu','Typ databáze'],a:1},
+  {id:177,cat:'Windows',q:'Co je to DNS záznam typu A?',opts:['Překlad jména na IPv6','Překlad jména na IPv4 adresu','Mailový server záznam','Alias záznam'],a:1},
+  {id:178,cat:'Windows',q:'Co je to DNS záznam MX?',opts:['IPv4 adresa','IPv6 adresa','Mail Exchange – mailový server domény','Alias'],a:2},
+  {id:179,cat:'Windows',q:'Co je to NTP?',opts:['Network Transfer Protocol','Network Time Protocol – synchronizace času','New Terminal Protocol','Network Tunnel Protocol'],a:1},
+  {id:180,cat:'Windows',q:'Co je to WSUS?',opts:['Windows Server Update Services','Wide System User Service','Windows Secure Update System','Web Server User Service'],a:0},
+  {id:181,cat:'Linux',q:'Co dělá příkaz chmod 755?',opts:['Smaže soubor','Nastaví oprávnění rwxr-xr-x','Vytvoří symbolický link','Změní vlastníka souboru'],a:1},
+  {id:182,cat:'Linux',q:'Co dělá příkaz grep?',opts:['Hledá vzor v textu','Kopíruje soubory','Smaže soubory','Komprimuje soubory'],a:0},
+  {id:183,cat:'Linux',q:'Co je to SSH klíč?',opts:['Šifrovací klíč pro SSH autentizaci bez hesla','Heslo pro SSH','Typ SSL certifikátu','Port pro SSH'],a:0},
+  {id:184,cat:'Linux',q:'Co dělá příkaz tar -czf?',opts:['Rozbalí archiv','Vytvoří komprimovaný gzip archiv','Smaže soubory','Zobrazí obsah adresáře'],a:1},
+  {id:185,cat:'Linux',q:'Co je to /etc/fstab?',opts:['Konfigurační soubor zálohy','Tabulka pro automatické připojení diskových oddílů','Soubor uživatelů','Konfigurační soubor sítě'],a:1},
+  {id:186,cat:'Linux',q:'Co dělá příkaz df -h?',opts:['Smaže soubory','Zobrazí využití diskového prostoru v čitelném formátu','Defragmentuje disk','Zobrazí procesy'],a:1},
+  {id:187,cat:'Linux',q:'Co je to SELinux?',opts:['Security Enhanced Linux – rozšíření bezpečnostního modelu','Typ zálohovacího nástroje','Správce balíčků','Typ souborového systému'],a:0},
+  {id:188,cat:'Linux',q:'Co je to inode?',opts:['Typ síťového rozhraní','Datová struktura uchovávající metadata souboru','Typ procesu','Konfigurační soubor'],a:1},
+  {id:189,cat:'Linux',q:'Co dělá příkaz iptables?',opts:['Spravuje diskové tabulky','Konfiguruje firewall v Linuxu','Zobrazuje síťové statistiky','Správce procesů'],a:1},
+  {id:190,cat:'Linux',q:'Co je to cgroups (control groups)?',opts:['Zálohovací skupiny','Mechanismus pro limitování a monitorování zdrojů procesů','Typ uživatelských skupin','Typ síťové skupiny'],a:1},
+  {id:191,cat:'Email',q:'Co je to SPF záznam?',opts:['Sender Policy Framework – autorizace odesílatelů emailu','Simple Protocol Framework','Secure Protocol Filter','Server Policy Format'],a:0},
+  {id:192,cat:'Email',q:'Co je to DKIM?',opts:['DomainKeys Identified Mail – digitální podpis emailu','Dynamic Key Internet Mail','Domain Key Integration Module','Direct Key Internet Message'],a:0},
+  {id:193,cat:'Email',q:'Co je to DMARC?',opts:['Domain-based Message Authentication Reporting and Conformance','Direct Mail Authentication and Response Control','Domain Mail Access Reporting Check','Dynamic Message Authentication Reference Configuration'],a:0},
+  {id:194,cat:'Email',q:'Na jakém portu běží IMAP SSL?',opts:['143','993','110','995'],a:1},
+  {id:195,cat:'Email',q:'Co je to spam?',opts:['Šifrovaný email','Nevyžádaná hromadná pošta','Typ emailového serveru','Záloha emailů'],a:1},
+  {id:196,cat:'Šifrování',q:'Co je to symetrické šifrování?',opts:['Šifrování s jiným klíčem pro šifrování a dešifrování','Šifrování se stejným klíčem pro šifrování a dešifrování','Šifrování bez klíče','Šifrování veřejným klíčem'],a:1},
+  {id:197,cat:'Šifrování',q:'Co je to asymetrické šifrování?',opts:['Šifrování se stejným klíčem','Šifrování s párem veřejného a soukromého klíče','Šifrování bez klíče','Šifrování hashem'],a:1},
+  {id:198,cat:'Šifrování',q:'Co je to digitální certifikát?',opts:['Typ šifrování','Elektronický dokument potvrzující identitu a veřejný klíč','Typ hesla','Zálohovací certifikát'],a:1},
+  {id:199,cat:'Šifrování',q:'Co je to salt v kontextu hesel?',opts:['Typ šifrování','Náhodná hodnota přidaná k heslu před hashováním','Hashovací algoritmus','Šifrovací klíč'],a:1},
+  {id:200,cat:'Šifrování',q:'Co je to end-to-end šifrování?',opts:['Šifrování na serveru','Šifrování kde pouze odesílatel a příjemce mohou číst zprávy','Typ šifrování disku','Šifrování VPN tunelu'],a:1},
+  {id:201,cat:'DC',q:'Co je to PUE v datovém centru?',opts:['Power Usage Effectiveness – efektivita využití energie','Primary Unit Equipment','Protocol Update Engine','Power Unit Efficiency'],a:0},
+  {id:202,cat:'DC',q:'Co je to hot aisle/cold aisle?',opts:['Typ chlazení serverů','Uspořádání serverových racků pro efektivní chlazení','Typ napájení','Zálohovací systém'],a:1},
+  {id:203,cat:'DC',q:'Co je to IPMI?',opts:['Intelligent Platform Management Interface – vzdálená správa serverů','Internet Protocol Management Interface','Internal Platform Monitor Interface','Intelligent Power Management Integration'],a:0},
+  {id:204,cat:'DC',q:'Jaká je standardní výška rack jednotky (1U)?',opts:['4.45 cm (1.75 palce)','5 cm','3 cm','6 cm'],a:0},
+  {id:205,cat:'DC',q:'Co je to colocation (colo)?',opts:['Typ zálohy','Pronájem fyzického prostoru v DC pro vlastní servery','Typ cloudu','Virtualizace'],a:1},
+  {id:206,cat:'IoT',q:'Co je to MQTT protokol?',opts:['Síťový protokol pro email','Lehký protokol pro IoT komunikaci','Typ databáze','Šifrovací protokol'],a:1},
+  {id:207,cat:'IoT',q:'Co je to Raspberry Pi?',opts:['Typ procesoru','Jednodeskový mini počítač','Typ IoT senzoru','Zálohovací zařízení'],a:1},
+  {id:208,cat:'IoT',q:'Co je to edge computing?',opts:['Záloha dat na okraji sítě','Zpracování dat blíže zdroji dat místo v centrálním cloudu','Typ síťového přepínání','Bezdrátová komunikace'],a:1},
+  {id:209,cat:'IoT',q:'Co je to firmware?',opts:['Typ softwaru pro virtualizaci','Software napevno uložený v HW zařízení','Typ zálohy','Druh operačního systému'],a:1},
+  {id:210,cat:'IoT',q:'Co je to LoRa?',opts:['Local Radio Access','Long Range – technologie bezdrátové komunikace pro IoT','Low Rate Access','Local Remote Access'],a:1},
+  {id:211,cat:'AI/ML',q:'Co je to GPU akcelerace v AI?',opts:['Záloha dat','Využití GPU pro paralelní výpočty v strojovém učení','Typ sítě','Bezpečnostní technika'],a:1},
+  {id:212,cat:'AI/ML',q:'Co je to TPU?',opts:['Transfer Processing Unit','Tensor Processing Unit – Google čip pro AI','Thermal Processing Unit','Total Power Unit'],a:1},
+  {id:213,cat:'AI/ML',q:'Co je to LLM?',opts:['Low Latency Module','Large Language Model – velký jazykový model AI','Local Linux Module','Long Life Memory'],a:1},
+  {id:214,cat:'AI/ML',q:'Co je to CUDA?',opts:['Typ databáze','NVIDIA platforma pro paralelní výpočty na GPU','Zálohovací software','Typ operačního systému'],a:1},
+  {id:215,cat:'AI/ML',q:'Co je to inference v kontextu ML?',opts:['Záloha modelu','Spuštění natrénovaného modelu pro predikci','Trénování modelu','Typ datasetu'],a:1},
+  {id:216,cat:'Sítě',q:'Co je to OSPF?',opts:['Open Shortest Path First – routovací protokol','Open Source Protocol Framework','Optical Signal Path Filter','Open System Port Filter'],a:0},
+  {id:217,cat:'Sítě',q:'Co je to QoS?',opts:['Quality of Service – prioritizace síťového provozu','Quantity of Systems','Queue of Servers','Quick Operation System'],a:0},
+  {id:218,cat:'Sítě',q:'Co je to loopback adresa?',opts:['0.0.0.0','127.0.0.1','192.168.0.1','255.255.255.255'],a:1},
+  {id:219,cat:'Sítě',q:'Co je to MTU?',opts:['Maximum Transfer Unit','Maximum Transmission Unit – maximální velikost paketu','Minimum Transfer Unit','Medium Transfer Utility'],a:1},
+  {id:220,cat:'Sítě',q:'Co je to LACP?',opts:['Link Aggregation Control Protocol','Local Area Control Protocol','LAN Access Configuration Protocol','Layer Access Control Process'],a:0},
+  {id:221,cat:'Sítě',q:'Co je to ICMP?',opts:['Internet Control Message Protocol – diagnostický protokol','Internet Connection Management Protocol','Internal Core Message Process','Integrated Control Messaging Protocol'],a:0},
+  {id:222,cat:'Sítě',q:'Co je to port forwarding?',opts:['Přesměrování externího portu na interní IP a port','Typ zálohy','Protokol pro sítě','Bezpečnostní funkce'],a:0},
+  {id:223,cat:'Sítě',q:'Co je to IPSEC?',opts:['Internet Protocol Security – sada protokolů pro bezpečnou IP komunikaci','Internet Proxy Service Control','Integrated Protocol Security','Internal Port Security Controller'],a:0},
+  {id:224,cat:'Sítě',q:'Co je to trunk port ve switchingu?',opts:['Port pro jedno VLAN','Port přenášející provoz více VLAN','Uplink port na internet','Port pro management'],a:1},
+  {id:225,cat:'Sítě',q:'Co je to ARP spoofing?',opts:['Útok podvrhující ARP odpovědi ke korupci ARP tabulky','Typ zálohy','Protokol pro správu sítí','Bezpečný ARP protokol'],a:0},
+  {id:226,cat:'Teorie',q:'Co je to garbage collection?',opts:['Typ zálohy','Automatická správa paměti odstraňující nepoužívané objekty','Typ šifrování','Monitorovací technika'],a:1},
+  {id:227,cat:'Teorie',q:'Co je to middleware?',opts:['Typ hardwaru','Software propojující různé aplikace nebo systémy','Typ zálohy','Síťový protokol'],a:1},
+  {id:228,cat:'Teorie',q:'Co je to message queue?',opts:['Typ databáze','Systém pro asynchronní předávání zpráv mezi systémy','Typ zálohy','Monitorovací systém'],a:1},
+  {id:229,cat:'Teorie',q:'Co je to webhook?',opts:['Typ zálohy','HTTP callback spouštěný při určité události','Typ VPN','Síťový protokol'],a:1},
+  {id:230,cat:'Teorie',q:'Co je to rate limiting?',opts:['Rychlost sítě','Omezení počtu požadavků za časový interval','Typ zálohy','Typ firewallu'],a:1},
+  {id:231,cat:'Teorie',q:'Co je to caching?',opts:['Typ zálohy','Ukládání dat do rychlé mezipaměti pro urychlení přístupu','Typ šifrování','Monitorovací technika'],a:1},
+  {id:232,cat:'Teorie',q:'Co je to SaaS příklad?',opts:['Windows Server','Gmail, Office 365','VMware ESXi','MySQL'],a:1},
+  {id:233,cat:'Teorie',q:'Co je to technical debt?',opts:['Finanční náklady na IT','Nahromaděné kompromisy v kódu/systému způsobující budoucí problémy','Typ zálohy','Bezpečnostní deficit'],a:1},
+  {id:234,cat:'Teorie',q:'Co je to chaos engineering?',opts:['Typ šifrování','Intencionální vnášení poruch k testování odolnosti systémů','Typ zálohy','Monitorovací technika'],a:1},
+  {id:235,cat:'Teorie',q:'Co je to canary deployment?',opts:['Typ zálohy','Postupné nasazení nové verze na malou část uživatelů','Typ šifrování','Zálohovací strategie'],a:1},
+  {id:236,cat:'Bezpečnost',q:'Co je to CVE?',opts:['Common Vulnerabilities and Exposures – databáze zranitelností','Central Virus Encryption','Core Vulnerability Engine','Computer Verified Exploit'],a:0},
+  {id:237,cat:'Bezpečnost',q:'Co je to OWASP Top 10?',opts:['10 nejrychlejších webových serverů','Seznam 10 nejkritičtějších webových zranitelností','10 nejlepších bezpečnostních nástrojů','10 pravidel správy hesel'],a:1},
+  {id:238,cat:'Bezpečnost',q:'Co je to privilege escalation?',opts:['Zvýšení oprávnění nad rámec přidělených práv','Typ šifrování','Zálohovací technika','Typ síťového útoku'],a:0},
+  {id:239,cat:'Bezpečnost',q:'Co je to APT?',opts:['Automatic Protocol Transfer','Advanced Persistent Threat – sofistikovaný dlouhodobý útok','Application Protocol Testing','Automated Penetration Testing'],a:1},
+  {id:240,cat:'Bezpečnost',q:'Co je to MFA?',opts:['Multi-Function Adapter','Multi-Factor Authentication – vícefaktorové ověření','Main Firewall Agent','Managed Function Access'],a:1},
+  {id:241,cat:'Bezpečnost',q:'Co je to RBAC?',opts:['Role-Based Access Control – přístup na základě rolí','Remote Backup and Control','Rule-Based Access Configuration','Registry Backup and Control'],a:0},
+  {id:242,cat:'Bezpečnost',q:'Co je to ISO 27001?',opts:['Typ síťového kabelu','Mezinárodní norma pro systémy řízení bezpečnosti informací','Zálohovací protokol','Typ firewallu'],a:1},
+  {id:243,cat:'Bezpečnost',q:'Co je to social engineering?',opts:['Technický útok na síť','Manipulace lidí k odhalení informací nebo provedení akcí','Typ malware','Zálohovací strategie'],a:1},
+  {id:244,cat:'Bezpečnost',q:'Co je to Nmap?',opts:['Zálohovací software','Populární nástroj pro skenování sítí a portů','Monitorovací databáze','Typ firewallu'],a:1},
+  {id:245,cat:'Bezpečnost',q:'Co je to Wireshark?',opts:['Zálohovací nástroj','Network protocol analyzer pro zachytávání a analýzu síťového provozu','Typ firewallu','Monitorovací server'],a:1},
+  {id:246,cat:'Databáze',q:'Co je to CAP theorem?',opts:['Consistency, Availability, Partition tolerance – nelze mít vše najednou','Capacity, Access, Performance','Core Application Properties','Central Archive Protocol'],a:0},
+  {id:247,cat:'Databáze',q:'Co je to OLTP vs OLAP?',opts:['OLTP pro transakce, OLAP pro analytiku','OLTP je pomalejší','OLAP pro transakce, OLTP pro analytiku','Jsou totožné'],a:0},
+  {id:248,cat:'Databáze',q:'Co je to data warehouse?',opts:['Fyzický sklad serverů','Centralizované úložiště historických dat pro analytiku','Typ zálohy','Distribuovaná databáze'],a:1},
+  {id:249,cat:'Databáze',q:'Co je to ETL?',opts:['Extract Transform Load – proces pro přesun dat','External Transfer Layer','Efficient Table Link','Event Transfer Logic'],a:0},
+  {id:250,cat:'Databáze',q:'Co je to stored procedure?',opts:['Zálohovací procedura','Pojmenovaný blok SQL kódu uložený v databázi','Typ transakce','Typ indexu'],a:1},
+  {id:251,cat:'Sítě',q:'Co je to SDN?',opts:['Software Defined Networking','Secure Data Node','Standard Domain Name','Single Device Network'],a:0},
+  {id:252,cat:'Sítě',q:'Co je to MPLS?',opts:['Multi Protocol Label Switching','Multiple Path Load System','Main Protocol Link Service','Multi Point Layer Switching'],a:0},
+  {id:253,cat:'Sítě',q:'Co je to GRE tunel?',opts:['Generic Routing Encapsulation – tunelovací protokol','Gateway Routing Extension','General Remote Endpoint','Global Routing Engine'],a:0},
+  {id:254,cat:'Sítě',q:'Co je to HSRP?',opts:['Hot Standby Router Protocol – redundance defaultní brány','High Speed Routing Protocol','Hybrid Secure Routing Protocol','Hot Swap Router Process'],a:0},
+  {id:255,cat:'Sítě',q:'Co je to jumbo frame?',opts:['Velký síťový přepínač','Ethernet frame větší než standardních 1500 bytů','Typ síťového protokolu','Velký datový paket'],a:1},
+  {id:256,cat:'Cloud',q:'Co je to AWS S3?',opts:['Typ virtuálního stroje','Objektové úložiště v AWS','Databázová služba','Síťová služba'],a:1},
+  {id:257,cat:'Cloud',q:'Co je to microservices architektura?',opts:['Typ databáze','Architektura rozdělující aplikaci na malé nezávislé služby','Typ zálohy','Monitorovací systém'],a:1},
+  {id:258,cat:'Cloud',q:'Co je to GitOps?',opts:['Git záloha','Praxe kde Git je zdrojem pravdy pro infrastrukturu a aplikace','Typ verzovacího systému','Zálohovací strategie'],a:1},
+  {id:259,cat:'Cloud',q:'Co je to blue-green deployment?',opts:['Zálohovací metoda','Technika s dvěma identickými prostředími pro bezrizikové nasazení','Typ šifrování','Monitorovací metoda'],a:1},
+  {id:260,cat:'Cloud',q:'Co je to observability?',opts:['Typ monitoringu','Schopnost pochopit interní stav systému z externích výstupů (logy, metriky, traces)','Zálohovací audit','Typ bezpečnosti'],a:1},
+  {id:261,cat:'Správa',q:'Co je to MTBF?',opts:['Mean Time Between Failures – průměrná doba mezi poruchami','Maximum Transfer Bandwidth Frequency','Minimum Time Before Failure','Mean Transfer Buffer Frequency'],a:0},
+  {id:262,cat:'Správa',q:'Co je to MTTR?',opts:['Mean Time To Repair – průměrná doba opravy','Maximum Transfer Time Rate','Minimum Transfer Time Rate','Mean Total Transfer Rate'],a:0},
+  {id:263,cat:'Správa',q:'Co je to HA (High Availability)?',opts:['Rychlý přístup k datům','Schopnost systému fungovat s minimálním výpadkem','Typ zálohy','Vysoký výkon systému'],a:1},
+  {id:264,cat:'Správa',q:'Co je to CMDB?',opts:['Configuration Management Database – databáze IT aktiv','Central Monitoring Database','Core Module Database','Computer Management Data Bridge'],a:0},
+  {id:265,cat:'Správa',q:'Co je to CAB v ITIL?',opts:['Change Advisory Board – schvalovací orgán pro změny IT','Computer Access Board','Central Application Base','Core Application Backup'],a:0},
+  {id:266,cat:'Protokoly',q:'Co je to OAuth 2.0?',opts:['Šifrovací protokol','Otevřený standard pro autorizaci přístupu','Zálohovací protokol','Typ VPN'],a:1},
+  {id:267,cat:'Protokoly',q:'Co je to SAML?',opts:['Security Assertion Markup Language – standard pro federativní přihlašování','Simple API Markup Language','Secure Access Module Language','System Authentication Markup Library'],a:0},
+  {id:268,cat:'Protokoly',q:'Co je to OpenID Connect?',opts:['Typ zálohy','Identitní vrstva nad OAuth 2.0 pro autentizaci','Typ šifrování','Zálohovací protokol'],a:1},
+  {id:269,cat:'Protokoly',q:'Co je to gRPC?',opts:['Typ zálohy','Google Remote Procedure Call – moderní RPC framework','Typ databáze','Síťový protokol'],a:1},
+  {id:270,cat:'Protokoly',q:'Co je to SOAP?',opts:['Simple Object Access Protocol – protokol pro webové služby','Secure Open Access Protocol','Standard Object Application Protocol','Simple Online Access Protocol'],a:0},
+  {id:271,cat:'Telco',q:'Co je to 5G?',opts:['Pátá generace WiFi','Pátá generace mobilních sítí','Typ satelitní komunikace','Typ optického kabelu'],a:1},
+  {id:272,cat:'Telco',q:'Co je to LTE?',opts:['Long Term Evolution – standard 4G mobilních sítí','Local Transfer Extension','Linear Transfer Encoding','Long Term Ethernet'],a:0},
+  {id:273,cat:'Telco',q:'Co je to VOIP?',opts:['Voice Over Internet Protocol','Video Over IP','Verified Online IP Protocol','Virtual Office IP'],a:0},
+  {id:274,cat:'Telco',q:'Co je to SIM karta?',opts:['Subscriber Identity Module','System Integration Module','Secure Interface Module','Subscriber Internet Module'],a:0},
+  {id:275,cat:'Telco',q:'Co je to SMS?',opts:['Short Message Service','Secure Message System','Simple Mail Service','Short Media Stream'],a:0},
+  {id:276,cat:'Šifrování',q:'Co je to Diffie-Hellman výměna klíčů?',opts:['Typ šifrování dat','Protokol pro bezpečnou výměnu klíčů přes nezabezpečený kanál','Typ digitálního podpisu','Hashovací algoritmus'],a:1},
+  {id:277,cat:'Šifrování',q:'Co je to PGP?',opts:['Pretty Good Privacy – šifrování emailů a souborů','Public Group Protocol','Private Gateway Protocol','Personal Guard Protocol'],a:0},
+  {id:278,cat:'Šifrování',q:'Co je to PKI infrastruktura?',opts:['Systém pro správu digitálních certifikátů a klíčů','Typ zálohy','Protokol pro VPN','Monitorovací systém'],a:0},
+  {id:279,cat:'Šifrování',q:'Co je to HMAC?',opts:['Hash-based Message Authentication Code','HTTP Message Authentication Control','High-security MAC address','Hybrid MAC algorithm'],a:0},
+  {id:280,cat:'Šifrování',q:'Co je to forward secrecy (PFS)?',opts:['Typ zálohy','Vlastnost kde kompromitace dlouhodobého klíče neodhalí historické relace','Typ šifrování','Zálohovací klíč'],a:1},
+  {id:281,cat:'Periferie',q:'Co je to DPI u myší?',opts:['Dots Per Image','Dots Per Inch – citlivost snímače','Data Processing Index','Device Protocol Interface'],a:1},
+  {id:282,cat:'Periferie',q:'Co je to LCD displej?',opts:['Light-Emitting Crystal Display','Liquid Crystal Display','Layered Color Display','Light Color Diffusion'],a:1},
+  {id:283,cat:'Periferie',q:'Co je to OLED displej?',opts:['Organic Light Emitting Diode','Optical LED Display','Open Light Emitting Device','Organic Layer Electronic Display'],a:0},
+  {id:284,cat:'Periferie',q:'Co je to refresh rate monitoru?',opts:['Rozlišení displeje','Počet snímků zobrazených za sekundu (Hz)','Jas displeje','Kontrast displeje'],a:1},
+  {id:285,cat:'Periferie',q:'Co je to UPS?',opts:['Unified Power System','Uninterruptible Power Supply – záložní napájení','Universal Protocol Service','Upstream Power Source'],a:1},
+  {id:286,cat:'Zálohy',q:'Co je to inkrementální záloha?',opts:['Záloha celého systému','Záloha pouze změn od poslední zálohy','Záloha od poslední plné zálohy','Záloha v reálném čase'],a:1},
+  {id:287,cat:'Zálohy',q:'Co je to diferenciální záloha?',opts:['Záloha změn od poslední inkrementální zálohy','Záloha změn od poslední plné zálohy','Záloha celého systému každý den','Záloha v cloudu'],a:1},
+  {id:288,cat:'Zálohy',q:'Co je to DR (Disaster Recovery)?',opts:['Digitální restaurace dat','Plán a procesy pro obnovu IT po katastrofě','Druh zálohy','Typ RAID'],a:1},
+  {id:289,cat:'Zálohy',q:'Co je to hot backup?',opts:['Záloha v horkém podnebí','Záloha prováděná za provozu systému','Záloha pásky','Záloha na HDD'],a:1},
+  {id:290,cat:'Zálohy',q:'Co je to GFS zálohovací strategie?',opts:['Global File System','Grandfather-Father-Son – rotační zálohovací schéma','General Filesystem Strategy','Global Fault System'],a:1},
+  {id:291,cat:'Sítě',q:'Co je to RADIUS?',opts:['Remote Authentication Dial-In User Service – AAA protokol','Router Access Dial-In Unit Service','Remote Access Data Interface User System','Router Authentication Data Interface User Service'],a:0},
+  {id:292,cat:'Sítě',q:'Co je to TACACS+?',opts:['Terminal Access Controller Access Control System – AAA protokol','Total Access Control and Configuration System','Transfer Authentication Control Accounting Service','Terminal Authentication Control and Configuration System'],a:0},
+  {id:293,cat:'Sítě',q:'Co je to AAA v síťové bezpečnosti?',opts:['Authentication, Authorization, Accounting','Access, Audit, Administration','Authentication, Access, Accounting','Automatic Authorization Access'],a:0},
+  {id:294,cat:'Sítě',q:'Co je to NetFlow?',opts:['Typ síťového kabelu','Protokol pro analýzu síťového provozu (Cisco)','Typ VPN','Bezdrátový protokol'],a:1},
+  {id:295,cat:'Sítě',q:'Co je to SNMP trap?',opts:['Typ VPN tunelu','Nevyžádané upozornění z SNMP agenta na management stanici','Bezpečnostní past','Typ SNMP dotazu'],a:1},
+  {id:296,cat:'Hardware',q:'Co je to Intel Hyper-Threading?',opts:['Technologie přetaktování CPU','Technologie kdy jeden fyzický core pracuje jako dva logické','Typ cache procesoru','Způsob chlazení CPU'],a:1},
+  {id:297,cat:'Hardware',q:'Co je to TurboBoost?',opts:['Typ chlazení','Intel technologie dočasného zvýšení frekvence CPU','Typ RAM','Zálohovací technologie'],a:1},
+  {id:298,cat:'Hardware',q:'Co je to NUMA?',opts:['Non-Uniform Memory Access – architektura pro vícejádrové systémy','New Unified Memory Architecture','Network Unified Memory Access','Non-Unified Module Architecture'],a:0},
+  {id:299,cat:'Hardware',q:'Co je to dual channel paměť?',opts:['Záložní paměť','Provoz dvou identických modulů RAM pro zdvojení šířky pásma','Typ ECC paměti','Záložní paměťový kanál'],a:1},
+  {id:300,cat:'Hardware',q:'Co je to FLOPS?',opts:['Typ chyby CPU','Floating Point Operations Per Second – míra výkonu CPU/GPU','Typ přetaktování','Zálohovací kapacita'],a:1},
+  {id:301,cat:'Správa',q:'Co je to Puppet?',opts:['Monitorovací nástroj','Configuration management nástroj pro automatizaci IT','Typ zálohy','Typ databáze'],a:1},
+  {id:302,cat:'Správa',q:'Co je to Vault od HashiCorp?',opts:['Zálohovací trezor','Správce tajemství (secrets) a šifrovacích klíčů','Typ hypervisoru','Monitorovací nástroj'],a:1},
+  {id:303,cat:'Správa',q:'Co je to SRE?',opts:['Site Reliability Engineering – disciplína pro spolehlivost systémů','Server Resource Engineering','System Recovery Engine','Secure Runtime Environment'],a:0},
+  {id:304,cat:'Správa',q:'Co je to incident management?',opts:['Zálohovací incident','Proces detekce, diagnostiky a řešení IT incidentů','Typ monitoringu','Zálohovací technika'],a:1},
+  {id:305,cat:'Správa',q:'Co je to Configuration Drift?',opts:['Typ zálohy','Odchylka konfigurace od požadovaného stavu v průběhu času','Typ monitoringu','Zálohovací technika'],a:1},
+  {id:306,cat:'Teorie',q:'Co je to Infrastructure as Code (IaC)?',opts:['Typ zálohy','Správa a provisioning infrastruktury přes strojově čitelné konfigurační soubory','Typ monitoringu','Zálohovací strategie'],a:1},
+  {id:307,cat:'Teorie',q:'Co je to immutable deployment?',opts:['Zálohovací metoda','Nasazení kde komponenty jsou nahrazeny novými místo modifikace','Typ šifrování','Zálohovací strategie'],a:1},
+  {id:308,cat:'Teorie',q:'Co je to semantic versioning (SemVer)?',opts:['Zálohovací verze','Formát verzování MAJOR.MINOR.PATCH s definovanými pravidly','Typ zálohy','Zálohovací schéma'],a:1},
+  {id:309,cat:'Teorie',q:'Co je to circuit breaker pattern?',opts:['Typ zálohy','Vzor přerušující volání selhávající služby k prevenci kaskádového selhání','Typ šifrování','Zálohovací vzor'],a:1},
+  {id:310,cat:'Teorie',q:'Co je to eventual consistency?',opts:['Zálohovací konzistence','Garance že systém bude v konzistentním stavu po určité době','Typ databáze','Zálohovací strategie'],a:1},
+  {id:311,cat:'DC',q:'Co je to power redundancy N+1?',opts:['Zálohovací napájení','Jeden záložní napájecí zdroj nad minimální potřebu','Typ UPS','Zálohovací generátor'],a:1},
+  {id:312,cat:'DC',q:'Co je to tier klasifikace DC (Tier 1-4)?',opts:['Typ cloudu','Klasifikace datových center podle redundance a dostupnosti','Typ zálohy','Klasifikace serverů'],a:1},
+  {id:313,cat:'DC',q:'Co je to free cooling v DC?',opts:['Bezplatné chlazení','Využití venkovního vzduchu nebo vody k chlazení bez mechanické klimatizace','Zálohovací chlazení','Typ klimatizace'],a:1},
+  {id:314,cat:'DC',q:'Co je to structured cabling?',opts:['Typ zálohy','Standardizovaný systém kabeláže pro telekomunikace v budovách','Typ síťového protokolu','Zálohovací kabeláž'],a:1},
+  {id:315,cat:'DC',q:'Co je to rack PDU?',opts:['Protocol Data Unit serveru','Power Distribution Unit – distributor napájení v racku','Primary Drive Unit','Processor Data Utility'],a:1},
+  {id:316,cat:'Bezpečnost',q:'Co je to GDPR v kontextu IT?',opts:['Zákon o bezpečnosti sítí','Nařízení o ochraně osobních údajů v EU','Typ zálohovacího standardu','Protokol pro šifrování'],a:1},
+  {id:317,cat:'Bezpečnost',q:'Co je to threat modeling?',opts:['Zálohovací strategie','Systematická analýza potenciálních bezpečnostních hrozeb','Typ antivirového programu','Monitorovací nástroj'],a:1},
+  {id:318,cat:'Bezpečnost',q:'Co je to IDS vs IPS?',opts:['IDS detekuje útoky, IPS je aktivně blokuje','IDS blokuje, IPS detekuje','Jsou to synonyma','IDS je hardware, IPS software'],a:0},
+  {id:319,cat:'Bezpečnost',q:'Co je to Metasploit?',opts:['Zálohovací framework','Framework pro penetrační testování a exploit development','Typ antivirového programu','Monitorovací nástroj'],a:1},
+  {id:320,cat:'Bezpečnost',q:'Co je to honeypot?',opts:['Typ šifrování','Návnada simulující zranitelný systém','Typ firewallu','Zálohovací systém'],a:1},
+  {id:321,cat:'Linux',q:'Co je to /etc/passwd?',opts:['Soubor s hesly uživatelů','Soubor s informacemi o uživatelských účtech','Konfigurační soubor sítě','Konfigurační soubor SSH'],a:1},
+  {id:322,cat:'Linux',q:'Co je to namespace v Linuxu?',opts:['Typ proměnné','Mechanismus izolace zdrojů pro procesy (základ kontejnerů)','Typ souborového systému','Zálohovací oddíl'],a:1},
+  {id:323,cat:'Linux',q:'Co dělá příkaz ss?',opts:['Screenshot příkaz','Zobrazuje informace o síťových socketech (nástupce netstat)','Správce souborů','Typ SSH příkazu'],a:1},
+  {id:324,cat:'Linux',q:'Co je to AppArmor?',opts:['Typ antivirového programu','Linux bezpečnostní modul pro omezení oprávnění aplikací','Typ zálohy','Správce balíčků'],a:1},
+  {id:325,cat:'Linux',q:'Co je to /dev/null?',opts:['Zálohovací cíl','Speciální soubor pohlcující veškerý výstup','Typ souborového systému','Záloha null pointeru'],a:1},
+  {id:326,cat:'Sítě',q:'Co je to EIGRP?',opts:['Enhanced Interior Gateway Routing Protocol – Cisco proprietární','External Internet Gateway Routing Protocol','Extended Internal Gateway Routing Process','Enhanced IP Gateway Routing Protocol'],a:0},
+  {id:327,cat:'Sítě',q:'Co je to ECMP?',opts:['Equal-Cost Multi-Path – load balancing po více cestách stejné ceny','External Connection Multi-Protocol','Extended Core Monitoring Protocol','Efficient Cisco Multicast Protocol'],a:0},
+  {id:328,cat:'Sítě',q:'Co je to spine-leaf architektura?',opts:['Typ zálohy','Dvouvrstvá síťová architektura pro DC s nízkým latencí','Typ WiFi','Síťová topologie pro malé sítě'],a:1},
+  {id:329,cat:'Sítě',q:'Co je to dual-stack v kontextu IPv4/IPv6?',opts:['Záložní síť','Provoz IPv4 i IPv6 současně na jednom zařízení','Typ RAID','Záložní router'],a:1},
+  {id:330,cat:'Sítě',q:'Co je to DWDM?',opts:['Dense Wavelength Division Multiplexing – přenos dat po optice na více vlnových délkách','Direct Wireless Data Module','Dynamic Web Domain Management','Distributed Wide Data Multiplexing'],a:0},
+  {id:331,cat:'Windows',q:'Co je to Kerberos?',opts:['Bezpečnostní protokol pro autentizaci v síti','Typ firewallu','Zálohovací software','Správce úloh'],a:0},
+  {id:332,cat:'Windows',q:'Co je to WMI?',opts:['Windows Management Instrumentation – rozhraní pro správu Windows','Windows Module Interface','Wide Media Integration','Web Management Interface'],a:0},
+  {id:333,cat:'Windows',q:'Co je to NTLM?',opts:['NT LAN Manager – autentizační protokol','New Transfer Layer Module','Network Terminal Login Module','NT Local Manager'],a:0},
+  {id:334,cat:'Windows',q:'Co je to Task Scheduler?',opts:['Správce procesů','Plánovač úloh ve Windows','Typ databáze','Zálohovací software'],a:1},
+  {id:335,cat:'Windows',q:'Co je to Event Viewer?',opts:['Prohlížeč fotografií','Nástroj pro prohlížení systémových logů Windows','Správce disků','Typ antivirového programu'],a:1},
+  {id:336,cat:'Cloud',q:'Co je co Helm v kontextu Kubernetes?',opts:['Monitorovací nástroj','Package manager pro Kubernetes','Zálohovací software','Typ kontejneru'],a:1},
+  {id:337,cat:'Cloud',q:'Co je to service mesh?',opts:['Typ sítě','Infrastrukturní vrstva pro komunikaci mezi mikroslužbami','Typ databáze','Zálohovací systém'],a:1},
+  {id:338,cat:'Cloud',q:'Co je to cloud bursting?',opts:['Selhání cloudu','Přelití zátěže z privátního do veřejného cloudu při špičce','Záloha cloudu','Typ šifrování v cloudu'],a:1},
+  {id:339,cat:'Cloud',q:'Co je to hybrid cloud?',opts:['Zálohovací cloud','Kombinace privátního a veřejného cloudu','Typ zálohy','Satelitní cloud'],a:1},
+  {id:340,cat:'Cloud',q:'Co je to FinOps?',opts:['Typ databáze','Praxe optimalizace cloudových nákladů v rámci organizace','Zálohovací metoda','Typ cloudu'],a:1},
+  {id:341,cat:'Teorie',q:'Co je to A/B testování?',opts:['Zálohovací metoda','Porovnání dvou verzí pro určení která funguje lépe','Typ bezpečnostního auditu','Zálohovací strategie'],a:1},
+  {id:342,cat:'Teorie',q:'Co je to stress testing?',opts:['Zálohovací test','Test systému pod extrémní zátěží k nalezení limitů','Typ bezpečnostního testu','Monitorovací test'],a:1},
+  {id:343,cat:'Teorie',q:'Co je to smoke test?',opts:['Test hasiče','Základní test ověřující nejdůležitější funkce systému','Zálohovací test','Bezpečnostní test'],a:1},
+  {id:344,cat:'Teorie',q:'Co je to idempotence?',opts:['Typ šifrování','Vlastnost operace kde opakované provedení dá stejný výsledek','Zálohovací princip','Síťový protokol'],a:1},
+  {id:345,cat:'Teorie',q:'Co je to race condition?',opts:['Typ síťového závodu','Chyba kdy výsledek závisí na pořadí paralelních operací','Bezpečnostní útok','Typ zálohy'],a:1},
+  {id:346,cat:'Bezpečnost',q:'Co je to spyware?',opts:['Software zálohující data','Software sledující uživatele bez jeho vědomí','Antivirový program','Firewall'],a:1},
+  {id:347,cat:'Bezpečnost',q:'Co je to PKI?',opts:['Public Key Infrastructure','Private Key Interface','Protocol Key Integration','Primary Key Index'],a:0},
+  {id:348,cat:'Bezpečnost',q:'Co je to CSRF útok?',opts:['Cross-Site Request Forgery','Computer Security Response Force','Central Server Request Filter','Cross System Resource Framework'],a:0},
+  {id:349,cat:'Bezpečnost',q:'Co je to certificate pinning?',opts:['Záloha certifikátu','Technika svazující aplikaci s konkrétním certifikátem pro prevenci MITM','Typ šifrování','Typ PKI'],a:1},
+  {id:350,cat:'Bezpečnost',q:'Co je to SOC (Security Operations Center)?',opts:['Typ firewallu','Tým a centrum pro monitoring a reakci na bezpečnostní incidenty','Zálohovací centrum','Typ cloudu'],a:1},
+  {id:351,cat:'Hardware',q:'Co je to TRIM příkaz pro SSD?',opts:['Příkaz pro přetaktování','Příkaz informující SSD o nepoužívaných blocích pro efektivní mazání','Typ zálohy SSD','Diagnostický příkaz'],a:1},
+  {id:352,cat:'Hardware',q:'Co je to iGPU?',opts:['Interní GPU','Integrovaná grafická karta v procesoru','Typ externího GPU','Industriální GPU'],a:1},
+  {id:353,cat:'Hardware',q:'Co je to KVM over IP?',opts:['Virtualizační technologie','Vzdálená správa serveru s přístupem na KVM přes síť','Zálohovací technologie','Typ hypervisoru'],a:1},
+  {id:354,cat:'Hardware',q:'Co je to server management karta (iDRAC/iLO)?',opts:['Typ grafické karty','Dedikovaná karta pro out-of-band správu serveru','Zálohovací karta','Síťová karta'],a:1},
+  {id:355,cat:'Hardware',q:'Co je to bottleneck?',opts:['Typ síťového problému','Komponenta omezující výkon celého systému','Typ chladiče','Zálohovací problém'],a:1},
+  {id:356,cat:'Sítě',q:'Co je to hvězdicová topologie sítě?',opts:['Všechna zařízení propojena přímo','Všechna zařízení připojena k centrálnímu uzlu','Zařízení v kruhu','Zařízení v mřížce'],a:1},
+  {id:357,cat:'Sítě',q:'Co je to mesh topologie?',opts:['Zařízení v řadě','Každé zařízení spojeno s každým nebo více zařízeními','Zařízení ve hvězdě','Centrální uzel'],a:1},
+  {id:358,cat:'Sítě',q:'Co je to IS-IS routovací protokol?',opts:['Internet System-Interconnect Service','Intermediate System to Intermediate System – link-state protokol','Internal Server Interface Service','Integrated Service Interface System'],a:1},
+  {id:359,cat:'Sítě',q:'Co je to anycast?',opts:['Broadcast na všechny uzly','Komunikace kde data jsou doručena nejbližšímu uzlu ze skupiny','Unicast komunikace','Komunikace na konkrétní IP'],a:1},
+  {id:360,cat:'Sítě',q:'Co je to IKE v kontextu VPN?',opts:['Internet Key Exchange – protokol pro výměnu klíčů v IPSec','Internal Key Engine','Integrated Key Encryption','Internet Knowledge Exchange'],a:0},
+  {id:361,cat:'AI/ML',q:'Co je to neural network?',opts:['Typ zálohy','Výpočetní model inspirovaný biologickými neurony pro strojové učení','Typ databáze','Síťový protokol'],a:1},
+  {id:362,cat:'AI/ML',q:'Co je to deep learning?',opts:['Hluboká záloha','Podoblast ML využívající vícevrstevné neuronové sítě','Typ šifrování','Zálohovací technika'],a:1},
+  {id:363,cat:'AI/ML',q:'Co je to NLP (Natural Language Processing)?',opts:['Network Layer Protocol','Zpracování přirozeného jazyka počítačem','Nové Linguistické Protokoly','Neuronový Language Processor'],a:1},
+  {id:364,cat:'AI/ML',q:'Co je to computer vision?',opts:['Typ monitoru','Oblast AI zabývající se porozuměním obrazu a videa','Zálohovací kamera','Typ databáze'],a:1},
+  {id:365,cat:'AI/ML',q:'Co je to model inference latency?',opts:['Záloha modelu','Čas potřebný pro ML model k vygenerování předpovědi','Přesnost modelu','Trénování modelu'],a:1},
+  {id:366,cat:'Databáze',q:'Co je to materialized view?',opts:['Typ indexu','Pohled jehož výsledky jsou fyzicky uloženy a pravidelně obnovovány','Typ zálohy','Virtuální tabulka'],a:1},
+  {id:367,cat:'Databáze',q:'Co je to Cassandra?',opts:['SQL databáze','Distribuovaná NoSQL databáze pro vysokou dostupnost','Grafová databáze','In-memory databáze'],a:1},
+  {id:368,cat:'Databáze',q:'Co je to replikace databáze?',opts:['Záloha databáze','Kopírování dat na více serverů pro redundanci','Typ indexu','Sharding dat'],a:1},
+  {id:369,cat:'Databáze',q:'Co je to cizí klíč?',opts:['Šifrovací klíč databáze','Sloupec odkazující na primární klíč jiné tabulky','Unikátní index','Zálohovací klíč'],a:1},
+  {id:370,cat:'Databáze',q:'Jaký příkaz přidá nový záznam do tabulky?',opts:['UPDATE','INSERT','ADD','CREATE'],a:1},
+  {id:371,cat:'Správa',q:'Co je to change management v IT?',opts:['Zálohovací management','Řízený proces plánování a implementace změn v IT','Typ monitoringu','Zálohovací strategie'],a:1},
+  {id:372,cat:'Správa',q:'Co je to knowledge base v IT?',opts:['Typ databáze','Centralizovaná databáze znalostí a řešení pro IT tým a uživatele','Zálohovací systém','Typ wiki'],a:1},
+  {id:373,cat:'Správa',q:'Co je to problem management v ITIL?',opts:['Typ zálohy','Proces identifikace a řešení kořenových příčin incidentů','Typ monitoringu','Zálohovací strategie'],a:1},
+  {id:374,cat:'Správa',q:'Co je to kapacitní plánování?',opts:['Záloha dat','Plánování IT zdrojů pro budoucí potřeby','Typ monitoringu','Správa bezpečnosti'],a:1},
+  {id:375,cat:'Správa',q:'Co je to ticketing systém?',opts:['Systém prodeje vstupenek','Systém pro správu IT požadavků a incidentů','Monitorovací software','Typ databáze'],a:1},
+  {id:376,cat:'Teorie',q:'Co je to Conway\'s Law?',opts:['Zákon o výkonu CPU','Organizace vytváří systémy zrcadlící jejich komunikační strukturu','Zákon o síťové rychlosti','Zákon o Moore'],a:1},
+  {id:377,cat:'Teorie',q:'Co je to DRY princip?',opts:['Don\'t Repeat Yourself – vyhnutí se duplicitě kódu','Data Replication Yearly','Direct Routing Yield','Delete Redundant Year'],a:0},
+  {id:378,cat:'Teorie',q:'Co je to KISS princip?',opts:['Keep It Simple Stupid – jednoduchost jako cíl návrhu','Key Integration Security System','Kernel Interface System Standard','Keep Information Secure System'],a:0},
+  {id:379,cat:'Teorie',q:'Co je to ORM?',opts:['Object Relational Mapping – mapování objektů na databázové tabulky','Open Resource Management','Object Routing Module','Optimized Runtime Module'],a:0},
+  {id:380,cat:'Teorie',q:'Co je to graceful degradation?',opts:['Typ zálohy','Schopnost systému fungovat s omezenou funkcionalitou při selhání části','Typ monitoringu','Zálohovací technika'],a:1},
+  {id:381,cat:'OS',q:'Co je to /boot partition?',opts:['Zálohovací partition','Diskový oddíl obsahující bootloader a kernel soubory','Typ souborového systému','Záložní OS'],a:1},
+  {id:382,cat:'OS',q:'Co je to MBR?',opts:['Master Boot Record – první sektor disku s bootloaderem a tabulkou oddílů','Main Backup Registry','Master Backup Record','Memory Boot Register'],a:0},
+  {id:383,cat:'OS',q:'Co je to chroot?',opts:['Typ zálohy','Změna kořenového adresáře pro proces do určeného adresáře','Typ souborového systému','Zálohovací technika'],a:1},
+  {id:384,cat:'OS',q:'Co je to preemptive scheduling?',opts:['Naplánování zálohy','OS přiděluje CPU čas procesům a může je přerušit','Typ souborového systému','Zálohovací plán'],a:1},
+  {id:385,cat:'OS',q:'Co je to semaphore?',opts:['Typ sítě','Synchronizační primitiv pro řízení přístupu ke sdíleným zdrojům','Typ zálohy','Protokol'],a:1},
+  {id:386,cat:'Konektory',q:'Co je to konektor IEC 60320 C13?',opts:['Napájecí konektor pro PC a monitory (tzv. Mickey Mouse)','Typ optického konektoru','Typ USB konektoru','Napájecí konektor pro servery'],a:0},
+  {id:387,cat:'Konektory',q:'Co je to DVI-D vs DVI-I?',opts:['DVI-D je analogový, DVI-I digitální','DVI-D je čistě digitální, DVI-I podporuje i analogový signál','Jsou identické','DVI-I je starší'],a:1},
+  {id:388,cat:'Konektory',q:'Co je to QSFP+ konektor?',opts:['Malý SFP konektor','Quad Small Form-factor Pluggable – 4x10G/40G','Typ napájecího konektoru','Bezdrátový modul'],a:1},
+  {id:389,cat:'Konektory',q:'Co je to konektor LC vs SC pro optiku?',opts:['LC je větší než SC','LC je menší a compact, SC je standardní velikost','Jsou stejně velké','SC je novější'],a:1},
+  {id:390,cat:'Konektory',q:'Kolik pinů má konektor Mini DisplayPort?',opts:['15','19','20','24'],a:2},
+  {id:391,cat:'WiFi',q:'Co je to BSS Coloring v WiFi 6?',opts:['Barevné kódování WiFi karet','Mechanismus identifikace sítí pro redukci rušení','Typ zabezpečení','Typ antény'],a:1},
+  {id:392,cat:'WiFi',q:'Co je to channel bonding ve WiFi?',opts:['Typ zabezpečení','Kombinace více kanálů pro větší šířku pásma','Typ antény','Zálohovací kanál'],a:1},
+  {id:393,cat:'WiFi',q:'Co je to Bluetooth 5.0 ve srovnání s 4.0?',opts:['Nižší dosah','Dvojnásobný dosah a rychlost','Pouze pro audio','Průmyslový standard'],a:1},
+  {id:394,cat:'WiFi',q:'Co je to Zigbee?',opts:['WiFi protokol','IEEE 802.15.4 standard pro IoT sítě','Bluetooth 5 protokol','Proprietární WiFi'],a:1},
+  {id:395,cat:'WiFi',q:'Jaká je maximální rychlost WiFi 5 (802.11ac)?',opts:['150 Mbit/s','600 Mbit/s','3.5 Gbit/s','9.6 Gbit/s'],a:2},
+  {id:396,cat:'Šifrování',q:'Co je to blockchain?',opts:['Typ databáze','Distribuovaný, neměnitelný řetěz bloků dat','Typ šifrování','Typ sítě'],a:1},
+  {id:397,cat:'Šifrování',q:'Co je to MD5?',opts:['Šifrovací algoritmus','Hashovací funkce (dnes považována za slabou)','Typ certifikátu','Protokol pro VPN'],a:1},
+  {id:398,cat:'Šifrování',q:'Co je to key derivation function (KDF)?',opts:['Záloha klíče','Funkce pro odvozování kryptografických klíčů z hesla (PBKDF2, bcrypt)','Typ hashování','Generátor certifikátů'],a:1},
+  {id:399,cat:'Šifrování',q:'Co je to CA (Certificate Authority)?',opts:['Certifikační autorita vydávající digitální certifikáty','Typ šifrování','Zálohovací autorita','Cloudová aplikace'],a:0},
+  {id:400,cat:'Šifrování',q:'Co je to CSRF token?',opts:['Zálohovací token','Token chránící formuláře před Cross-Site Request Forgery útoky','Typ šifrovacího klíče','Autentizační token'],a:1},
+  {id:401,cat:'Teorie',q:'Co je to TCO?',opts:['Total Cost of Ownership – celkové náklady vlastnictví','Transfer Control Operation','Technical Core Object','Total Computing Output'],a:0},
+  {id:402,cat:'Teorie',q:'Co je to CAPEX vs OPEX v IT?',opts:['Typy šifrování','Kapitálové výdaje (jednorázové) vs provozní výdaje (průběžné)','Typy zálohy','Typy síťových protokolů'],a:1},
+  {id:403,cat:'Teorie',q:'Co je to polling v kontextu API?',opts:['Typ zálohy','Opakované dotazování na stav serveru v intervalech','Typ šifrování','Zálohovací protokol'],a:1},
+  {id:404,cat:'Teorie',q:'Co je to hot standby vs cold standby?',opts:['Typy zálohy','Hot standby je připraven okamžitě, cold standby vyžaduje čas na spuštění','Typy chlazení','Typy serverů'],a:1},
+  {id:405,cat:'Teorie',q:'Co je to checkpointing?',opts:['Bezpečnostní checkpoint sítě','Ukládání stavu systému v pravidelných intervalech pro obnovu','Typ zálohy disku','Monitorovací technika'],a:1},
+  {id:406,cat:'Sítě',q:'Co je to SSL VPN?',opts:['VPN bez šifrování','VPN používající SSL/TLS protokol přes webový prohlížeč','Typ firewallu','Bezdrátová VPN'],a:1},
+  {id:407,cat:'Sítě',q:'Co je to VRRP?',opts:['Virtual Router Redundancy Protocol – záloha výchozí brány','Very Rapid Routing Protocol','Virtual Remote Router Protocol','Verified Router Redundancy Protocol'],a:0},
+  {id:408,cat:'Sítě',q:'Co je to multicast?',opts:['Přenos dat jednomu příjemci','Přenos dat skupině příjemců','Přenos dat všem příjemcům','Přenos dat náhodně'],a:1},
+  {id:409,cat:'Sítě',q:'Co je to broadcast?',opts:['Přenos dat jednomu příjemci','Přenos dat skupině příjemců','Přenos dat všem uzlům v síti','Přenos dat přes VPN'],a:2},
+  {id:410,cat:'Sítě',q:'Co je to Wimax?',opts:['Typ WiFi','Širokopásmová bezdrátová technologie pro velké vzdálenosti (IEEE 802.16)','Typ Bluetooth','Satelitní komunikace'],a:1},
+  {id:411,cat:'Hardware',q:'Co je to SPD v RAM?',opts:['Serial Presence Detect – čip s informacemi o parametrech RAM','Speed Performance Data','System Profile Data','Standard Protocol Data'],a:0},
+  {id:412,cat:'Hardware',q:'Co je to XMP profil?',opts:['Zálohovací profil','Extreme Memory Profile – přetaktovací profil RAM uložený v SPD','Typ šifrování','Výkonnostní benchmark'],a:1},
+  {id:413,cat:'Hardware',q:'Co je to TDP procesoru?',opts:['Thermal Design Power','Total Data Processing','Transfer Data Protocol','Thermal Drive Performance'],a:0},
+  {id:414,cat:'Hardware',q:'Co je to PWM u ventilátorů?',opts:['Power With Management','Pulse Width Modulation – řízení otáček','Permanent Wind Mode','Passive Wind Motor'],a:1},
+  {id:415,cat:'Hardware',q:'Kolik pinů má 24-pinový ATX konektor napájení?',opts:['20','24','28','32'],a:1},
+  {id:416,cat:'OS',q:'Co je to seccomp?',opts:['Secure Computing Mode – omezení systémových volání procesů v Linuxu','Typ zálohy','Bezpečnostní modul Windows','Typ šifrování'],a:0},
+  {id:417,cat:'OS',q:'Co je to /etc v Linuxu?',opts:['Adresář pro systémové binárky','Adresář pro konfigurační soubory systému','Adresář pro uživatelská data','Adresář pro zařízení'],a:1},
+  {id:418,cat:'OS',q:'Co je to swap space?',opts:['Typ zálohy','Diskový prostor používaný jako rozšíření RAM','Zálohovací oddíl','Souborový systém'],a:1},
+  {id:419,cat:'OS',q:'Co je to init process?',opts:['Zálohovací proces','První proces spuštěný kernelem při startu systému','Typ souborového systému','Správce balíčků'],a:1},
+  {id:420,cat:'OS',q:'Co je to runlevel v Linuxu?',opts:['Rychlost CPU','Stav systému definující spuštěné služby','Typ souborového systému','Zálohovací stav'],a:1},
+  {id:421,cat:'Databáze',q:'Co je to trigger v databázi?',opts:['Zálohovací trigger','Automaticky spuštěná procedura při INSERT/UPDATE/DELETE','Typ indexu','Typ relace'],a:1},
+  {id:422,cat:'Databáze',q:'Co je to view v SQL?',opts:['Záloha tabulky','Virtuální tabulka definovaná SELECT dotazem','Typ indexu','Typ transakce'],a:1},
+  {id:423,cat:'Databáze',q:'Co je to normalizace databáze?',opts:['Záloha dat','Proces organizace databáze pro eliminaci redundance','Typ šifrování','Zálohovací technika'],a:1},
+  {id:424,cat:'Databáze',q:'Co je to deadlock v databázi?',opts:['Zálohovací zámek','Situace kdy dvě transakce čekají na zámky navzájem','Typ indexu','Zálohovací stav'],a:1},
+  {id:425,cat:'Databáze',q:'Co je to connection pooling?',opts:['Záloha databáze','Opakované využívání existujících DB připojení místo vytváření nových','Typ indexu','Zálohovací technika'],a:1},
+  {id:426,cat:'Cloud',q:'Co je to immutable infrastructure?',opts:['Neměnitelná infrastruktura','Infrastruktura kde místo změn se nasazují nové instance','Zálohovací princip','Typ cloudu'],a:1},
+  {id:427,cat:'Cloud',q:'Co je to feature flag/toggle?',opts:['Typ zálohy','Mechanismus pro zapnutí/vypnutí funkcí bez nasazení kódu','Typ šifrování','Zálohovací strategie'],a:1},
+  {id:428,cat:'Cloud',q:'Co je to distributed tracing?',opts:['Zálohovací tracing','Sledování požadavku přes distribuované systémy (Jaeger, Zipkin)','Typ monitoringu CPU','Síťový monitoring'],a:1},
+  {id:429,cat:'Cloud',q:'Co je to ElasticSearch?',opts:['Elastický cloud storage','Full-text vyhledávač a analytická databáze','Typ load balanceru','Monitorovací nástroj'],a:1},
+  {id:430,cat:'Cloud',q:'Co je to Azure AD?',opts:['Active Directory v Microsoft Azure pro cloudové identity','Zálohovací služba','Typ databáze','Síťová služba'],a:0},
+  {id:431,cat:'Bezpečnost',q:'Co je to threat intelligence?',opts:['Typ antivirového programu','Informace o aktuálních hrozbách a metodách útočníků','Zálohovací strategie','Typ firewallu'],a:1},
+  {id:432,cat:'Bezpečnost',q:'Co je to DAC?',opts:['Direct Access Control','Discretionary Access Control – volitelné řízení přístupu','Dynamic Access Control','Data Access Control'],a:1},
+  {id:433,cat:'Bezpečnost',q:'Co je to MAC v kontextu bezpečnosti přístupu?',opts:['Media Access Control','Mandatory Access Control – povinné řízení přístupu','Multi-Access Control','Managed Access Configuration'],a:1},
+  {id:434,cat:'Bezpečnost',q:'Co je to NIST Cybersecurity Framework?',opts:['Typ šifrování','Rámec pro řízení kybernetické bezpečnosti','Zálohovací standard','Typ sítě'],a:1},
+  {id:435,cat:'Bezpečnost',q:'Co je to Burp Suite?',opts:['Zálohovací nástroj','Platforma pro testování bezpečnosti webových aplikací','Typ firewallu','Síťový monitor'],a:1},
+  {id:436,cat:'Linux',q:'Co je to systemd unit file?',opts:['Zálohovací soubor','Konfigurační soubor definující chování systemd služby','Typ skriptu','Shell konfigurační soubor'],a:1},
+  {id:437,cat:'Linux',q:'Co je to journald?',opts:['Zálohovací démon','Systemd komponenta pro logování systémových zpráv','Typ souborového systému','Správce procesů'],a:1},
+  {id:438,cat:'Linux',q:'Co je to /var/log?',opts:['Zálohovací adresář','Adresář obsahující systémové a aplikační logy','Typ souborového systému','Konfigurační adresář'],a:1},
+  {id:439,cat:'Linux',q:'Co dělá příkaz top?',opts:['Zobrazí horní soubory','Interaktivní zobrazení procesů a využití systémových zdrojů','Zálohovací příkaz','Správce disků'],a:1},
+  {id:440,cat:'Linux',q:'Co je to package manager?',opts:['Správce hesel','Nástroj pro instalaci, aktualizaci a odebírání softwaru (apt, yum, dnf)','Správce procesů','Zálohovací nástroj'],a:1},
+  {id:441,cat:'DC',q:'Co je to managed hosting?',opts:['Typ zálohy','Poskytovatel spravuje HW i SW infrastrukturu za zákazníka','Typ VPN','Selfhosting'],a:1},
+  {id:442,cat:'DC',q:'Co je to out-of-band management?',opts:['Správa sítě mimo pásmo','Vzdálená správa serveru přes dedikovaný management port (IPMI/iDRAC)','Zálohovací management','Typ monitoringu'],a:1},
+  {id:443,cat:'DC',q:'Co je to DCIM?',opts:['Data Center Infrastructure Management','Digital Content Integration Module','Direct Connection Interface Manager','Data Core Integrity Monitor'],a:0},
+  {id:444,cat:'DC',q:'Co je to UPS v DC?',opts:['Upstream Power System','Uninterruptible Power Supply pro záložní napájení','Unit Protection System','Unified Power Scheme'],a:1},
+  {id:445,cat:'DC',q:'Co je to virtuální páteřní síť (Backbone)?',opts:['Zálohovací síť','Hlavní vysokorychlostní síťová infrastruktura propojující menší sítě','Typ WiFi','Typ VPN'],a:1},
+  {id:446,cat:'Protokoly',q:'Co je to YAML?',opts:['Yet Another Markup Language / YAML Ain\'t Markup Language','Young Access Module Language','Yaml Advanced Module Library','Yet Another Module Link'],a:0},
+  {id:447,cat:'Protokoly',q:'Co je to JSON?',opts:['Java Serialized Object Notation','JavaScript Object Notation – formát pro výměnu dat','Java Script Open Node','JavaScript Online Node'],a:1},
+  {id:448,cat:'Protokoly',q:'Co je to XML?',opts:['Extra Markup Language','Extensible Markup Language – značkovací jazyk','Extra Module Library','External Module Link'],a:1},
+  {id:449,cat:'Protokoly',q:'Co je to Protocol Buffers?',opts:['Zálohovací formát','Google formát pro serializaci strukturovaných dat (binární, rychlejší než JSON)','Typ šifrování','Typ API'],a:1},
+  {id:450,cat:'Protokoly',q:'Co je to GraphQL?',opts:['Typ databáze','Dotazovací jazyk pro API vyvinutý Facebookem','Grafová databáze','Typ síťového protokolu'],a:1},
+  {id:451,cat:'Sítě',q:'Co je to 802.1Q?',opts:['WiFi standard','Standard pro VLAN tagování v Ethernetu','Typ síťového kabelu','Bezpečnostní standard'],a:1},
+  {id:452,cat:'Sítě',q:'Co je to LLDP?',opts:['Link Layer Discovery Protocol – protokol pro zjišťování sousedů v síti','Local LAN Discovery Protocol','Light Layer Detection Protocol','Link Level Data Protocol'],a:0},
+  {id:453,cat:'Sítě',q:'Co je to síťová smyčka (loop)?',opts:['Zálohovací smyčka','Situace kde paket obíhá v síti nekonečně','Typ routovacího protokolu','Zálohovací trasa'],a:1},
+  {id:454,cat:'Sítě',q:'Co je to CDP (Cisco Discovery Protocol)?',opts:['Cisco proprietární protokol pro zjišťování sousedních zařízení','Central Data Protocol','Core Discovery Process','Cisco Data Protocol'],a:0},
+  {id:455,cat:'Sítě',q:'Co je to proxy server?',opts:['Zálohovací server','Zprostředkovatel komunikace mezi klientem a serverem','Typ firewallu','Zálohovací router'],a:1},
+  {id:456,cat:'Hardware',q:'Co je to formát ATX?',opts:['Typ procesoru','Standardní formát základní desky pro desktoopy','Typ RAM paměti','Formát PCIe karty'],a:1},
+  {id:457,cat:'Hardware',q:'Co je to Thunderbolt 4?',opts:['Typ WiFi','Vysokorychlostní rozhraní Intel s USB-C konektorem','Typ napájecího konektoru','Bezdrátový protokol'],a:1},
+  {id:458,cat:'Hardware',q:'Co je to latency vs throughput?',opts:['Jsou totožné','Latency je zpoždění, throughput je množství dat za čas','Throughput je zpoždění, latency je objem','Latency je objem, throughput je frekvence'],a:1},
+  {id:459,cat:'Hardware',q:'Co je to PCIe Gen 5 vs Gen 4?',opts:['Gen 5 je pomalejší','Gen 5 má dvojnásobnou přenosovou rychlost oproti Gen 4','Jsou identické','Gen 4 je novější'],a:1},
+  {id:460,cat:'Hardware',q:'Co je to DIMM vs SO-DIMM?',opts:['DIMM je pro laptopy, SO-DIMM pro desktopy','DIMM je desktopový formát, SO-DIMM je menší pro laptopy','Jsou identické','SO-DIMM je novější standard'],a:1},
+  {id:461,cat:'Teorie',q:'Co je to dokumentace jako kód (docs as code)?',opts:['Záloha dokumentace','Psaní dokumentace ve stejných nástrojích a procesech jako kód','Typ zálohy','Zálohovací systém'],a:1},
+  {id:462,cat:'Teorie',q:'Co je to GitFlow workflow?',opts:['Git záloha','Branching model pro správu vývoje s hlavními a feature větvemi','Typ verzování','Zálohovací strategie'],a:1},
+  {id:463,cat:'Teorie',q:'Co je to SOLID principy?',opts:['Zálohovací principy','5 principů objektově orientovaného designu','Síťové principy','Bezpečnostní principy'],a:1},
+  {id:464,cat:'Teorie',q:'Co je to event-driven architektura?',opts:['Zálohovací architektura','Architektura kde komponenty komunikují přes události','Typ databáze','Síťová topologie'],a:1},
+  {id:465,cat:'Teorie',q:'Co je to idempotent API?',opts:['API bez chyb','API kde opakovaný požadavek dá stejný výsledek jako jeden','Rychlé API','API s šifrováním'],a:1},
+  {id:466,cat:'Bezpečnost',q:'Co je to supply chain útok?',opts:['Útok na dopravní síť','Kompromitace softwaru nebo hardwaru v dodavatelském řetězci','Zálohovací útok','Typ phishingu'],a:1},
+  {id:467,cat:'Bezpečnost',q:'Co je to obfuskace kódu?',opts:['Záloha kódu','Záměrné znesnadnění čitelnosti kódu pro ochranu nebo skrytí záměru','Typ šifrování','Zálohovací technika'],a:1},
+  {id:468,cat:'Bezpečnost',q:'Co je to fuzzing?',opts:['Zálohovací technika','Technika testování vkládáním náhodných nebo neočekávaných vstupů','Typ šifrování','Zálohovací audit'],a:1},
+  {id:469,cat:'Bezpečnost',q:'Co je to security by design?',opts:['Zálohovací design','Přístup kdy bezpečnost je integrována od počátku návrhu','Typ šifrování','Zálohovací architektura'],a:1},
+  {id:470,cat:'Bezpečnost',q:'Co je to patch management?',opts:['Zálohovací patch','Proces pravidelné aplikace bezpečnostních záplat na systémy','Typ antivirového programu','Zálohovací management'],a:1},
+  {id:471,cat:'Cloud',q:'Co je to Serverless Function příklad?',opts:['Docker kontejner','AWS Lambda, Azure Functions, Google Cloud Functions','Kubernetes pod','Virtuální stroj'],a:1},
+  {id:472,cat:'Cloud',q:'Co je to cloud-native aplikace?',opts:['Aplikace bez cloudu','Aplikace navržena specificky pro cloudové prostředí','Zálohovací aplikace','Typ databáze'],a:1},
+  {id:473,cat:'Cloud',q:'Co je to infrastructure drift?',opts:['Zálohovací drift','Odchylka skutečného stavu infrastruktury od definovaného v IaC','Typ zálohy','Monitorovací technika'],a:1},
+  {id:474,cat:'Cloud',q:'Co je to zero-downtime deployment?',opts:['Zálohovací deployment','Nasazení nové verze bez přerušení dostupnosti služby','Typ šifrování','Zálohovací strategie'],a:1},
+  {id:475,cat:'Cloud',q:'Co je to pod v Kubernetes?',opts:['Typ kontejneru','Nejmenší nasaditelná jednotka v K8s obsahující jeden nebo více kontejnerů','Zálohovací jednotka','Typ clusteru'],a:1},
+  {id:476,cat:'IoT',q:'Co je to Z-Wave?',opts:['Typ WiFi','Bezdrátový protokol pro domácí automatizaci','Typ Bluetooth','Satelitní protokol'],a:1},
+  {id:477,cat:'IoT',q:'Co je to digital twin?',opts:['Záloha zařízení','Virtuální replika fyzického objektu nebo systému','Typ zálohy','Zálohovací technologie'],a:1},
+  {id:478,cat:'IoT',q:'Co je to OTA update?',opts:['Aktualizace přes optický kabel','Over-The-Air aktualizace firmware přes bezdrátové připojení','Zálohovací aktualizace','Typ síťového protokolu'],a:1},
+  {id:479,cat:'IoT',q:'Co je to gateway v IoT?',opts:['Zálohovací brána','Zařízení překládající komunikaci mezi IoT zařízeními a cloudem','Typ routeru','Zálohovací server'],a:1},
+  {id:480,cat:'IoT',q:'Co je to Matter protokol?',opts:['Zálohovací protokol','Otevřený standard pro interoperabilitu chytrých domácích zařízení','Typ WiFi protokolu','Průmyslový IoT protokol'],a:1},
+  {id:481,cat:'Správa',q:'Co je to runbook?',opts:['Zálohovací kniha','Dokumentace krok po kroku pro rutinní IT operace a řešení incidentů','Typ zálohy','Monitorovací nástroj'],a:1},
+  {id:482,cat:'Správa',q:'Co je to postmortem v IT?',opts:['Zálohovací analýza','Analýza příčin a průběhu incidentu po jeho vyřešení','Typ monitoringu','Zálohovací strategie'],a:1},
+  {id:483,cat:'Správa',q:'Co je to on-call rotace?',opts:['Zálohovací rotace','Systém kdy inženýři se střídají v pohotovosti pro řešení incidentů mimo pracovní dobu','Typ zálohy','Zálohovací plán'],a:1},
+  {id:484,cat:'Správa',q:'Co je to error budget v SRE?',opts:['Zálohovací budget','Povolená míra výpadků definovaná jako rozdíl mezi 100% a SLA','Typ zálohy','Zálohovací strategie'],a:1},
+  {id:485,cat:'Správa',q:'Co je to toil v SRE?',opts:['Zálohovací práce','Manuální repetitivní práce která by mohla být automatizována','Typ zálohy','Zálohovací technika'],a:1},
+  {id:486,cat:'Databáze',q:'Co je to partitioning tabulky?',opts:['Záloha tabulky','Rozdělení velké tabulky na menší části pro lepší výkon','Typ indexu','Zálohovací technika'],a:1},
+  {id:487,cat:'Databáze',q:'Co je to full-text search?',opts:['Hledání v celém zálohovacím systému','Vyhledávání v textových datech nad rámec přesné shody','Typ indexu','Zálohovací vyhledávání'],a:1},
+  {id:488,cat:'Databáze',q:'Co je to BASE v kontextu NoSQL?',opts:['Basically Available, Soft state, Eventually consistent','Binary Access System Encryption','Base Access Storage Engine','Backup And Synchronize Everything'],a:0},
+  {id:489,cat:'Databáze',q:'Co je to time-series databáze?',opts:['Zálohovací databáze','Databáze optimalizovaná pro časově řazená data (InfluxDB, Prometheus)','Typ relační databáze','Zálohovací časové razítko'],a:1},
+  {id:490,cat:'Databáze',q:'Co je to graph databáze?',opts:['Zálohovací graf','Databáze pro data reprezentovaná jako uzly a hrany (Neo4j)','Typ relační databáze','Zálohovací databáze'],a:1},
+  {id:491,cat:'Teorie',q:'Co je to Conway\'s Law zkráceně?',opts:['Zákon o výkonu','Systémy odráží komunikační strukturu organizace která je vytváří','Zákon o sítích','Zákon o ceně HW'],a:1},
+  {id:492,cat:'Teorie',q:'Co je to SLO?',opts:['Service Level Objective – cílová úroveň spolehlivosti služby','Service License Object','System Level Operation','Secure Login Option'],a:0},
+  {id:493,cat:'Teorie',q:'Co je to SLI?',opts:['Service Level Indicator – metrika měřící spolehlivost služby','System License Interface','Service Login Index','Secure Layer Interface'],a:0},
+  {id:494,cat:'Teorie',q:'Co je to Twelve-Factor App?',opts:['Zálohovací metodologie','Metodologie pro vývoj moderních cloudových aplikací','Typ zálohy','Zálohovací framework'],a:1},
+  {id:495,cat:'Teorie',q:'Co je to shift-left testing?',opts:['Zálohovací testování','Přesun testování dříve do vývojového procesu','Zálohovací strategie','Typ zálohy'],a:1},
+  {id:496,cat:'Bezpečnost',q:'Co je to zero-knowledge proof?',opts:['Zálohovací důkaz','Metoda kde jedna strana dokáže znalost bez odhalení samotné informace','Typ šifrování','Zálohovací protokol'],a:1},
+  {id:497,cat:'Bezpečnost',q:'Co je to air gap?',opts:['Zálohovací mezera','Fyzická izolace systému od internetu a jiných sítí','Typ firewallu','Zálohovací bezpečnost'],a:1},
+  {id:498,cat:'Bezpečnost',q:'Co je to OSINT?',opts:['Open Source Intelligence – zpravodajství z veřejně dostupných zdrojů','Operating System Interface','Open Security Intelligence Tool','Operational System Infrastructure'],a:0},
+  {id:499,cat:'Bezpečnost',q:'Co je to typosquatting?',opts:['Zálohovací útok','Registrace domén podobných legitimním pro phishing','Typ SQL injekce','Zálohovací technika'],a:1},
+  {id:500,cat:'Bezpečnost',q:'Co je to living off the land (LotL) útok?',opts:['Zálohovací útok','Útok využívající legitimní systémové nástroje pro škodlivé účely','Typ phishingu','Zálohovací strategie'],a:1},
+];
+
+// ─── HLAVNÍ APP ───────────────────────────────────────
+function App() {
+  const [screen, setScreen] = useState(SCREENS.HOME);
+  const [user, setUser] = useState(() => ls('itq_user', null));
+  const [scores, setScores] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [currentQuiz, setCurrentQuiz] = useState(null);
+  const [insult, setInsult] = useState('');
+  const [showInsult, setShowInsult] = useState(false);
+  const [dbOk, setDbOk] = useState(true);
+
+  const todayKey = getTodayKey();
+  const todayQuestions = getDailyQuestions(todayKey);
+  const hasPlayedToday = user && scores.some(s => s.user_id === user.id && s.date === todayKey);
+
+  useEffect(() => { loadScores(); }, []);
+
+  async function loadScores() {
+    try {
+      const { data, error } = await db.from('scores').select('*').order('score', { ascending: false });
+      if (error) { setDbOk(false); return; }
+      setScores(data || []);
+    } catch { setDbOk(false); }
+  }
+
+  async function registerUser(name, password) {
+    setLoading(true);
+    try {
+      const username = name.trim();
+      const pwd = password.trim();
+
+      const { data: ex } = await db.from('users').select('*').ilike('name', username).maybeSingle();
+
+      let u = ex;
+
+      if (u) {
+        if (u.password !== pwd) {
+          alert('Špatné heslo!');
+          setLoading(false);
+          return;
+        }
+      } else {
+        const { data, error } = await db.from('users').insert({
+          id: Date.now().toString(),
+          name: username,
+          password: pwd
+        }).select().single();
+
+        if (error) {
+          alert('Chyba: ' + error.message);
+          setLoading(false);
+          return;
+        }
+        u = data;
+      }
+
+      setUser(u);
+      lss('itq_user', u);
+      setScreen(SCREENS.HOME);
+
+    } catch(e) {
+      alert('Chyba připojení k databázi');
+    }
+
+    setLoading(false);
+  }
+
+  async function finishQuiz(quiz) {
+    const entry = {
+      id: Date.now().toString(), user_id: user.id, user_name: user.name,
+      date: todayKey, score: quiz.totalScore,
+      correct: quiz.answers.filter(a => a.correct).length,
+      total: quiz.questions.length, timestamp: Date.now(),
+    };
+    await db.from('scores').upsert(entry, { onConflict: 'user_id,date' });
+    await loadScores();
+    setCurrentQuiz(quiz);
+    setScreen(SCREENS.RESULT);
+  }
+
+  const S = {
+    wrap: { minHeight:'100vh', background:'#0a0a0f', fontFamily:"'Inter', sans-serif", color:'#e0e8ff', position:'relative', overflowX:'hidden' },
+    grid: { position:'fixed', top:0, left:0, right:0, bottom:0, backgroundImage:'linear-gradient(rgba(30,60,150,0.07) 1px,transparent 1px),linear-gradient(90deg,rgba(30,60,150,0.07) 1px,transparent 1px)', backgroundSize:'50px 50px', pointerEvents:'none', zIndex:0 },
+    scan: { position:'fixed', top:0, left:0, right:0, bottom:0, background:'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,50,100,0.025) 2px,rgba(0,50,100,0.025) 4px)', pointerEvents:'none', zIndex:0 },
+    content: { position:'relative', zIndex:1 },
+  };
+
+  return (
+    <div style={S.wrap}>
+      <style>{`
+        *{box-sizing:border-box;margin:0;padding:0}
+        input{background:#0d1428;border:1px solid #2a3a6a;color:#e0e8ff;padding:12px 16px;border-radius:8px;font-family:inherit;font-size:16px;width:100%;outline:none;transition:border-color 0.2s}
+        input:focus{border-color:#4488ff;box-shadow:0 0 0 3px rgba(68,136,255,0.15)}
+        .btn{cursor:pointer;border:none;font-family:inherit;letter-spacing:2px;text-transform:uppercase;font-weight:700;transition:all 0.2s}
+        .btn:hover{transform:translateY(-2px);filter:brightness(1.15)}
+        .btn:active{transform:translateY(0)}
+        .glow{text-shadow:0 0 20px #4488ff,0 0 40px #2255cc}
+        @keyframes slideIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+        .slide-in{animation:slideIn 0.4s ease}
+        @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-12px)}75%{transform:translateX(12px)}}
+        .shake{animation:shake 0.5s}
+        .tab-btn{background:transparent;border:1px solid #2a3a6a;color:#8899bb;padding:8px 20px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;letter-spacing:1px;transition:all 0.2s}
+        .tab-btn.active{background:#1a2a5a;border-color:#4488ff;color:#88aaff}
+      `}</style>
+      <div style={S.grid}/>
+      <div style={S.scan}/>
+      {!dbOk && (
+        <div style={{position:'fixed',top:0,left:0,right:0,background:'#440000',padding:'10px',textAlign:'center',zIndex:999,fontSize:13,color:'#ff8888'}}>
+          ⚠️ Databáze není připojena — vyplň SUPABASE_URL a SUPABASE_KEY v HTML souboru
+        </div>
+      )}
+      {showInsult && (
+        <div onClick={()=>setShowInsult(false)} style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.9)',zIndex:100,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>
+          <div className="shake" style={{textAlign:'center',padding:40,maxWidth:480}}>
+            <div style={{fontSize:80,marginBottom:20}}>💀</div>
+            <div style={{fontSize:22,color:'#ff4444',fontWeight:700,lineHeight:1.5}}>{insult}</div>
+            <div style={{marginTop:20,color:'#6677aa',fontSize:12,letterSpacing:2}}>KLIKNI PRO POKRAČOVÁNÍ</div>
+          </div>
+        </div>
+      )}
+      <div style={S.content}>
+        {screen===SCREENS.HOME && <HomeScreen user={user} hasPlayedToday={hasPlayedToday} todayKey={todayKey} todayQuestions={todayQuestions} onRegister={()=>setScreen(SCREENS.REGISTER)} onStart={()=>{setCurrentQuiz({questions:todayQuestions,answers:[],current:0,timeLeft:QUIZ_DURATION,totalScore:0});setScreen(SCREENS.QUIZ);}} onBoard={()=>setScreen(SCREENS.BOARD)} onLogout={()=>{setUser(null);lss('itq_user',null);}} loading={loading}/>}
+        {screen===SCREENS.REGISTER && <RegisterScreen onRegister={registerUser} onBack={()=>setScreen(SCREENS.HOME)} loading={loading}/>}
+        {screen===SCREENS.QUIZ && currentQuiz && <QuizScreen quiz={currentQuiz} onFinish={finishQuiz} onWrong={()=>{setInsult(INSULTS[Math.floor(Math.random()*INSULTS.length)]);setShowInsult(true);}}/>}
+        {screen===SCREENS.RESULT && currentQuiz && <ResultScreen quiz={currentQuiz} onHome={()=>setScreen(SCREENS.HOME)} onBoard={()=>setScreen(SCREENS.BOARD)}/>}
+        {screen===SCREENS.BOARD && <BoardScreen scores={scores} user={user} todayKey={todayKey} onBack={()=>setScreen(SCREENS.HOME)}/>}
+      </div>
+    </div>
+  );
+}
+
+// ─── HOME ─────────────────────────────────────────────
+function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, onRegister, onStart, onBoard, onLogout, loading }) {
+  const cats = [...new Set(todayQuestions.map(q=>q.cat))];
+  return (
+    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div className="slide-in" style={{width:'100%',maxWidth:640,textAlign:'center'}}>
+        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:11,letterSpacing:6,color:'#4488ff',marginBottom:8,opacity:0.8}}>DAILY CHALLENGE</div>
+        <h1 className="glow" style={{fontFamily:"'Orbitron', sans-serif",fontSize:'clamp(40px,9vw,80px)',fontWeight:900,letterSpacing:4,color:'#fff',lineHeight:1}}>
+          IT<span style={{color:'#4488ff'}}>QUIZ</span>
+        </h1>
+        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:11,letterSpacing:3,color:'#4a5a7a',marginTop:4,marginBottom:36}}>500 OTÁZEK • KAŽDÝ DEN NOVÝ KVÍZ</div>
+
+        <div style={{background:'rgba(20,35,80,0.55)',border:'1px solid #2a3a6a',borderRadius:14,padding:'20px 28px',marginBottom:28,backdropFilter:'blur(8px)'}}>
+          <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:10,color:'#4488ff',letterSpacing:3,marginBottom:10}}>DNEŠNÍ KVÍZ — {todayKey}</div>
+          <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'center',marginBottom:14}}>
+            {cats.map(c=><span key={c} style={{background:'rgba(68,136,255,0.12)',border:'1px solid rgba(68,136,255,0.25)',borderRadius:20,padding:'3px 12px',fontSize:11,color:'#88aaff',letterSpacing:0.5}}>{c}</span>)}
+          </div>
+          <div style={{color:'#6677aa',fontSize:12}}>⏱ {QUIZ_DURATION}s &nbsp;•&nbsp; {QUESTIONS_PER_QUIZ} otázek &nbsp;•&nbsp; max {MAX_PTS} bodů/otázka</div>
+        </div>
+
+        {user ? (
+          <div style={{marginBottom:24}}>
+            <div style={{fontSize:12,color:'#4a5a7a',marginBottom:4}}>Přihlášen jako</div>
+            <div style={{fontSize:24,color:'#88aaff',fontWeight:700,letterSpacing:2}}>{user.name}</div>
+            <button onClick={onLogout} style={{marginTop:6,background:'transparent',border:'none',color:'#334455',fontSize:11,cursor:'pointer',letterSpacing:1}}>ODHLÁSIT SE</button>
+          </div>
+        ) : (
+          <div style={{marginBottom:24,color:'#ff9944',fontSize:13}}>⚠ Nejsi přihlášen</div>
+        )}
+
+        <div style={{display:'flex',flexDirection:'column',gap:10,maxWidth:340,margin:'0 auto'}}>
+          {user ? (
+            hasPlayedToday
+              ? <div style={{background:'rgba(20,60,20,0.5)',border:'1px solid #334433',borderRadius:10,padding:16,color:'#66aa66',fontSize:12,letterSpacing:1}}>✓ DNES JSI UŽ HRÁL</div>
+              : <button className="btn" onClick={onStart} style={{background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'18px 40px',borderRadius:10,fontSize:17,color:'#fff',letterSpacing:3,boxShadow:'0 0 30px rgba(68,136,255,0.35)'}}>▶ SPUSTIT KVÍZ</button>
+          ) : (
+            <button className="btn" onClick={onRegister} style={{background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'18px 40px',borderRadius:10,fontSize:17,color:'#fff',letterSpacing:3,boxShadow:'0 0 30px rgba(68,136,255,0.35)'}}>REGISTROVAT SE</button>
+          )}
+          <button className="btn" onClick={onBoard} style={{background:'transparent',border:'1px solid #2a3a6a',padding:'13px 40px',borderRadius:10,fontSize:13,color:'#88aaff',letterSpacing:2}}>🏆 ŽEBŘÍČEK</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── REGISTER ────────────────────────────────────────
+function RegisterScreen({ onRegister, onBack, loading }) {
+  const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
+  const [err, setErr] = useState('');
+
+  function submit() {
+    const n = name.trim();
+    const p = password.trim();
+
+    if (!n || n.length < 2) { setErr('Aspoň 2 znaky pro jméno!'); return; }
+    if (n.length > 20) { setErr('Max 20 znaků!'); return; }
+    if (!p || p.length < 4) { setErr('Heslo musí mít alespoň 4 znaky!'); return; }
+
+    onRegister(n, p);
+  }
+
+  return (
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div className="slide-in" style={{width:'100%',maxWidth:380,textAlign:'center'}}>
+        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:11,letterSpacing:4,color:'#4488ff',marginBottom:10}}>REGISTRACE</div>
+        <h2 style={{fontFamily:"'Orbitron', sans-serif",fontSize:30,fontWeight:900,color:'#fff',marginBottom:32}}>Kdo jsi?</h2>
+        <div style={{background:'rgba(20,35,80,0.6)',border:'1px solid #2a3a6a',borderRadius:12,padding:28}}>
+          <input value={name} onChange={e=>{setName(e.target.value);setErr('');}} placeholder="Tvá přezdívka..." maxLength={20} autoFocus/>
+
+          <input
+            type="password"
+            value={password}
+            onChange={e=>{setPassword(e.target.value);setErr('');}}
+            onKeyDown={e=>e.key==='Enter'&&submit()}
+            placeholder="Heslo..."
+            maxLength={50}
+            style={{marginTop:12}}
+          />
+          {err && <div style={{color:'#ff4444',fontSize:12,marginTop:8}}>{err}</div>}
+          <button className="btn" onClick={submit} disabled={loading} style={{marginTop:18,width:'100%',background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'13px',borderRadius:8,fontSize:14,color:'#fff',letterSpacing:3}}>
+            {loading ? 'UKLÁDÁM...' : 'POTVRDIT'}
+          </button>
+        </div>
+        <button onClick={onBack} style={{marginTop:16,background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1}}>← ZPĚT</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── QUIZ ─────────────────────────────────────────────
+function QuizScreen({ quiz: initQuiz, onFinish, onWrong }) {
+  const [quiz, setQuiz] = useState({...initQuiz});
+  const [selected, setSelected] = useState(null);
+  const [locked, setLocked] = useState(false);
+  const [flash, setFlash] = useState(null);
+  const timer = useRef(null);
+
+  const q = quiz.questions[quiz.current];
+
+  useEffect(() => {
+    timer.current = setInterval(() => {
+      setQuiz(prev => {
+        if (prev.timeLeft <= 1) { clearInterval(timer.current); onFinish({...prev,timeLeft:0}); return {...prev,timeLeft:0}; }
+        return {...prev,timeLeft:prev.timeLeft-1};
+      });
+    }, 1000);
+    return () => clearInterval(timer.current);
+  }, []);
+
+  function answer(idx) {
+    if (locked) return;
+    setLocked(true); setSelected(idx);
+    const ok = idx === q.a;
+    const pts = ok ? calcPoints(quiz.timeLeft) : 0;
+    setFlash(ok ? 'ok' : 'no');
+    if (!ok) onWrong();
+    setTimeout(() => {
+      setFlash(null);
+      const newAns = [...quiz.answers, {q:q.id,chosen:idx,correct:ok,pts}];
+      const newScore = quiz.totalScore + pts;
+      const next = quiz.current + 1;
+      if (next >= quiz.questions.length) { clearInterval(timer.current); onFinish({...quiz,answers:newAns,totalScore:newScore,current:next}); }
+      else { setQuiz(p=>({...p,answers:newAns,totalScore:newScore,current:next})); setSelected(null); setLocked(false); }
+    }, 1100);
+  }
+
+  const tc = quiz.timeLeft > 30 ? '#4488ff' : quiz.timeLeft > 10 ? '#ffaa22' : '#ff3333';
+  const labels = ['A','B','C','D'];
+
+  return (
+    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',padding:20,maxWidth:660,margin:'0 auto'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',paddingTop:20,marginBottom:16}}>
+        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:11,letterSpacing:2,color:'#556688'}}>OTÁZKA {quiz.current+1}/{quiz.questions.length}</div>
+        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:30,fontWeight:900,color:tc,letterSpacing:2,textShadow:`0 0 15px ${tc}`}}>{quiz.timeLeft}s</div>
+        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:13,color:'#88aaff',letterSpacing:1}}>{quiz.totalScore.toLocaleString()} b</div>
+      </div>
+      <div style={{background:'#1a2040',borderRadius:4,height:4,marginBottom:6,overflow:'hidden'}}>
+        <div style={{height:'100%',width:`${(quiz.current/quiz.questions.length)*100}%`,background:'linear-gradient(90deg,#2255cc,#4488ff)',transition:'width 0.3s'}}/>
+      </div>
+      <div style={{background:'#1a2040',borderRadius:4,height:4,marginBottom:22,overflow:'hidden'}}>
+        <div style={{height:'100%',width:`${(quiz.timeLeft/QUIZ_DURATION)*100}%`,background:tc,transition:'width 1s linear',boxShadow:`0 0 6px ${tc}`}}/>
+      </div>
+      <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:10,letterSpacing:3,color:'#4488ff',marginBottom:10,textAlign:'center'}}>{q.cat}</div>
+      <div className="slide-in" style={{background:flash==='ok'?'rgba(0,70,0,0.35)':flash==='no'?'rgba(70,0,0,0.35)':'rgba(15,28,70,0.65)',border:`1px solid ${flash==='ok'?'#22aa22':flash==='no'?'#aa2222':'#2a3a6a'}`,borderRadius:16,padding:'28px 22px',marginBottom:18,transition:'all 0.3s'}}>
+        {q.img && <div style={{textAlign:'center',fontSize:44,marginBottom:14}}>{q.img}</div>}
+        {q.hint && <div style={{fontSize:11,color:'#556688',marginBottom:10,textAlign:'center'}}>{q.hint}</div>}
+        <div style={{fontSize:'clamp(16px,2.4vw,20px)',fontWeight:500,lineHeight:1.55,textAlign:'center',color:'#ddeeff'}}>{q.q}</div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:9,flex:1}}>
+        {q.opts.map((opt,i)=>{
+          let bg='rgba(12,20,52,0.85)',br='#2a3a6a',col='#bbc8ee';
+          if(selected!==null){ if(i===q.a){bg='rgba(0,70,0,0.55)';br='#22aa22';col='#88ff88';} else if(i===selected&&selected!==q.a){bg='rgba(70,0,0,0.55)';br='#aa2222';col='#ff8888';} }
+          return (
+            <button key={i} onClick={()=>answer(i)} disabled={locked} style={{background:bg,border:`1px solid ${br}`,borderRadius:10,padding:'13px 11px',cursor:locked?'default':'pointer',color:col,fontFamily:'inherit',textAlign:'left',transition:'all 0.2s',fontSize:'clamp(12px,1.7vw,14px)',fontWeight:500,letterSpacing:0.3,lineHeight:1.45,display:'flex',alignItems:'center',gap:9}}
+              onMouseEnter={e=>{if(!locked)e.currentTarget.style.borderColor='#4488ff';}}
+              onMouseLeave={e=>{if(!locked)e.currentTarget.style.borderColor=br;}}>
+              <span style={{minWidth:22,height:22,background:'rgba(68,136,255,0.18)',borderRadius:5,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'#4488ff',flexShrink:0}}>{labels[i]}</span>
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── RESULT ───────────────────────────────────────────
+function ResultScreen({ quiz, onHome, onBoard }) {
+  const correct = quiz.answers.filter(a=>a.correct).length;
+  const pct = Math.round((correct/quiz.questions.length)*100);
+  const g = pct>=90?{e:'🏆',l:'LEGENDA',c:'#ffdd00'}:pct>=70?{e:'🥇',l:'EXPERT',c:'#4488ff'}:pct>=50?{e:'🥈',l:'POKROČILÝ',c:'#88aaff'}:pct>=30?{e:'🥉',l:'ZAČÁTEČNÍK',c:'#ff8844'}:{e:'💀',l:'IT GHOST',c:'#ff4444'};
+  return (
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div className="slide-in" style={{width:'100%',maxWidth:480,textAlign:'center'}}>
+        <div style={{fontSize:72,marginBottom:10}}>{g.e}</div>
+        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:13,letterSpacing:4,color:g.c,marginBottom:6}}>{g.l}</div>
+        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:52,fontWeight:900,color:'#fff',marginBottom:2}}>{quiz.totalScore.toLocaleString()}</div>
+        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:11,color:'#4a5a7a',letterSpacing:2,marginBottom:28}}>BODŮ</div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:24}}>
+          {[{l:'Správně',v:`${correct}/${quiz.questions.length}`,c:'#22aa22'},{l:'Přesnost',v:`${pct}%`,c:g.c},{l:'Body',v:quiz.totalScore.toLocaleString(),c:'#4488ff'}].map(s=>(
+            <div key={s.l} style={{background:'rgba(20,35,80,0.6)',border:'1px solid #2a3a6a',borderRadius:10,padding:'14px 6px'}}>
+              <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:18,fontWeight:900,color:s.c}}>{s.v}</div>
+              <div style={{fontSize:10,color:'#556688',letterSpacing:1,marginTop:3}}>{s.l}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{background:'rgba(8,12,35,0.85)',border:'1px solid #1a2a5a',borderRadius:12,padding:14,marginBottom:22,maxHeight:190,overflowY:'auto',textAlign:'left'}}>
+          {quiz.answers.map((a,i)=>{
+            const q2=quiz.questions[i];
+            return <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid #121830',fontSize:11}}>
+              <span>{a.correct?'✅':'❌'}</span>
+              <span style={{color:'#7788aa',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{q2.q.slice(0,48)}{q2.q.length>48?'…':''}</span>
+              <span style={{color:a.correct?'#44ff44':'#ff4444',fontWeight:700,minWidth:45,textAlign:'right'}}>{a.correct?`+${a.pts}`:'0'}</span>
+            </div>;
+          })}
+        </div>
+        <div style={{display:'flex',gap:10,justifyContent:'center'}}>
+          <button className="btn" onClick={onBoard} style={{background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'13px 26px',borderRadius:10,fontSize:12,color:'#fff',letterSpacing:2}}>🏆 ŽEBŘÍČEK</button>
+          <button className="btn" onClick={onHome} style={{background:'transparent',border:'1px solid #2a3a6a',padding:'13px 26px',borderRadius:10,fontSize:12,color:'#88aaff',letterSpacing:2}}>← DOMŮ</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SCOREBOARD ───────────────────────────────────────
+function BoardScreen({ scores, user, todayKey, onBack }) {
+  const [tab, setTab] = useState('today');
+  const todayList = scores.filter(s=>s.date===todayKey).sort((a,b)=>b.score-a.score);
+  const allMap = {};
+  scores.forEach(s=>{
+    if(!allMap[s.user_id]) allMap[s.user_id]={id:s.user_id,name:s.user_name,total:0,played:0,best:0};
+    allMap[s.user_id].total+=s.score; allMap[s.user_id].played+=1; allMap[s.user_id].best=Math.max(allMap[s.user_id].best,s.score);
+  });
+  const allList = Object.values(allMap).sort((a,b)=>b.total-a.total);
+  const list = tab==='today' ? todayList : allList;
+  const rc = ['#ffdd00','#cccccc','#cd7f32'];
+  return (
+    <div style={{minHeight:'100vh',padding:20,maxWidth:640,margin:'0 auto'}}>
+      <div className="slide-in">
+        <div style={{textAlign:'center',paddingTop:28,marginBottom:28}}>
+          <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:10,letterSpacing:4,color:'#4488ff',marginBottom:6}}>HALL OF FAME</div>
+          <h2 className="glow" style={{fontFamily:"'Orbitron', sans-serif",fontSize:32,fontWeight:900,color:'#fff'}}>ŽEBŘÍČEK</h2>
+        </div>
+        <div style={{display:'flex',gap:8,marginBottom:22,justifyContent:'center'}}>
+          {[{k:'today',l:'Dnes'},{k:'all',l:'Celkově'}].map(t=>(
+            <button key={t.k} className={`tab-btn${tab===t.k?' active':''}`} onClick={()=>setTab(t.k)}>{t.l}</button>
+          ))}
+        </div>
+        {list.length===0 ? (
+          <div style={{textAlign:'center',color:'#334455',padding:50,fontSize:13}}>{tab==='today'?'Dnes ještě nikdo nehrál':'Žádná data'}</div>
+        ) : (
+          <div style={{display:'flex',flexDirection:'column',gap:7}}>
+            {list.map((e,i)=>{
+              const me = e.user_id===user?.id || e.id===user?.id;
+              const sc = tab==='today' ? e.score : e.total;
+              return (
+                <div key={e.user_id||e.id} style={{background:me?'rgba(68,136,255,0.13)':'rgba(12,20,52,0.75)',border:`1px solid ${me?'#4488ff':'#2a3a6a'}`,borderRadius:10,padding:'13px 18px',display:'flex',alignItems:'center',gap:14}}>
+                  <div style={{width:34,height:34,borderRadius:7,display:'flex',alignItems:'center',justifyContent:'center',background:i<3?'rgba(255,220,0,0.1)':'rgba(25,38,80,0.6)',fontSize:i<3?16:13,fontWeight:900,color:rc[i]||'#334466',flexShrink:0}}>
+                    {i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:14,fontWeight:700,color:me?'#88aaff':'#ccdaff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                      {e.user_name||e.name} {me&&'(ty)'}
+                    </div>
+                    {tab==='all' && <div style={{fontSize:11,color:'#445566',marginTop:1}}>{e.played} {e.played===1?'kvíz':'kvízy'} • nejlepší: {e.best.toLocaleString()} b</div>}
+                    {tab==='today' && <div style={{fontSize:11,color:'#445566',marginTop:1}}>{e.correct}/{e.total} správně</div>}
+                  </div>
+                  <div style={{textAlign:'right',flexShrink:0}}>
+                    <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:19,fontWeight:900,color:i===0?'#ffdd00':'#4488ff'}}>{sc.toLocaleString()}</div>
+                    <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:10,color:'#334466',letterSpacing:1}}>BODŮ</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div style={{textAlign:'center',marginTop:28}}>
+          <button className="btn" onClick={onBack} style={{background:'transparent',border:'1px solid #2a3a6a',padding:'11px 30px',borderRadius:8,fontSize:12,color:'#88aaff',letterSpacing:2}}>← ZPĚT</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App/>);
+</script>
+</body>
+</html>

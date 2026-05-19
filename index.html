@@ -30,13 +30,93 @@ const SUPABASE_KEY  = 'sb_publishable_kEir70MApmMucBkp5BHpzg_jhDettKH';
 // ALTER TABLE scores ADD COLUMN IF NOT EXISTS time_saved INTEGER DEFAULT 0;
 // ALTER TABLE scores ADD COLUMN IF NOT EXISTS perfect BOOLEAN DEFAULT false;
 // ALTER TABLE users  ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+// ALTER TABLE users  ADD COLUMN IF NOT EXISTS cheater BOOLEAN DEFAULT false;
+// ALTER TABLE scores ADD COLUMN IF NOT EXISTS play_log JSONB;
+// ALTER TABLE scores ADD COLUMN IF NOT EXISTS play_checksum TEXT;
+// ALTER TABLE scores ADD COLUMN IF NOT EXISTS suspect BOOLEAN DEFAULT false;
+// ALTER TABLE users  ADD COLUMN IF NOT EXISTS premium BOOLEAN DEFAULT false;
+// -- Tabulka pro premium kódy (ty je generuješ a posíláš hráčům po zaplacení):
+// CREATE TABLE IF NOT EXISTS premium_codes (
+//   code TEXT PRIMARY KEY,
+//   used_by TEXT REFERENCES users(id),
+//   used_at TIMESTAMPTZ,
+//   created_at TIMESTAMPTZ DEFAULT NOW(),
+//   note TEXT  -- tvoje poznámka (jméno zákazníka, datum platby...)
+// );
+// -- RLS pro premium_codes: čtení jen pro ověření, zápis jen přes trigger
+// ALTER TABLE premium_codes ENABLE ROW LEVEL SECURITY;
+// CREATE POLICY "read_own_code" ON premium_codes FOR SELECT USING (true);
+// CREATE POLICY "use_code" ON premium_codes FOR UPDATE USING (used_by IS NULL);
 //
-// -- RLS pro users tabulku (pokud UPDATE nefunguje):
+// -- Trigger pro validaci hry a detekci podvodníků:
+// CREATE OR REPLACE FUNCTION validate_score()
+// RETURNS TRIGGER AS $$
+// DECLARE
+//   log_count INTEGER;
+//   total_time_used INTEGER;
+//   min_time_per_q INTEGER := 1; -- min 1 sekunda na otázku
+//   max_score INTEGER := 23000;
+//   log_entry JSONB;
+//   calc_score INTEGER := 0;
+//   is_suspect BOOLEAN := false;
+//   suspicion TEXT := '';
+// BEGIN
+//   -- Základní validace rozsahu
+//   IF NEW.score > max_score THEN
+//     is_suspect := true; suspicion := suspicion || 'score_overflow;';
+//   END IF;
+//   IF NEW.correct > NEW.total THEN
+//     is_suspect := true; suspicion := suspicion || 'correct_overflow;';
+//   END IF;
+//
+//   -- Validace play_log pokud existuje
+//   IF NEW.play_log IS NOT NULL THEN
+//     log_count := jsonb_array_length(NEW.play_log);
+//
+//     -- Počet záznamů musí odpovídat počtu otázek
+//     IF log_count != NEW.total THEN
+//       is_suspect := true; suspicion := suspicion || 'log_count_mismatch;';
+//     END IF;
+//
+//     -- Kontrola celkového času (součet časů musí dávat smysl)
+//     SELECT SUM((e->>'time_spent')::int)
+//     INTO total_time_used
+//     FROM jsonb_array_elements(NEW.play_log) e;
+//
+//     -- Každá otázka musí trvat aspoň 1 sekundu
+//     IF total_time_used < log_count * min_time_per_q THEN
+//       is_suspect := true; suspicion := suspicion || 'too_fast;';
+//     END IF;
+//
+//     -- Pokud není play_log ale score je vysoké, podezřelé
+//   ELSE
+//     IF NEW.score > 5000 THEN
+//       is_suspect := true; suspicion := suspicion || 'no_log_high_score;';
+//     END IF;
+//   END IF;
+//
+//   NEW.suspect := is_suspect;
+//
+//   -- Pokud je podezřelý, označ uživatele
+//   IF is_suspect THEN
+//     UPDATE users SET cheater = true WHERE id = NEW.user_id;
+//   END IF;
+//
+//   RETURN NEW;
+// END;
+// $$ LANGUAGE plpgsql SECURITY DEFINER;
+//
+// DROP TRIGGER IF EXISTS check_score_validity ON scores;
+// CREATE TRIGGER check_score_validity
+//   BEFORE INSERT OR UPDATE ON scores
+//   FOR EACH ROW EXECUTE FUNCTION validate_score();
+//
+// -- RLS pro users tabulku:
 // ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-// CREATE POLICY "Kdokoliv může číst users"   ON users FOR SELECT USING (true);
-// CREATE POLICY "Kdokoliv může vytvořit user" ON users FOR INSERT WITH CHECK (true);
-// CREATE POLICY "Kdokoliv může upravit user"  ON users FOR UPDATE USING (true) WITH CHECK (true);
-//
+// CREATE POLICY "read_users"   ON users FOR SELECT USING (true);
+// CREATE POLICY "insert_users" ON users FOR INSERT WITH CHECK (true);
+// CREATE POLICY "update_users" ON users FOR UPDATE USING (true) WITH CHECK (true);
+// ═══════════════════════════════════════════════════════
 // CREATE TABLE IF NOT EXISTS monthly_champions (
 //   id TEXT PRIMARY KEY,
 //   month TEXT NOT NULL,
@@ -65,7 +145,7 @@ const QUIZ_DURATION = 120;
 const QUESTIONS_PER_QUIZ = 15;
 const MAX_PTS = 1000;
 const MIN_PTS = 100;
-const SCREENS = { HOME:'home', REGISTER:'register', PROFILE:'profile', QUIZ:'quiz', RESULT:'result', BOARD:'board' };
+const SCREENS = { HOME:'home', REGISTER:'register', PROFILE:'profile', QUIZ:'quiz', RESULT:'result', BOARD:'board', STATS:'stats' };
 
 // Kombo konstanty
 const COMBO_TIME_LIMIT = 3; // sekund od zobrazení otázky
@@ -1477,7 +1557,26 @@ function App() {
     setLoading(false);
   }
 
-  async function saveProfile(profileData) {
+  async function activatePremium(code) {
+    const clean = code.trim().toUpperCase();
+    try {
+      // Zkontroluj kód
+      const { data: codeRow, error } = await db.from('premium_codes')
+        .select('*').eq('code', clean).maybeSingle();
+      if (error || !codeRow) return { ok: false, msg: 'Kód neexistuje.' };
+      if (codeRow.used_by) return { ok: false, msg: 'Kód byl již použit.' };
+      // Označ kód jako použitý
+      await db.from('premium_codes').update({
+        used_by: user.id, used_at: new Date().toISOString()
+      }).eq('code', clean);
+      // Aktivuj premium na uživateli
+      const { data: updated } = await db.from('users')
+        .update({ premium: true }).eq('id', user.id).select().single();
+      if (updated) { setUser(updated); lss('itq_user', updated); }
+      else { const u = {...user, premium: true}; setUser(u); lss('itq_user', u); }
+      return { ok: true };
+    } catch(e) { return { ok: false, msg: 'Chyba připojení.' }; }
+  }
     setLoading(true);
     try {
       const { data, error } = await db.from('users')
@@ -1516,6 +1615,13 @@ function App() {
     const timeSaved = quiz.timeLeft > 0 ? quiz.timeLeft : 0;
     const monthKey = getCurrentMonthKey();
 
+    const playLog = quiz.playLog || [];
+    // Jednoduchý checksum: součet (qId hash + time_spent + pts) pro každou odpověď
+    const checksum = playLog.reduce((sum, e) => {
+      const qHash = String(e.qId).split('').reduce((a,c) => a + c.charCodeAt(0), 0);
+      return sum + qHash + (e.time_spent||0) + (e.pts||0);
+    }, 0).toString(16);
+
     const entry = {
       id: Date.now().toString(), user_id: user.id, user_name: user.name,
       date: todayKey, score: finalScore,
@@ -1523,6 +1629,8 @@ function App() {
       total: quiz.questions.length, timestamp: Date.now(),
       time_saved: timeSaved,
       perfect: allCorrect,
+      play_log: playLog.length > 0 ? playLog : null,
+      play_checksum: checksum,
     };
     await db.from('scores').upsert(entry, { onConflict: 'user_id,date' });
     // Kvíz dokončen — smaž uložený stav
@@ -1733,6 +1841,7 @@ function App() {
             setScreen(SCREENS.QUIZ);
           }}
           onBoard={()=>setScreen(SCREENS.BOARD)}
+          onStats={()=>setScreen(SCREENS.STATS)}
           onLogout={()=>{setUser(null);lss('itq_user',null);}}
           loading={loading}/>}
         {screen===SCREENS.REGISTER && <RegisterScreen onRegister={registerUser} onBack={()=>setScreen(SCREENS.HOME)} loading={loading}/>}
@@ -1753,13 +1862,14 @@ function App() {
         />}
         {screen===SCREENS.RESULT && currentQuiz && <ResultScreen quiz={currentQuiz} timeSaved={currentQuiz.timeSaved||0} onHome={()=>setScreen(SCREENS.HOME)} onBoard={()=>setScreen(SCREENS.BOARD)}/>}
         {screen===SCREENS.BOARD && <BoardScreen scores={scores} user={user} todayKey={todayKey} monthlyChampions={monthlyChampions} onBack={()=>setScreen(SCREENS.HOME)}/>}
+        {screen===SCREENS.STATS && user && <StatsScreen user={user} scores={scores} onActivate={activatePremium} onBack={()=>setScreen(SCREENS.HOME)}/>}
       </div>
     </div>
   );
 }
 
 // ─── HOME ─────────────────────────────────────────────
-function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusToday, resumableQuiz, onResume, onRegister, onStart, onBoard, onLogout, onProfile, loading }) {
+function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusToday, resumableQuiz, onResume, onRegister, onStart, onBoard, onStats, onLogout, onProfile, loading }) {
   const cats = [...new Set(todayQuestions.map(q=>q.cat).filter(c=>c!=='🎲 Lucky Box'))];
   const OS_LABELS = {linux:'🐧 Linux', windows:'🪟 Windows', macos:' macOS', bsd:'👹 BSD', arch:'💀 Arch (btw)'};
   const totalTime = QUIZ_DURATION + (timeBonusToday||0);
@@ -1869,6 +1979,9 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusT
             <button className="btn" onClick={onRegister} style={{background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'18px 40px',borderRadius:10,fontSize:17,color:'#fff',letterSpacing:3,boxShadow:'0 0 30px rgba(68,136,255,0.35)'}}>REGISTROVAT SE</button>
           )}
           <button className="btn" onClick={onBoard} style={{background:'transparent',border:'1px solid #2a3a6a',padding:'13px 40px',borderRadius:10,fontSize:13,color:'#88aaff',letterSpacing:2}}>🏆 ŽEBŘÍČEK</button>
+          {user && <button className="btn" onClick={onStats} style={{background:'transparent',border:`1px solid ${user.premium?'#ffd70066':'#2a3a6a'}`,padding:'13px 40px',borderRadius:10,fontSize:13,color:user.premium?'#ffd700':'#88aaff',letterSpacing:2}}>
+            {user.premium ? '📊 MÉ STATISTIKY' : '📊 STATISTIKY 🔒'}
+          </button>}
         </div>
       </div>
     </div>
@@ -2199,9 +2312,10 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
   const pausedRef = useRef(false);
   const pendingRef = useRef(null);
   // Používáme refy pro věci, kde nechceme stale closure:
-  const timeLeftRef = useRef(initQuiz.timeLeft);   // aktuální timeLeft (sync s timerem)
-  const questionStartTimeRef = useRef(initQuiz.timeLeft); // timeLeft když otázka začala
-  const comboCountRef = useRef(0);                 // kombo čítač (sync se state)
+  const timeLeftRef = useRef(initQuiz.timeLeft);
+  const questionStartTimeRef = useRef(initQuiz.timeLeft);
+  const comboCountRef = useRef(0);
+  const playLogRef = useRef([]); // log každé odpovědi pro anti-cheat
 
   const q = quiz.questions[quiz.current];
 
@@ -2218,7 +2332,7 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
         const next = current + 1;
         if (next >= questionsLen) {
           clearInterval(timer.current);
-          onFinish({ questions: allQuestions, answers: newAns, totalScore, current: next, timeLeft: 0 });
+          onFinish({ questions: allQuestions, answers: newAns, totalScore, current: next, timeLeft: 0, playLog: playLogRef.current });
         } else {
           setFlash(null);
           // Reset komba a start time pro novou otázku
@@ -2247,7 +2361,7 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
         timeLeftRef.current = newTime; // sync ref
         if (newTime <= 0) {
           clearInterval(timer.current);
-          onFinish({...prev, timeLeft: 0});
+          onFinish({...prev, timeLeft: 0, playLog: playLogRef.current});
           return {...prev, timeLeft: 0};
         }
         return {...prev, timeLeft: newTime};
@@ -2268,7 +2382,16 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
     const isQuick = ok && timeSpent <= COMBO_TIME_LIMIT;
 
     if (!ok) {
-      // Špatná odpověď — reset komba, zastavit timer, zobrazit overlay
+      // Zaznamenej špatnou odpověď do play logu
+      playLogRef.current.push({
+        qId: q.id,
+        chosen: idx,
+        correct: false,
+        time_spent: questionStartTimeRef.current - timeLeftRef.current,
+        time_left: timeLeftRef.current,
+        pts: 0,
+      });
+      // Reset komba, zastavit timer, zobrazit overlay
       comboCountRef.current = 0;
       setComboCount(0);
       pausedRef.current = true;
@@ -2293,6 +2416,15 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
       if (bonus > 0) onCombo(Math.min(newCombo, 5), bonus);
 
       const pts = calcPoints(timeLeftRef.current) + bonus;
+      // Zaznamenej odpověď do play logu
+      playLogRef.current.push({
+        qId: q.id,
+        chosen: idx,
+        correct: true,
+        time_spent: questionStartTimeRef.current - timeLeftRef.current,
+        time_left: timeLeftRef.current,
+        pts,
+      });
 
       setTimeout(() => {
         setFlash(null);
@@ -2301,7 +2433,7 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
         const next = quiz.current + 1;
         if (next >= quiz.questions.length) {
           clearInterval(timer.current);
-          onFinish({...quiz, answers: newAns, totalScore: newScore, current: next});
+          onFinish({...quiz, answers: newAns, totalScore: newScore, current: next, playLog: playLogRef.current});
         } else {
           // Reset start time pro novou otázku
           questionStartTimeRef.current = timeLeftRef.current;
@@ -2332,7 +2464,7 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
       setFlash(null);
       const newAns = [...quiz.answers, {q: 'lucky', chosen: pts, correct: pts > 0, pts: Math.max(pts, 0), luckyPts: pts, comboBonus: 0}];
       const newScore = Math.max(quiz.totalScore + pts, 0);
-      onFinish({...quiz, answers: newAns, totalScore: newScore, current: quiz.current + 1});
+      onFinish({...quiz, answers: newAns, totalScore: newScore, current: quiz.current + 1, playLog: playLogRef.current});
     }, 300);
   }
 
@@ -2537,6 +2669,7 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
   const [profileView, setProfileView] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [avatarCache, setAvatarCache] = useState({}); // userId → avatar_url|null
+  const [cheaterCache, setCheaterCache] = useState({}); // userId → boolean
 
   const currentMonth = getCurrentMonthKey();
   const todayList = scores.filter(s=>s.date===todayKey).sort((a,b)=>b.score-a.score);
@@ -2575,13 +2708,18 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
       missing.forEach(id => { next[id] = null; }); // null = načítá se / nenalezeno
       return next;
     });
-    // Batch fetch
-    db.from('users').select('id,avatar_url').in('id', missing)
+    // Batch fetch — načte avatar i cheater flag
+    db.from('users').select('id,avatar_url,cheater').in('id', missing)
       .then(({data}) => {
         if (!data) return;
         setAvatarCache(prev => {
           const next = {...prev};
           data.forEach(u => { next[u.id] = u.avatar_url||null; });
+          return next;
+        });
+        setCheaterCache(prev => {
+          const next = {...prev};
+          data.forEach(u => { next[u.id] = !!u.cheater; });
           return next;
         });
       }).catch(()=>{});
@@ -2619,6 +2757,11 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
                 }
               </div>
               <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:20,fontWeight:900,color:'#fff'}}>{profileView.name}</div>
+              {profileView.cheater && (
+                <div style={{marginTop:8,fontSize:12,color:'#ff4444',background:'rgba(255,50,50,0.12)',border:'1px solid #ff444444',borderRadius:8,padding:'5px 14px',display:'inline-block'}}>
+                  🚨 Tento hráč byl označen jako podvodník
+                </div>
+              )}
             </div>
             {[
               profileView.company && ['🏢 Firma', profileView.company],
@@ -2722,6 +2865,8 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
                   const uid = e.user_id || e.id;
                   const isPerfectToday = tab==='today' && e.perfect;
                   const perfects = e.perfects || 0;
+                  const isCheater = cheaterCache[uid] === true;
+                  const isSuspect = tab==='today' && e.suspect;
 
                   return (
                     <div key={uid} style={{
@@ -2769,6 +2914,17 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
                               💎 ×{perfects}
                             </span>
                           )}
+                          {/* Podvodník / podezřelý */}
+                          {isCheater && (
+                            <span title="Tento hráč byl označen jako podvodník" style={{fontSize:10,background:'rgba(255,50,50,0.15)',color:'#ff4444',border:'1px solid #ff444466',borderRadius:20,padding:'1px 8px',letterSpacing:0.5,flexShrink:0,cursor:'default'}}>
+                              🚨 PODVODNÍK
+                            </span>
+                          )}
+                          {!isCheater && isSuspect && (
+                            <span title="Výsledek tohoto hráče je označen jako podezřelý" style={{fontSize:10,background:'rgba(255,150,0,0.12)',color:'#ff9900',border:'1px solid #ff990044',borderRadius:20,padding:'1px 8px',letterSpacing:0.5,flexShrink:0,cursor:'default'}}>
+                              ⚠️ PODEZŘELÝ
+                            </span>
+                          )}
                         </div>
                         {tab==='all' && <div style={{fontSize:11,color:'#445566',marginTop:1}}>{e.played} {e.played===1?'kvíz':'kvízy'} • nejlepší: {e.best.toLocaleString()} b</div>}
                         {tab==='month' && <div style={{fontSize:11,color:'#445566',marginTop:1}}>{e.played} {e.played===1?'den':'dní'} • nejlepší: {e.best.toLocaleString()} b</div>}
@@ -2789,6 +2945,287 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
         )}
 
         <div style={{textAlign:'center',marginTop:28}}>
+          <button className="btn" onClick={onBack} style={{background:'transparent',border:'1px solid #2a3a6a',padding:'11px 30px',borderRadius:8,fontSize:12,color:'#88aaff',letterSpacing:2}}>← ZPĚT</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── STATS SCREEN ─────────────────────────────────────
+function StatsScreen({ user, scores, onActivate, onBack }) {
+  const [codeInput, setCodeInput] = useState('');
+  const [codeMsg, setCodeMsg] = useState('');
+  const [codeLoading, setCodeLoading] = useState(false);
+  const [codeOk, setCodeOk] = useState(false);
+
+  const myScores = scores.filter(s => s.user_id === user.id)
+    .sort((a,b) => a.date.localeCompare(b.date));
+  const isPremium = user.premium;
+
+  async function submitCode() {
+    if (!codeInput.trim()) return;
+    setCodeLoading(true); setCodeMsg('');
+    const res = await onActivate(codeInput);
+    setCodeLoading(false);
+    if (res.ok) { setCodeOk(true); setCodeMsg('✅ Premium aktivován! Vítej mezi elitou.'); }
+    else setCodeMsg('❌ ' + res.msg);
+  }
+
+  // ── Výpočet statistik ──
+  const totalPlayed  = myScores.length;
+  const totalScore   = myScores.reduce((s,r) => s+r.score, 0);
+  const avgScore     = totalPlayed ? Math.round(totalScore/totalPlayed) : 0;
+  const bestScore    = totalPlayed ? Math.max(...myScores.map(r=>r.score)) : 0;
+  const worstScore   = totalPlayed ? Math.min(...myScores.map(r=>r.score)) : 0;
+  const perfectCount = myScores.filter(r=>r.perfect).length;
+  const totalCorrect = myScores.reduce((s,r) => s+(r.correct||0), 0);
+  const totalQs      = myScores.reduce((s,r) => s+(r.total||0), 0);
+  const accuracy     = totalQs ? Math.round((totalCorrect/totalQs)*100) : 0;
+
+  // Streak
+  let currentStreak = 0, maxStreak = 0, tempStreak = 0;
+  const today = getTodayKey();
+  const daySet = new Set(myScores.map(r=>r.date));
+  const sortedDays = [...daySet].sort();
+  for (let i = 0; i < sortedDays.length; i++) {
+    if (i===0) { tempStreak=1; }
+    else {
+      const prev = new Date(sortedDays[i-1]); prev.setDate(prev.getDate()+1);
+      const cur  = new Date(sortedDays[i]);
+      tempStreak = prev.toISOString().slice(0,10)===sortedDays[i] ? tempStreak+1 : 1;
+    }
+    maxStreak = Math.max(maxStreak, tempStreak);
+  }
+  // Aktuální streak — počítá od dneška dozadu
+  for (let i = sortedDays.length-1; i >= 0; i--) {
+    const expected = new Date(today); expected.setDate(expected.getDate()-(sortedDays.length-1-i));
+    if (sortedDays[i]===expected.toISOString().slice(0,10)) currentStreak++;
+    else break;
+  }
+
+  // Lucky Box statistiky (z play_log)
+  const luckyStats = {total:0, wins:0, losses:0, zeros:0, jackpots:0, bombs:0};
+  myScores.forEach(s => {
+    if (!s.play_log) return;
+    s.play_log.filter(e=>e.qId==='lucky').forEach(e => {
+      const v = e.chosen;
+      luckyStats.total++;
+      if (v===1000) luckyStats.jackpots++;
+      else if (v===-500) luckyStats.bombs++;
+      else if (v===0) luckyStats.zeros++;
+      else if (v>0) luckyStats.wins++;
+      else luckyStats.losses++;
+    });
+  });
+
+  // Skóre za posledních 14 dní pro mini graf
+  const last14 = [];
+  for (let i=13; i>=0; i--) {
+    const d = new Date(); d.setDate(d.getDate()-i);
+    const dk = d.toISOString().slice(0,10);
+    const r = myScores.find(s=>s.date===dk);
+    last14.push({ date: dk, score: r?.score||0, played: !!r, perfect: r?.perfect||false });
+  }
+  const maxBar = Math.max(...last14.map(d=>d.score), 1);
+
+  // Srovnání s ostatními
+  const allAvg = scores.length ? Math.round(scores.reduce((s,r)=>s+r.score,0)/scores.length) : 0;
+  const allPlayers = new Set(scores.map(s=>s.user_id)).size;
+  const myRank = [...new Set(scores.map(s=>s.user_id))].map(uid => ({
+    uid, total: scores.filter(s=>s.user_id===uid).reduce((s,r)=>s+r.score,0)
+  })).sort((a,b)=>b.total-a.total).findIndex(r=>r.uid===user.id)+1;
+
+  const C = { gold:'#ffd700', blue:'#4488ff', green:'#44ffaa', red:'#ff4444', gray:'#445566', purple:'#bb44ff' };
+
+  if (!isPremium) {
+    return (
+      <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+        <div className="slide-in" style={{width:'100%',maxWidth:440,textAlign:'center'}}>
+          <div style={{fontSize:64,marginBottom:16}}>📊</div>
+          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:11,letterSpacing:4,color:'#4488ff',marginBottom:8}}>PREMIUM FUNKCE</div>
+          <h2 style={{fontFamily:"'Orbitron',sans-serif",fontSize:26,fontWeight:900,color:'#fff',marginBottom:8}}>Statistiky hráče</h2>
+          <div style={{color:'#556688',fontSize:13,lineHeight:1.7,marginBottom:28,padding:'0 10px'}}>
+            Podrobné statistiky jsou prémiová funkce.<br/>
+            Přístup získáš jednorázovým prémiový kódem<br/>
+            po domluvě s administrátorem.
+          </div>
+
+          {/* Co dostaneš */}
+          <div style={{background:'rgba(20,35,80,0.6)',border:'1px solid #2a3a6a',borderRadius:12,padding:20,marginBottom:24,textAlign:'left'}}>
+            <div style={{fontSize:11,color:'#4488ff',letterSpacing:2,marginBottom:12,fontFamily:"'Orbitron',sans-serif"}}>CO ZÍSKÁŠ</div>
+            {[
+              ['📈','Graf skóre za posledních 14 dní'],
+              ['🎯','Přesnost odpovědí a nejslabší kategorie'],
+              ['🔥','Streak, kombo statistiky'],
+              ['🎲','Lucky Box — kolikrát jackpot vs bomba'],
+              ['🏅','Tvoje pozice v celkovém žebříčku'],
+              ['📊','Srovnání s průměrem ostatních hráčů'],
+            ].map(([e,t]) => (
+              <div key={t} style={{display:'flex',gap:10,alignItems:'center',padding:'6px 0',borderBottom:'1px solid #1a2040',fontSize:13,color:'#8899bb'}}>
+                <span style={{fontSize:18,width:24,textAlign:'center'}}>{e}</span>{t}
+              </div>
+            ))}
+          </div>
+
+          {/* Zadání kódu */}
+          <div style={{background:'rgba(20,35,80,0.6)',border:'1px solid #2a3a6a',borderRadius:12,padding:20}}>
+            <div style={{fontSize:11,color:'#4488ff',letterSpacing:2,marginBottom:12,fontFamily:"'Orbitron',sans-serif"}}>ZADAT PRÉMIOVÝ KÓD</div>
+            <input value={codeInput} onChange={e=>{setCodeInput(e.target.value.toUpperCase());setCodeMsg('');}}
+              onKeyDown={e=>e.key==='Enter'&&submitCode()}
+              placeholder="XXXX-XXXX-XXXX" maxLength={20}
+              style={{letterSpacing:3,textAlign:'center',fontSize:16,fontFamily:"'Orbitron',sans-serif"}}/>
+            {codeMsg && <div style={{marginTop:8,fontSize:12,color:codeOk?'#44ffaa':'#ff4444'}}>{codeMsg}</div>}
+            <button className="btn" onClick={submitCode} disabled={codeLoading||!codeInput.trim()}
+              style={{marginTop:12,width:'100%',background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'12px',borderRadius:8,fontSize:13,color:'#fff',letterSpacing:2}}>
+              {codeLoading ? 'OVĚŘUJI...' : '🔓 AKTIVOVAT'}
+            </button>
+            <div style={{marginTop:12,fontSize:11,color:'#334455',lineHeight:1.5}}>
+              Kód zakoupíš přes kontakt s administrátorem.<br/>
+              Každý kód je jednorázový a nepřenosný.
+            </div>
+          </div>
+
+          <button onClick={onBack} style={{marginTop:18,background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1}}>← ZPĚT</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── PREMIUM OBSAH ──────────────────────────────────────
+  return (
+    <div style={{minHeight:'100vh',padding:'20px',maxWidth:680,margin:'0 auto'}}>
+      <div className="slide-in">
+        <div style={{textAlign:'center',paddingTop:24,marginBottom:24}}>
+          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,letterSpacing:4,color:'#ffd700',marginBottom:6}}>✦ PREMIUM ✦</div>
+          <h2 className="glow" style={{fontFamily:"'Orbitron',sans-serif",fontSize:28,fontWeight:900,color:'#fff',marginBottom:4}}>MÉ STATISTIKY</h2>
+          <div style={{fontSize:12,color:'#445566'}}>{user.name} · {totalPlayed} odehraných kvízů</div>
+        </div>
+
+        {totalPlayed === 0 ? (
+          <div style={{textAlign:'center',padding:'40px 0',color:'#445566'}}>Zatím žádná data — zahraj první kvíz!</div>
+        ) : (<>
+
+          {/* ── HLAVNÍ ČÍSLA ── */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:16}}>
+            {[
+              {e:'🏆',l:'Nejlepší den',v:bestScore.toLocaleString(),c:C.gold},
+              {e:'📊',l:'Průměr',v:avgScore.toLocaleString(),c:C.blue},
+              {e:'🎯',l:'Přesnost',v:`${accuracy}%`,c:C.green},
+              {e:'💎',l:'Perfect runs',v:perfectCount,c:C.gold},
+              {e:'🔥',l:'Max streak',v:`${maxStreak}d`,c:C.purple},
+              {e:'📅',l:'Aktuální streak',v:`${currentStreak}d`,c:currentStreak>=3?C.purple:C.gray},
+            ].map(s=>(
+              <div key={s.l} style={{background:'rgba(15,25,60,0.8)',border:'1px solid #1e2a4a',borderRadius:10,padding:'12px 8px',textAlign:'center'}}>
+                <div style={{fontSize:20,marginBottom:4}}>{s.e}</div>
+                <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:17,fontWeight:900,color:s.c}}>{s.v}</div>
+                <div style={{fontSize:10,color:'#445566',marginTop:3,letterSpacing:0.5}}>{s.l}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* ── SROVNÁNÍ S OSTATNÍMI ── */}
+          <div style={{background:'rgba(15,25,60,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:16}}>
+            <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,color:'#4488ff',letterSpacing:2,marginBottom:12}}>📊 SROVNÁNÍ S OSTATNÍMI</div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,textAlign:'center'}}>
+              <div>
+                <div style={{fontSize:22,fontWeight:900,color:C.gold,fontFamily:"'Orbitron',sans-serif"}}>{myRank || '?'}</div>
+                <div style={{fontSize:10,color:'#445566',marginTop:2}}>tvoje pořadí<br/>z {allPlayers} hráčů</div>
+              </div>
+              <div>
+                <div style={{fontSize:22,fontWeight:900,color:avgScore>=allAvg?C.green:C.red,fontFamily:"'Orbitron',sans-serif"}}>
+                  {avgScore>=allAvg?'+':''}{avgScore-allAvg}
+                </div>
+                <div style={{fontSize:10,color:'#445566',marginTop:2}}>vs průměr<br/>({allAvg.toLocaleString()} b)</div>
+              </div>
+              <div>
+                <div style={{fontSize:22,fontWeight:900,color:C.blue,fontFamily:"'Orbitron',sans-serif"}}>{totalScore.toLocaleString()}</div>
+                <div style={{fontSize:10,color:'#445566',marginTop:2}}>celkem bodů<br/>za vše</div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── MINI GRAF — posledních 14 dní ── */}
+          <div style={{background:'rgba(15,25,60,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:16}}>
+            <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,color:'#4488ff',letterSpacing:2,marginBottom:14}}>📈 POSLEDNÍCH 14 DNÍ</div>
+            <div style={{display:'flex',alignItems:'flex-end',gap:4,height:80,padding:'0 4px'}}>
+              {last14.map((d,i) => {
+                const h = d.played ? Math.max(Math.round((d.score/maxBar)*76), 4) : 0;
+                const col = d.perfect ? C.gold : d.played ? C.blue : '#1a2040';
+                const dayLabel = new Date(d.date).getDate();
+                return (
+                  <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:3,height:'100%',justifyContent:'flex-end'}}>
+                    <div title={d.played?`${d.date}: ${d.score.toLocaleString()} b`:'Nehrál'} style={{
+                      width:'100%', height:h||2, background:col,
+                      borderRadius:'3px 3px 0 0',
+                      boxShadow: d.played?`0 0 6px ${col}44`:'none',
+                      transition:'height 0.3s',
+                      minHeight: d.played ? 4 : 2,
+                      opacity: d.played ? 1 : 0.3,
+                    }}/>
+                    <div style={{fontSize:8,color:'#334455',lineHeight:1}}>{dayLabel}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{display:'flex',gap:12,marginTop:8,justifyContent:'center',fontSize:10,color:'#445566'}}>
+              <span><span style={{color:C.gold}}>■</span> Perfect run</span>
+              <span><span style={{color:C.blue}}>■</span> Odehráno</span>
+              <span><span style={{color:'#1a2040',border:'1px solid #2a3a6a',display:'inline-block',width:8,height:8}}></span> Nehrál</span>
+            </div>
+          </div>
+
+          {/* ── LUCKY BOX ── */}
+          {luckyStats.total > 0 && (
+            <div style={{background:'rgba(15,25,60,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:16}}>
+              <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,color:'#4488ff',letterSpacing:2,marginBottom:12}}>🎲 LUCKY BOX STATISTIKY</div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,textAlign:'center'}}>
+                {[
+                  {e:'🏆',l:'Jackpoty',v:luckyStats.jackpots,c:C.gold},
+                  {e:'💣',l:'Bomby',v:luckyStats.bombs,c:C.red},
+                  {e:'💰',l:'Výhry',v:luckyStats.wins,c:C.green},
+                  {e:'🪦',l:'Ztráty',v:luckyStats.losses,c:C.red},
+                  {e:'⚖️',l:'Nuly',v:luckyStats.zeros,c:C.gray},
+                  {e:'📦',l:'Celkem',v:luckyStats.total,c:C.blue},
+                ].map(s=>(
+                  <div key={s.l} style={{padding:'10px 4px',background:'rgba(10,15,40,0.5)',borderRadius:8,border:'1px solid #1a2a4a'}}>
+                    <div style={{fontSize:18,marginBottom:3}}>{s.e}</div>
+                    <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:16,fontWeight:900,color:s.c}}>{s.v}</div>
+                    <div style={{fontSize:10,color:'#445566',marginTop:2}}>{s.l}</div>
+                  </div>
+                ))}
+              </div>
+              {luckyStats.total > 0 && (
+                <div style={{marginTop:10,textAlign:'center',fontSize:11,color:'#556688'}}>
+                  Štěstí: {Math.round(((luckyStats.jackpots+luckyStats.wins)/luckyStats.total)*100)}% výher
+                  {luckyStats.jackpots > 0 && <span style={{color:C.gold}}> · {luckyStats.jackpots}× jackpot!</span>}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── POSLEDNÍ VÝSLEDKY ── */}
+          <div style={{background:'rgba(15,25,60,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:16}}>
+            <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,color:'#4488ff',letterSpacing:2,marginBottom:12}}>📋 POSLEDNÍ VÝSLEDKY</div>
+            <div style={{maxHeight:220,overflowY:'auto',display:'flex',flexDirection:'column',gap:6}}>
+              {[...myScores].reverse().slice(0,20).map((s,i)=>(
+                <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 10px',background:'rgba(10,15,40,0.5)',borderRadius:8,border:`1px solid ${s.perfect?'#ffd70033':'#1a2a4a'}`}}>
+                  <div style={{fontSize:12,color:'#334466',minWidth:72,flexShrink:0}}>{s.date}</div>
+                  <div style={{flex:1,display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+                    <span style={{fontSize:11,color:'#8899bb'}}>{s.correct}/{s.total} správně</span>
+                    {s.perfect && <span style={{fontSize:9,color:'#ffd700',background:'rgba(255,215,0,0.1)',border:'1px solid #ffd70033',borderRadius:10,padding:'1px 6px'}}>💎</span>}
+                  </div>
+                  <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:14,fontWeight:900,color:s.score>=avgScore?C.green:C.red,minWidth:60,textAlign:'right'}}>
+                    {s.score.toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+        </>)}
+
+        <div style={{textAlign:'center',marginTop:16,marginBottom:24}}>
           <button className="btn" onClick={onBack} style={{background:'transparent',border:'1px solid #2a3a6a',padding:'11px 30px',borderRadius:8,fontSize:12,color:'#88aaff',letterSpacing:2}}>← ZPĚT</button>
         </div>
       </div>

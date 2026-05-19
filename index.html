@@ -1862,9 +1862,9 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusT
           {user ? (
             hasPlayedToday
               ? <div style={{background:'rgba(20,60,20,0.5)',border:'1px solid #334433',borderRadius:10,padding:16,color:'#66aa66',fontSize:12,letterSpacing:1}}>✓ DNES JSI UŽ HRÁL</div>
-              : <button className="btn" onClick={onStart} style={{background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'18px 40px',borderRadius:10,fontSize:17,color:'#fff',letterSpacing:3,boxShadow:'0 0 30px rgba(68,136,255,0.35)'}}>
-                  {resumableQuiz ? '🔄 ZAČÍT ZNOVU' : '▶ SPUSTIT KVÍZ'}
-                </button>
+              : resumableQuiz
+                ? null  // pokud je rozehraný kvíz, tlačítko "spustit" se nezobrazuje — jen banner POKRAČOVAT nahoře
+                : <button className="btn" onClick={onStart} style={{background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'18px 40px',borderRadius:10,fontSize:17,color:'#fff',letterSpacing:3,boxShadow:'0 0 30px rgba(68,136,255,0.35)'}}>▶ SPUSTIT KVÍZ</button>
           ) : (
             <button className="btn" onClick={onRegister} style={{background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'18px 40px',borderRadius:10,fontSize:17,color:'#fff',letterSpacing:3,boxShadow:'0 0 30px rgba(68,136,255,0.35)'}}>REGISTROVAT SE</button>
           )}
@@ -2075,25 +2075,27 @@ function RegisterScreen({ onRegister, onBack, loading }) {
 
 // ─── LUCKY BOX SLOT (renderuje se místo klasických odpovědí) ─
 function LuckyBoxSlot({ prizes, onPick, locked }) {
-  const [opened, setOpened] = useState(null); // index otevřené truhličky
+  const [opened, setOpened] = useState(null);
   const [revealed, setRevealed] = useState(false);
+  const [done, setDone] = useState(false);       // hráč kliknul "Zobrazit výsledky"
 
-  const CHEST_EMOJIS_CLOSED = ['📦','📦','📦','📦'];
   const prizeColor = (pts) => pts >= 500 ? '#ffd700' : pts >= 100 ? '#44ff88' : pts === 0 ? '#8899bb' : '#ff4444';
   const prizeLabel = (pts) => pts > 0 ? `+${pts}` : String(pts);
 
   function pick(i) {
     if (locked || opened !== null) return;
     setOpened(i);
-    setTimeout(() => {
-      setRevealed(true);
-      onPick(prizes[i]);
-    }, 900);
+    setTimeout(() => setRevealed(true), 900);
+  }
+
+  function confirm() {
+    if (!revealed) return;
+    setDone(true);
+    onPick(prizes[opened]);
   }
 
   return (
-    <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:20,paddingBottom:20}}>
-      {/* Instrukce */}
+    <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,paddingBottom:20}}>
       {opened === null && (
         <div style={{textAlign:'center',color:'#556688',fontSize:13,animation:'slideIn 0.4s ease'}}>
           Jedna bedna skrývá jackpot. Jedna zkázu. Vyber moudře... nebo vůbec ne.
@@ -2108,58 +2110,51 @@ function LuckyBoxSlot({ prizes, onPick, locked }) {
           const isPositive = pts > 0;
           const isJackpot = pts === 1000;
           const isBomb = pts === -500;
+          const showContent = isThis || (opened !== null);
 
           return (
             <button key={i} className="chest-btn" onClick={() => pick(i)}
               disabled={locked || opened !== null}
               style={{
-                padding:'22px 12px',
-                borderRadius:16,
-                border: isThis
-                  ? `2px solid ${col}`
-                  : '2px solid #2a3a6a',
+                padding:'22px 12px', borderRadius:16,
+                border: isThis ? `2px solid ${col}` : opened !== null ? `1px solid #1e2a4a` : '2px solid #2a3a6a',
                 background: isThis
                   ? `rgba(${isPositive?'0,80,40':'80,0,0'},0.4)`
-                  : 'rgba(15,25,60,0.85)',
-                display:'flex',flexDirection:'column',alignItems:'center',gap:10,
+                  : opened !== null ? 'rgba(10,15,40,0.6)' : 'rgba(15,25,60,0.85)',
+                display:'flex', flexDirection:'column', alignItems:'center', gap:10,
                 animation: isThis ? 'chestOpen 0.5s ease forwards' : 'none',
                 boxShadow: isThis && isJackpot ? '0 0 40px #ffd700aa' : 'none',
-                transition:'border-color 0.3s, background 0.3s',
+                transition:'all 0.3s',
+                opacity: opened !== null && !isThis ? 0.6 : 1,
               }}>
-              {/* Emoji */}
               <div style={{
-                fontSize:52,lineHeight:1,
+                fontSize: isThis ? 52 : 38, lineHeight:1,
                 animation: isThis ? 'chestShake 0.4s ease' : 'none',
                 filter: isThis ? `drop-shadow(0 0 12px ${col})` : 'none',
               }}>
-                {isThis ? (isJackpot ? '🏆' : isBomb ? '💣' : isPositive ? '💰' : '🪦') : '📦'}
+                {opened !== null
+                  ? (isThis
+                      ? (isJackpot ? '🏆' : isBomb ? '💣' : isPositive ? '💰' : '🪦')
+                      : '📦')
+                  : '📦'}
               </div>
 
-              {/* Label — ukáže se až po otevření */}
-              {isThis && revealed && (
+              {/* Hodnota po výběru — vždy zobrazit */}
+              {opened !== null && (
                 <div style={{
-                  fontSize:22,fontWeight:900,color:col,
-                  fontFamily:"'Orbitron',sans-serif",letterSpacing:1,
-                  animation:'prizePop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards',
+                  fontSize: isThis ? 22 : 15,
+                  fontWeight:900, color: isThis ? col : '#445566',
+                  fontFamily:"'Orbitron',sans-serif", letterSpacing:1,
+                  animation: isThis && revealed ? 'prizePop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards' : 'none',
+                  opacity: (!isThis || revealed) ? 1 : 0,
                 }}>
                   {prizeLabel(pts)}
                 </div>
               )}
-              {isThis && !revealed && (
-                <div style={{fontSize:20,color:col}}>...</div>
-              )}
-              {/* Ostatní truhličky po výběru — odkryj obsah */}
-              {opened !== null && !isThis && (
-                <div style={{fontSize:15,color:'#334466',fontWeight:700}}>
-                  {prizeLabel(pts)}
-                </div>
-              )}
 
-              {/* Číslo truhličky */}
+              {/* Číslo bedny před výběrem */}
               {opened === null && (
-                <div style={{fontSize:11,color:'#445566',letterSpacing:2}}>
-                  #{i+1}
-                </div>
+                <div style={{fontSize:11,color:'#445566',letterSpacing:2}}>#{i+1}</div>
               )}
             </button>
           );
@@ -2167,15 +2162,26 @@ function LuckyBoxSlot({ prizes, onPick, locked }) {
       </div>
 
       {/* Reakce po výběru */}
-      {opened !== null && revealed && (
+      {opened !== null && revealed && !done && (
         <div className="slide-in" style={{
-          textAlign:'center',padding:'14px 20px',maxWidth:380,
-          background:'rgba(20,30,70,0.6)',border:'1px solid #2a3a6a',borderRadius:12,
+          textAlign:'center', padding:'12px 18px', maxWidth:380, width:'100%',
+          background:'rgba(20,30,70,0.7)', border:'1px solid #2a3a6a', borderRadius:12,
         }}>
-          <div style={{fontSize:14,color:prizeColor(prizes[opened]),fontWeight:600,lineHeight:1.5}}>
+          <div style={{fontSize:14, color: prizeColor(prizes[opened]), fontWeight:600, lineHeight:1.5, marginBottom:14}}>
             {getLuckyReaction(prizes[opened])}
           </div>
+          <button className="btn" onClick={confirm} style={{
+            background:'linear-gradient(135deg,#1a3a8a,#2255cc)',
+            padding:'12px 32px', borderRadius:10, fontSize:14,
+            color:'#fff', letterSpacing:2,
+          }}>
+            ZOBRAZIT VÝSLEDKY →
+          </button>
         </div>
+      )}
+
+      {opened !== null && !revealed && (
+        <div style={{color:'#4a6a9a',fontSize:13}}>otvírám...</div>
       )}
     </div>
   );
@@ -2317,18 +2323,17 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
   function answerLucky(pts) {
     if (locked) return;
     setLocked(true);
-    setFlash(pts > 0 ? 'ok' : pts < 0 ? 'no' : null);
-    // Lucky box resetuje kombo
+    // Zastavíme timer hned — hráč si může přečíst výsledek v klidu
+    clearInterval(timer.current);
     comboCountRef.current = 0;
     setComboCount(0);
+    // Krátká animace flashe pak finišujeme
     setTimeout(() => {
       setFlash(null);
       const newAns = [...quiz.answers, {q: 'lucky', chosen: pts, correct: pts > 0, pts: Math.max(pts, 0), luckyPts: pts, comboBonus: 0}];
-      const newScore = quiz.totalScore + pts;
-      const next = quiz.current + 1;
-      clearInterval(timer.current);
-      onFinish({...quiz, answers: newAns, totalScore: Math.max(newScore, 0), current: next});
-    }, 2200);
+      const newScore = Math.max(quiz.totalScore + pts, 0);
+      onFinish({...quiz, answers: newAns, totalScore: newScore, current: quiz.current + 1});
+    }, 300);
   }
 
   const totalDuration = initQuiz.totalDuration || QUIZ_DURATION;
@@ -2495,14 +2500,27 @@ function ResultScreen({ quiz, timeSaved, onHome, onBoard }) {
         </div>
         <div style={{background:'rgba(8,12,35,0.85)',border:'1px solid #1a2a5a',borderRadius:12,padding:14,marginBottom:20,maxHeight:200,overflowY:'auto',textAlign:'left'}}>
           {quiz.answers.map((a,i)=>{
-            const q2=quiz.questions[i];
-            return <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid #121830',fontSize:11}}>
-              <span>{a.correct?'✅':'❌'}</span>
-              <span style={{color:'#7788aa',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{q2.q.slice(0,46)}{q2.q.length>46?'…':''}</span>
-              <span style={{color:a.correct?'#44ff44':'#ff4444',fontWeight:700,minWidth:60,textAlign:'right'}}>
-                {a.correct ? `+${a.pts}${a.comboBonus>0?' 🔥':''}` : '0'}
-              </span>
-            </div>;
+            const q2 = quiz.questions[i];
+            const isLuckyAns = a.q === 'lucky';
+            const luckyPts = a.luckyPts;
+            const luckyCol = luckyPts > 0 ? '#ffd700' : luckyPts < 0 ? '#ff4444' : '#8899bb';
+            return (
+              <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid #121830',fontSize:11}}>
+                <span>{isLuckyAns ? '🎲' : a.correct ? '✅' : '❌'}</span>
+                <span style={{color: isLuckyAns ? '#8866aa' : '#7788aa',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                  {q2 ? q2.q.slice(0,46)+(q2.q.length>46?'…':'') : '?'}
+                </span>
+                <span style={{
+                  color: isLuckyAns ? luckyCol : a.correct ? '#44ff44' : '#ff4444',
+                  fontWeight:700, minWidth:70, textAlign:'right',
+                }}>
+                  {isLuckyAns
+                    ? (luckyPts > 0 ? `+${luckyPts}` : luckyPts === 0 ? '0' : String(luckyPts))
+                    : a.correct ? `+${a.pts}${a.comboBonus>0?' 🔥':''}` : '0'
+                  }
+                </span>
+              </div>
+            );
           })}
         </div>
         <div style={{display:'flex',gap:10,justifyContent:'center'}}>

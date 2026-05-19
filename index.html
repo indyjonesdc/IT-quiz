@@ -811,27 +811,18 @@ function seededShuffle(arr, seed) {
 }
 
 function getDailyQuestions(dateKey) {
-  const seed=dateKey.split('-').reduce((a,b)=>a*31+parseInt(b),0);
-  const selectedQs = seededShuffle(ALL_QUESTIONS,seed).slice(0,QUESTIONS_PER_QUIZ);
+  // Vyber 15 otázek pro daný den — stejné pro všechny hráče (seed ze dne)
+  const seed = dateKey.split('-').reduce((a,b) => a*31+parseInt(b), 0);
+  const selectedQs = seededShuffle(ALL_QUESTIONS, seed).slice(0, QUESTIONS_PER_QUIZ);
 
-  const questions = selectedQs.map((q, idx) => {
-    const optSeed = seed + idx;
-    const mappedOpts = q.opts.map((opt, originalIndex) => ({ opt, originalIndex }));
-    const shuffledOpts = seededShuffle(mappedOpts, optSeed);
-    const newA = shuffledOpts.findIndex(o => o.originalIndex === q.a);
-    return { ...q, opts: shuffledOpts.map(o => o.opt), a: newA };
-  });
-
-  // 16. slot — Lucky Box (prizes se zamíchají náhodně při startu kvízu pro každého hráče)
-  questions.push({
-    id: 'lucky',
-    type: 'lucky',
-    cat: '🎲 Lucky Box',
+  // Lucky Box jako 16. slot (prizes se zamíchají při startu kvízu)
+  selectedQs.push({
+    id: 'lucky', type: 'lucky', cat: '🎲 Lucky Box',
     q: 'Zkus štěstí! Vyber jednu ze 4 skrytých truhliček.',
-    prizes: null, // nastavuje se při startu kvízu náhodně
+    prizes: null,
   });
 
-  return questions;
+  return selectedQs; // odpovědi a pořadí otázek se zamíchají při startu kvízu
 }
 
 function calcPoints(tl) { return Math.round(MIN_PTS+(MAX_PTS-MIN_PTS)*(tl/QUIZ_DURATION)); }
@@ -842,12 +833,35 @@ function lsDel(k){try{localStorage.removeItem(k);}catch{}}
 // Náhodné zamíchání Lucky Box prizes (volá se při startu kvízu, různé pro každého hráče)
 function randomLuckyPrizes() {
   const pool = [...LUCKY_PRIZES];
-  // Fisher-Yates shuffle s Math.random — opravdová náhoda, ne seeded
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
   return pool.slice(0, 4);
+}
+
+// Zamíchá otázky i odpovědi náhodně (Math.random) — každý hráč, každý start jinak
+function shuffleQuestionsAndAnswers(questions) {
+  // 1) Zamíchej pořadí otázek (Lucky Box zůstane vždy poslední)
+  const normal = questions.filter(q => q.type !== 'lucky');
+  const lucky  = questions.filter(q => q.type === 'lucky');
+  for (let i = normal.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [normal[i], normal[j]] = [normal[j], normal[i]];
+  }
+  const ordered = [...normal, ...lucky];
+
+  // 2) Zamíchej odpovědi každé otázky
+  return ordered.map(q => {
+    if (q.type === 'lucky') return { ...q, prizes: randomLuckyPrizes() };
+    const opts = q.opts.map((opt, i) => ({ opt, i }));
+    for (let i = opts.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [opts[i], opts[j]] = [opts[j], opts[i]];
+    }
+    const newA = opts.findIndex(o => o.i === q.a);
+    return { ...q, opts: opts.map(o => o.opt), a: newA };
+  });
 }
 
 // Uloží rozehraný kvíz do localStorage
@@ -1645,7 +1659,7 @@ function App() {
         }[comboPopup.level] || {emoji:'🔥',label:'KOMBO',c1:'#ff9900',border:'#ff9900'};
         return (
           <div key={comboPopup.key} style={{
-            position:'fixed', bottom:24, right:20, zIndex:150,
+            position:'fixed', top:16, right:16, zIndex:150,
             pointerEvents:'none',
             animation:'comboToast 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards, comboToastOut 0.3s ease 0.85s forwards',
           }}>
@@ -1705,10 +1719,8 @@ function App() {
           onProfile={()=>setScreen(SCREENS.PROFILE)}
           onStart={()=>{
             const totalTime = QUIZ_DURATION + timeBonusToday;
-            // Zamíchej Lucky Box prizes náhodně pro tohoto hráče
-            const questions = todayQuestions.map(q =>
-              q.type === 'lucky' ? { ...q, prizes: randomLuckyPrizes() } : q
-            );
+            // Zamíchej otázky i odpovědi náhodně pro tohoto hráče
+            const questions = shuffleQuestionsAndAnswers(todayQuestions);
             const newQuiz = {
               questions, answers: [], current: 0,
               timeLeft: totalTime, totalDuration: totalTime,

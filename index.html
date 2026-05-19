@@ -1604,18 +1604,26 @@ function App() {
 
   async function registerUser(name, password, profile) {
     setLoading(true);
+    const isLogin = profile === null; // null = přihlášení, object = registrace
     try {
       const username = name.trim();
       const pwd = password.trim();
       const { data: ex } = await db.from('users').select('*').ilike('name', username).maybeSingle();
       let u = ex;
       if (u) {
-        if (u.password !== pwd) { alert('Špatné heslo!'); setLoading(false); return; }
+        if (u.password !== pwd) {
+          alert('Špatné heslo!');
+          setLoading(false); return;
+        }
         if (profile) {
           const { data: upd } = await db.from('users').update(profile).eq('id', u.id).select().single();
           if (upd) u = upd;
         }
       } else {
+        if (isLogin) {
+          alert('Hráč "' + username + '" neexistuje. Zkus se nejdřív zaregistrovat.');
+          setLoading(false); return;
+        }
         const { data, error } = await db.from('users').insert({
           id: Date.now().toString(), name: username, password: pwd, ...(profile||{})
         }).select().single();
@@ -2271,55 +2279,80 @@ function ProfileScreen({ user, onSave, onBack, loading }) {
 
 // ─── REGISTER ─────────────────────────────────────────
 function RegisterScreen({ onRegister, onBack, loading }) {
+  const [tab, setTab] = useState('login'); // 'login' | 'register'
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [showProfile, setShowProfile] = useState(false);
   const [profile, setProfile] = useState({company:'',position:'',fav_hw:'',os_religion:'',coffee_cups:'',debug_style:'',superpower:''});
   const [err, setErr] = useState('');
 
+  function reset() { setName(''); setPassword(''); setErr(''); setShowProfile(false); }
+
   function submit() {
     const n = name.trim(), p = password.trim();
     if (!n || n.length < 2) { setErr('Aspoň 2 znaky pro jméno!'); return; }
     if (n.length > 20) { setErr('Max 20 znaků!'); return; }
     if (!p || p.length < 4) { setErr('Heslo musí mít alespoň 4 znaky!'); return; }
-    onRegister(n, p, profile);
+    // Přihlášení = onRegister bez profilu (backend pozná existující účet)
+    // Registrace = onRegister s profilem
+    onRegister(n, p, tab === 'register' ? profile : null);
   }
 
   return (
     <div style={{minHeight:'100vh',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:20,overflowY:'auto'}}>
       <div className="slide-in" style={{width:'100%',maxWidth:440,textAlign:'center',paddingTop:40,paddingBottom:30}}>
-        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:11,letterSpacing:4,color:'#4488ff',marginBottom:10}}>REGISTRACE / PŘIHLÁŠENÍ</div>
-        <h2 style={{fontFamily:"'Orbitron', sans-serif",fontSize:26,fontWeight:900,color:'#fff',marginBottom:12}}>Kdo jsi?</h2>
 
-        {/* Vysvětlení */}
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:20}}>
-          <div style={{background:'rgba(0,60,30,0.3)',border:'1px solid #226644',borderRadius:10,padding:'12px 10px',textAlign:'left'}}>
-            <div style={{fontSize:11,fontWeight:700,color:'#44ffaa',marginBottom:5}}>✦ Nový hráč</div>
-            <div style={{fontSize:11,color:'#556688',lineHeight:1.5}}>Zadej přezdívku a zvol si heslo — účet se vytvoří automaticky.</div>
-          </div>
-          <div style={{background:'rgba(20,35,80,0.4)',border:'1px solid #2a3a6a',borderRadius:10,padding:'12px 10px',textAlign:'left'}}>
-            <div style={{fontSize:11,fontWeight:700,color:'#88aaff',marginBottom:5}}>↩ Vracím se</div>
-            <div style={{fontSize:11,color:'#556688',lineHeight:1.5}}>Zadej svou přezdívku a heslo — přihlásíš se ke stávajícímu účtu.</div>
-          </div>
+        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:11,letterSpacing:4,color:'#4488ff',marginBottom:10}}>IT QUIZ</div>
+        <h2 style={{fontFamily:"'Orbitron', sans-serif",fontSize:26,fontWeight:900,color:'#fff',marginBottom:24}}>Vítej zpět</h2>
+
+        {/* Taby */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:24,background:'rgba(10,15,40,0.6)',borderRadius:10,padding:4,border:'1px solid #1e2a4a'}}>
+          {[{k:'login',l:'↩ Přihlásit se'},{k:'register',l:'✦ Registrovat se'}].map(t=>(
+            <button key={t.k} onClick={()=>{setTab(t.k);reset();}} style={{
+              padding:'10px',borderRadius:8,border:'none',cursor:'pointer',
+              fontFamily:'inherit',fontSize:13,fontWeight:700,letterSpacing:0.5,
+              transition:'all 0.2s',
+              background: tab===t.k ? 'linear-gradient(135deg,#1a3a8a,#2255cc)' : 'transparent',
+              color: tab===t.k ? '#fff' : '#4a5a7a',
+              boxShadow: tab===t.k ? '0 0 20px rgba(68,136,255,0.3)' : 'none',
+            }}>{t.l}</button>
+          ))}
         </div>
 
-        <div style={{background:'rgba(20,35,80,0.6)',border:'1px solid #2a3a6a',borderRadius:12,padding:24}}>
-          <div className="field-label">Přezdívka</div>
-          <input value={name} onChange={e=>{setName(e.target.value);setErr('');}} placeholder="Tvá přezdívka..." maxLength={20} autoFocus/>
-          <div className="field-label" style={{marginTop:12}}>Heslo</div>
-          <input type="password" value={password} onChange={e=>{setPassword(e.target.value);setErr('');}} onKeyDown={e=>e.key==='Enter'&&submit()} placeholder="Heslo..." maxLength={50}/>
+        <div style={{background:'rgba(20,35,80,0.6)',border:'1px solid #2a3a6a',borderRadius:12,padding:24,textAlign:'left'}}>
+          {tab === 'login' ? (
+            <>
+              <div style={{fontSize:12,color:'#445566',marginBottom:16,lineHeight:1.5}}>
+                Zadej přezdívku a heslo svého účtu.
+              </div>
+              <div className="field-label">Přezdívka</div>
+              <input value={name} onChange={e=>{setName(e.target.value);setErr('');}} placeholder="Tvá přezdívka..." maxLength={20} autoFocus/>
+              <div className="field-label" style={{marginTop:12}}>Heslo</div>
+              <input type="password" value={password} onChange={e=>{setPassword(e.target.value);setErr('');}} onKeyDown={e=>e.key==='Enter'&&submit()} placeholder="Heslo..." maxLength={50}/>
+            </>
+          ) : (
+            <>
+              <div style={{fontSize:12,color:'#445566',marginBottom:16,lineHeight:1.5}}>
+                Zvol si přezdívku a heslo. Profil můžeš vyplnit hned nebo kdykoliv později.
+              </div>
+              <div className="field-label">Přezdívka</div>
+              <input value={name} onChange={e=>{setName(e.target.value);setErr('');}} placeholder="Tvá přezdívka..." maxLength={20} autoFocus/>
+              <div className="field-label" style={{marginTop:12}}>Heslo</div>
+              <input type="password" value={password} onChange={e=>{setPassword(e.target.value);setErr('');}} onKeyDown={e=>e.key==='Enter'&&submit()} placeholder="Zvol si heslo..." maxLength={50}/>
+              <button onClick={()=>setShowProfile(!showProfile)} style={{marginTop:14,background:'transparent',border:'1px dashed #2a3a6a',color:'#4488ff',padding:'8px 16px',borderRadius:8,cursor:'pointer',fontSize:12,width:'100%',letterSpacing:1}}>
+                {showProfile?'▲ SKRÝT PROFIL':'▼ VYPLNIT PROFIL (nepovinné)'}
+              </button>
+              {showProfile && <ProfileFields profile={profile} setProfile={setProfile}/>}
+            </>
+          )}
 
-          <button onClick={()=>setShowProfile(!showProfile)} style={{marginTop:14,background:'transparent',border:'1px dashed #2a3a6a',color:'#4488ff',padding:'8px 16px',borderRadius:8,cursor:'pointer',fontSize:12,width:'100%',letterSpacing:1}}>
-            {showProfile?'▲ SKRÝT PROFIL':'▼ VYPLNIT PROFIL (nepovinné)'}
-          </button>
-          {showProfile && <ProfileFields profile={profile} setProfile={setProfile}/>}
-
-          {err && <div style={{color:'#ff4444',fontSize:12,marginTop:8}}>{err}</div>}
+          {err && <div style={{color:'#ff4444',fontSize:12,marginTop:10,textAlign:'center'}}>{err}</div>}
           <button className="btn" onClick={submit} disabled={loading}
-            style={{marginTop:16,width:'100%',background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'13px',borderRadius:8,fontSize:14,color:'#fff',letterSpacing:3}}>
-            {loading?'UKLÁDÁM...':'POTVRDIT'}
+            style={{marginTop:18,width:'100%',background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'13px',borderRadius:8,fontSize:14,color:'#fff',letterSpacing:3,textAlign:'center'}}>
+            {loading ? 'NAČÍTÁM...' : tab==='login' ? '↩ PŘIHLÁSIT SE' : '✦ VYTVOŘIT ÚČET'}
           </button>
         </div>
+
         <button onClick={onBack} style={{marginTop:14,background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1}}>← ZPĚT</button>
       </div>
     </div>

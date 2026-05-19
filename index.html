@@ -4,6 +4,77 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>IT Quiz — Daily Challenge</title>
+
+<!-- PWA meta -->
+<meta name="theme-color" content="#0a0a0f"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="IT Quiz"/>
+<meta name="description" content="Denní IT kvíz — otestuj své znalosti každý den"/>
+
+<!-- PWA ikony (inline SVG jako data URI) -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230a0a0f'/%3E%3Ctext y='.9em' font-size='80' x='10'%3E💻%3C/text%3E%3C/svg%3E"/>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230a0a0f'/%3E%3Ctext y='.9em' font-size='80' x='10'%3E💻%3C/text%3E%3C/svg%3E"/>
+
+<!-- PWA Manifest inline jako blob -->
+<script>
+(function(){
+  const manifest = {
+    name: "IT Quiz — Daily Challenge",
+    short_name: "IT Quiz",
+    description: "Denní IT kvíz — otestuj své znalosti každý den",
+    start_url: "./",
+    display: "standalone",
+    background_color: "#0a0a0f",
+    theme_color: "#0a0a0f",
+    orientation: "portrait",
+    icons: [
+      { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230a0a0f'/%3E%3Ctext y='.9em' font-size='80' x='10'%3E💻%3C/text%3E%3C/svg%3E", sizes: "192x192", type: "image/svg+xml" },
+      { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230a0a0f'/%3E%3Ctext y='.9em' font-size='80' x='10'%3E💻%3C/text%3E%3C/svg%3E", sizes: "512x512", type: "image/svg+xml" }
+    ]
+  };
+  const blob = new Blob([JSON.stringify(manifest)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('link');
+  link.rel = 'manifest'; link.href = url;
+  document.head.appendChild(link);
+
+  // Service Worker inline jako blob pro offline support
+  const swCode = `
+    const CACHE = 'itquiz-v1';
+    self.addEventListener('install', e => {
+      self.skipWaiting();
+    });
+    self.addEventListener('activate', e => {
+      // Smaž staré cache při aktivaci nové verze
+      e.waitUntil(
+        caches.keys().then(keys =>
+          Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+        )
+      );
+      self.clients.claim();
+    });
+    self.addEventListener('fetch', e => {
+      e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+    });
+  `;
+  const swBlob = new Blob([swCode], {type:'text/javascript'});
+  const swUrl = URL.createObjectURL(swBlob);
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register(swUrl).catch(()=>{});
+  }
+
+  // Zachyť install prompt — uložíme pro pozdější použití
+  window._pwaInstallPrompt = null;
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    window._pwaInstallPrompt = e;
+    // Vyvolej React event aby se tlačítko zobrazilo
+    window.dispatchEvent(new Event('pwa-installable'));
+  });
+})();
+</script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -1866,12 +1937,74 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusT
   const cats = [...new Set(todayQuestions.map(q=>q.cat).filter(c=>c!=='🎲 Lucky Box'))];
   const OS_LABELS = {linux:'🐧 Linux', windows:'🪟 Windows', macos:' macOS', bsd:'👹 BSD', arch:'💀 Arch (btw)'};
   const totalTime = QUIZ_DURATION + (timeBonusToday||0);
-  // Kolik otázek bylo zodpovězeno v rozehraném kvízu
   const resumeProgress = resumableQuiz ? resumableQuiz.answers.length : 0;
   const resumeTotal = resumableQuiz ? resumableQuiz.questions.length : 0;
+
+  // PWA install logika
+  const [installable, setInstallable] = useState(!!window._pwaInstallPrompt);
+  const [installed, setInstalled] = useState(
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true
+  );
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  useEffect(() => {
+    const onInstallable = () => setInstallable(true);
+    const onAppInstalled = () => { setInstalled(true); setInstallable(false); };
+    window.addEventListener('pwa-installable', onInstallable);
+    window.addEventListener('appinstalled', onAppInstalled);
+    return () => {
+      window.removeEventListener('pwa-installable', onInstallable);
+      window.removeEventListener('appinstalled', onAppInstalled);
+    };
+  }, []);
+
+  async function handleInstall() {
+    if (window._pwaInstallPrompt) {
+      await window._pwaInstallPrompt.prompt();
+      const result = await window._pwaInstallPrompt.userChoice;
+      if (result.outcome === 'accepted') { setInstalled(true); setInstallable(false); }
+      window._pwaInstallPrompt = null;
+    }
+  }
+
+  // Zobraz install banner: jen mobil, není nainstalováno, buď installable nebo iOS
+  const showInstallBanner = isMobile && !installed && (installable || isIOS);
   return (
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:20}}>
       <div className="slide-in" style={{width:'100%',maxWidth:640,textAlign:'center'}}>
+
+        {/* PWA Install Banner — jen mobil, jen pokud není nainstalováno */}
+        {showInstallBanner && (
+          <div style={{
+            background:'linear-gradient(135deg,rgba(68,136,255,0.18),rgba(34,85,200,0.1))',
+            border:'1px solid #4488ff66',borderRadius:12,
+            padding:'12px 16px',marginBottom:20,
+            display:'flex',alignItems:'center',gap:12,
+          }}>
+            <div style={{fontSize:26,flexShrink:0}}>📲</div>
+            <div style={{flex:1,textAlign:'left'}}>
+              <div style={{fontSize:13,fontWeight:700,color:'#88aaff',marginBottom:2}}>Přidat na plochu</div>
+              <div style={{fontSize:11,color:'#4a6a9a'}}>
+                {isIOS
+                  ? 'Klepni na Sdílet → Přidat na plochu'
+                  : 'Nainstaluj appku pro rychlý přístup'}
+              </div>
+            </div>
+            {!isIOS && (
+              <button onClick={handleInstall} className="btn" style={{
+                background:'linear-gradient(135deg,#1a3a8a,#2255cc)',
+                padding:'8px 16px',borderRadius:8,fontSize:12,
+                color:'#fff',letterSpacing:1,flexShrink:0,
+              }}>INSTALOVAT</button>
+            )}
+            {isIOS && (
+              <div style={{fontSize:20,flexShrink:0}}>⬆️</div>
+            )}
+          </div>
+        )}
+
         <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:11,letterSpacing:6,color:'#4488ff',marginBottom:8,opacity:0.8}}>DAILY CHALLENGE</div>
         <h1 className="glow" style={{fontFamily:"'Orbitron', sans-serif",fontSize:'clamp(40px,9vw,80px)',fontWeight:900,letterSpacing:4,color:'#fff',lineHeight:1}}>
           IT<span style={{color:'#4488ff'}}>QUIZ</span>
@@ -2796,115 +2929,188 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
                 {!profileView.company && !profileView.position && !profileView.fav_hw ? 'Záhadná osobnost. Profil ani skóre nenalezeno.' : 'Zatím žádné odehrané kvízy.'}
               </div>
             ) : (() => {
-              // Výpočet statistik
               const ps = profileScores;
               const total = ps.length;
-              const avgSc = Math.round(ps.reduce((s,r)=>s+r.score,0)/total);
-              const bestSc = Math.max(...ps.map(r=>r.score));
-              const acc = ps.reduce((s,r)=>s+(r.total?r.correct/r.total:0),0)/total;
-              const accPct = Math.round(acc*100);
+              const totalScore2 = ps.reduce((s,r)=>s+r.score,0);
+              const avgSc   = Math.round(totalScore2/total);
+              const bestSc  = Math.max(...ps.map(r=>r.score));
               const perfects = ps.filter(r=>r.perfect).length;
+              const totCorr = ps.reduce((s,r)=>s+(r.correct||0),0);
+              const totQs   = ps.reduce((s,r)=>s+(r.total||0),0);
+              const accPct  = totQs ? Math.round((totCorr/totQs)*100) : 0;
 
-              // Všechna scores pro globální průměr
+              // Streak
+              let maxStreak2=0, tempS2=0, curStreak2=0;
+              const days2=[...new Set(ps.map(r=>r.date))].sort();
+              for(let i=0;i<days2.length;i++){
+                if(i===0){tempS2=1;}
+                else{const p=new Date(days2[i-1]);p.setDate(p.getDate()+1);tempS2=p.toISOString().slice(0,10)===days2[i]?tempS2+1:1;}
+                maxStreak2=Math.max(maxStreak2,tempS2);
+              }
+              const tod2=getTodayKey();
+              for(let i=days2.length-1;i>=0;i--){
+                const ex=new Date(tod2);ex.setDate(ex.getDate()-(days2.length-1-i));
+                if(days2[i]===ex.toISOString().slice(0,10)) curStreak2++;
+                else break;
+              }
+
+              // Globální průměr a rank
               const globalAvg = scores.length ? Math.round(scores.reduce((s,r)=>s+r.score,0)/scores.length) : 0;
               const allIds = [...new Set(scores.map(s=>s.user_id))];
               const ranked = allIds.map(id=>({id,t:scores.filter(s=>s.user_id===id).reduce((a,r)=>a+r.score,0)})).sort((a,b)=>b.t-a.t);
               const rank = ranked.findIndex(r=>r.id===profileView.id)+1;
 
-              // Kategoriová analýza z play_log
-              const catData = {}; // cat → {correct, total, label}
-              ps.forEach(s => {
-                if (!s.play_log) return;
-                s.play_log.forEach(e => {
-                  if (e.qId === 'lucky') return;
-                  // Najdi otázku v ALL_QUESTIONS
-                  const q = ALL_QUESTIONS.find(q=>q.id==e.qId);
-                  if (!q) return;
-                  const cat = q.cat;
-                  if (!catData[cat]) catData[cat] = {correct:0,total:0};
+              // Play log analýza
+              const catData={};
+              let totAnswers=0,totAnswerTime=0,fastAns=0,slowAns=0,maxSerie=0,curSerie=0;
+              ps.forEach(s=>{
+                if(!s.play_log) return;
+                s.play_log.forEach(e=>{
+                  if(e.qId==='lucky') return;
+                  const q=ALL_QUESTIONS.find(q=>String(q.id)===String(e.qId));
+                  const cat=q?q.cat:'Ostatní';
+                  if(!catData[cat]) catData[cat]={correct:0,total:0,totalTime:0};
                   catData[cat].total++;
-                  if (e.correct) catData[cat].correct++;
+                  if(e.correct){catData[cat].correct++;curSerie++;}
+                  else{maxSerie=Math.max(maxSerie,curSerie);curSerie=0;}
+                  const t=e.time_spent||0;
+                  catData[cat].totalTime+=t;
+                  totAnswers++;totAnswerTime+=t;
+                  if(t<=3)fastAns++;
+                  if(t>=15)slowAns++;
                 });
               });
-              const catList = Object.entries(catData)
+              maxSerie=Math.max(maxSerie,curSerie);
+              const avgT=(totAnswers?(totAnswerTime/totAnswers).toFixed(1):0);
+              const fastPct=totAnswers?Math.round((fastAns/totAnswers)*100):0;
+              const slowPct=totAnswers?Math.round((slowAns/totAnswers)*100):0;
+
+              // Kategorie — správná logika bez překryvů
+              const catList=Object.entries(catData)
                 .filter(([,d])=>d.total>=2)
-                .map(([cat,d])=>({cat,acc:Math.round((d.correct/d.total)*100),total:d.total,correct:d.correct}))
+                .map(([cat,d])=>({
+                  cat,
+                  acc:Math.round((d.correct/d.total)*100),
+                  total:d.total,
+                  avgTime:d.total?(d.totalTime/d.total).toFixed(1):0,
+                }))
                 .sort((a,b)=>b.acc-a.acc);
-              const topCats = catList.slice(0,3);
-              const weakCats = [...catList].sort((a,b)=>a.acc-b.acc).slice(0,3);
+
+              // Průměrná přesnost přes kategorie
+              const avgCatAcc = catList.length ? Math.round(catList.reduce((s,c)=>s+c.acc,0)/catList.length) : 50;
+              // Silné = nad průměrem, slabé = pod průměrem — bez překryvu
+              const strongCats = catList.filter(c=>c.acc>avgCatAcc).slice(0,3);
+              const weakCats   = catList.filter(c=>c.acc<=avgCatAcc).sort((a,b)=>a.acc-b.acc).slice(0,3);
+
+              // Odvětvová analýza
+              const SECTORS={'Sítě & Infrastruktura':['Sítě','WiFi','Konektory','Telco','DC'],'Bezpečnost':['Bezpečnost','Šifrování'],'Cloud & DevOps':['Cloud','Virtualizace','Správa'],'Systémy & OS':['OS','Linux','Windows'],'Data & Protokoly':['Databáze','Protokoly','Email'],'Hardware':['Hardware','Periferie','Úložiště','Zálohy'],'AI & Moderní tech':['AI/ML','IoT','Telco']};
+              const sectorData=Object.entries(SECTORS).map(([sector,cats])=>{
+                let cor=0,tot=0;
+                cats.forEach(c=>{if(catData[c]){cor+=catData[c].correct;tot+=catData[c].total;}});
+                return{sector,acc:tot?Math.round((cor/tot)*100):null,total:tot};
+              }).filter(s=>s.total>=2).sort((a,b)=>b.acc-a.acc);
 
               // Lucky box
-              let luckyJackpots=0, luckyBombs=0, luckyTotal=0;
+              let lJack=0,lBomb=0,lTot=0,lPts=0;
               ps.forEach(s=>{
                 if(!s.play_log) return;
                 s.play_log.filter(e=>e.qId==='lucky').forEach(e=>{
-                  luckyTotal++;
-                  if(e.chosen===1000) luckyJackpots++;
-                  if(e.chosen===-500) luckyBombs++;
+                  lTot++;lPts+=(e.chosen||0);
+                  if(e.chosen===1000)lJack++;
+                  if(e.chosen===-500)lBomb++;
                 });
               });
 
-              // Vtipný verdikt
-              const verdicts = [
-                accPct>=85 && avgSc>=globalAvg ? {e:'🧠',t:'Živoucí wiki',d:'Ví víc než dokumentace. A je dostupnější.'} : null,
-                accPct>=85 && avgSc<globalAvg  ? {e:'🐢',t:'Správně, ale pomalu',d:'Odpovědi jsou výborné. Jen ta rychlost... WiFi router by byl rychlejší.'} : null,
-                accPct<50  && avgSc>=globalAvg  ? {e:'⚡',t:'Rychlý střelec',d:'Kliká rychle, přemýšlí volitelně. Agile přístup k vědomostem.'} : null,
-                accPct<50  && avgSc<globalAvg   ? {e:'🎪',t:'Unikátní talent',d:'Ani rychlost ani přesnost. Ale aspoň hraje. To je víc než spousta kolegů.'} : null,
-                perfects>=3 ? {e:'💎',t:'Perfekcionista',d:`${perfects}× bez chyby. Buď génius, nebo má výbornou paměť. Obojí respektujeme.`} : null,
-              ].filter(Boolean)[0] || {e:'🙂',t:'Solidní hráč',d:'Průměrný ve správném slova smyslu — funguje, nevybuchuje.'};
-
-              const C={gold:'#ffd700',blue:'#4488ff',green:'#44ffaa',red:'#ff4444',gray:'#556688',purple:'#bb44ff'};
+              // Verdikt
+              const C={gold:'#ffd700',blue:'#4488ff',green:'#44ffaa',red:'#ff4444',gray:'#556688',purple:'#bb44ff',orange:'#ff9900'};
+              const verdicts=[
+                accPct>=85&&avgSc>=globalAvg?{e:'🧠',t:'Živoucí wiki',d:'Ví víc než dokumentace. A je dostupnější.'}:null,
+                accPct>=85&&avgSc<globalAvg?{e:'🐢',t:'Správně, ale pomalu',d:'Odpovědi výborné. WiFi router by byl rychlejší.'}:null,
+                accPct<50&&avgSc>=globalAvg?{e:'⚡',t:'Rychlý střelec',d:'Kliká rychle, přemýšlí volitelně.'}:null,
+                accPct<50&&avgSc<globalAvg?{e:'🎪',t:'Unikátní talent',d:'Ani rychlost ani přesnost. Ale aspoň hraje.'}:null,
+                perfects>=3?{e:'💎',t:'Perfekcionista',d:`${perfects}× bez chyby. Génius nebo výborná paměť.`}:null,
+              ].filter(Boolean)[0]||{e:'🙂',t:'Solidní hráč',d:'Funguje, nevybuchuje.'};
 
               return (
                 <div>
                   {/* Verdikt */}
-                  <div style={{background:'rgba(68,136,255,0.08)',border:'1px solid #1e2a4a',borderRadius:12,padding:'12px 16px',marginBottom:14,display:'flex',alignItems:'center',gap:12}}>
-                    <span style={{fontSize:28,flexShrink:0}}>{verdicts.e}</span>
+                  <div style={{background:'rgba(68,136,255,0.08)',border:'1px solid #1e2a4a',borderRadius:10,padding:'10px 14px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
+                    <span style={{fontSize:24,flexShrink:0}}>{verdicts.e}</span>
                     <div>
-                      <div style={{fontSize:13,fontWeight:700,color:'#88aaff',marginBottom:2}}>{verdicts.t}</div>
-                      <div style={{fontSize:11,color:'#556688'}}>{verdicts.d}</div>
+                      <div style={{fontSize:12,fontWeight:700,color:'#88aaff',marginBottom:1}}>{verdicts.t}</div>
+                      <div style={{fontSize:10,color:'#556688'}}>{verdicts.d}</div>
                     </div>
                   </div>
 
-                  {/* Čísla */}
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6,marginBottom:14}}>
+                  {/* 4+4 čísel */}
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:5,marginBottom:5}}>
                     {[
                       {l:'Kvízy',v:total,c:C.blue},
                       {l:'Přesnost',v:`${accPct}%`,c:accPct>=70?C.green:accPct>=50?C.gold:C.red},
-                      {l:'Nejlepší',v:bestSc.toLocaleString(),c:C.gold},
-                      {l:'Rank',v:rank?`#${rank}`:'—',c:rank<=3?C.gold:C.blue},
+                      {l:'Avg čas',v:`${avgT}s`,c:parseFloat(avgT)<=5?C.green:parseFloat(avgT)<=10?C.gold:C.red},
+                      {l:'Avg skóre',v:avgSc.toLocaleString(),c:avgSc>=globalAvg?C.green:C.blue},
                     ].map(s=>(
-                      <div key={s.l} style={{background:'rgba(10,15,40,0.7)',borderRadius:8,padding:'8px 4px',textAlign:'center',border:'1px solid #1a2a4a'}}>
-                        <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:14,fontWeight:900,color:s.c}}>{s.v}</div>
-                        <div style={{fontSize:9,color:'#445566',marginTop:2}}>{s.l}</div>
+                      <div key={s.l} style={{background:'rgba(10,15,40,0.7)',borderRadius:7,padding:'7px 4px',textAlign:'center',border:'1px solid #1a2a4a'}}>
+                        <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:12,fontWeight:900,color:s.c}}>{s.v}</div>
+                        <div style={{fontSize:8,color:'#445566',marginTop:2}}>{s.l}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:5,marginBottom:12}}>
+                    {[
+                      {l:'Nejlepší',v:bestSc.toLocaleString(),c:C.gold},
+                      {l:'Perfect',v:perfects,c:perfects>0?C.gold:C.gray},
+                      {l:'Streak',v:`${curStreak2}d`,c:curStreak2>=7?C.purple:curStreak2>=3?C.gold:C.gray},
+                      {l:'Rank',v:rank?`#${rank}`:'—',c:rank<=3?C.gold:rank<=10?C.blue:C.gray},
+                    ].map(s=>(
+                      <div key={s.l} style={{background:'rgba(10,15,40,0.7)',borderRadius:7,padding:'7px 4px',textAlign:'center',border:'1px solid #1a2a4a'}}>
+                        <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:12,fontWeight:900,color:s.c}}>{s.v}</div>
+                        <div style={{fontSize:8,color:'#445566',marginTop:2}}>{s.l}</div>
                       </div>
                     ))}
                   </div>
 
-                  {/* Kategorie — silné a slabé */}
-                  {catList.length > 0 && (
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
-                      {/* Silné */}
-                      <div style={{background:'rgba(0,50,30,0.3)',border:'1px solid #226644',borderRadius:10,padding:'10px 12px'}}>
-                        <div style={{fontSize:9,color:'#44ffaa',letterSpacing:2,marginBottom:8,fontFamily:"'Orbitron',sans-serif"}}>✅ SILNÉ STRÁNKY</div>
-                        {topCats.length===0
-                          ? <div style={{fontSize:11,color:'#334455'}}>Zatím málo dat</div>
-                          : topCats.map(c=>(
-                            <div key={c.cat} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'3px 0',borderBottom:'1px solid #1a3020',fontSize:11}}>
-                              <span style={{color:'#8899bb',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1,marginRight:6}}>{c.cat}</span>
+                  {/* Odvětvová analýza */}
+                  {sectorData.length>=2 && (
+                    <div style={{background:'rgba(10,15,40,0.6)',border:'1px solid #1a2a4a',borderRadius:10,padding:'10px 12px',marginBottom:10}}>
+                      <div style={{fontSize:9,color:'#4488ff',letterSpacing:2,marginBottom:8,fontFamily:"'Orbitron',sans-serif"}}>🏭 ODVĚTVOVÁ ANALÝZA</div>
+                      {sectorData.map((s,i)=>{
+                        const col=s.acc>=80?C.green:s.acc>=60?C.gold:s.acc>=40?C.orange:C.red;
+                        return (
+                          <div key={s.sector} style={{display:'flex',alignItems:'center',gap:8,marginBottom:i<sectorData.length-1?6:0}}>
+                            <div style={{fontSize:9,color:'#778899',width:68,flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.sector}</div>
+                            <div style={{flex:1,background:'#1a2040',borderRadius:2,height:5,overflow:'hidden'}}>
+                              <div style={{height:'100%',width:`${s.acc}%`,background:col,borderRadius:2}}/>
+                            </div>
+                            <div style={{fontSize:9,color:col,fontWeight:700,minWidth:26,textAlign:'right'}}>{s.acc}%</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Silné / slabé bez překryvů */}
+                  {catList.length>=2 && (
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginBottom:10}}>
+                      <div style={{background:'rgba(0,50,30,0.3)',border:'1px solid #226644',borderRadius:8,padding:'8px 10px'}}>
+                        <div style={{fontSize:8,color:'#44ffaa',letterSpacing:2,marginBottom:6,fontFamily:"'Orbitron',sans-serif"}}>✅ SILNÉ STRÁNKY</div>
+                        {strongCats.length===0
+                          ? <div style={{fontSize:10,color:'#334455'}}>Zatím málo dat</div>
+                          : strongCats.map(c=>(
+                            <div key={c.cat} style={{display:'flex',justifyContent:'space-between',padding:'2px 0',borderBottom:'1px solid #1a3020',fontSize:10}}>
+                              <span style={{color:'#8899bb',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1,marginRight:4}}>{c.cat}</span>
                               <span style={{color:C.green,fontWeight:700,flexShrink:0}}>{c.acc}%</span>
                             </div>
                           ))
                         }
                       </div>
-                      {/* Slabé */}
-                      <div style={{background:'rgba(60,10,10,0.3)',border:'1px solid #662222',borderRadius:10,padding:'10px 12px'}}>
-                        <div style={{fontSize:9,color:'#ff8888',letterSpacing:2,marginBottom:8,fontFamily:"'Orbitron',sans-serif"}}>⚠️ SLABINY</div>
+                      <div style={{background:'rgba(60,10,10,0.3)',border:'1px solid #662222',borderRadius:8,padding:'8px 10px'}}>
+                        <div style={{fontSize:8,color:'#ff8888',letterSpacing:2,marginBottom:6,fontFamily:"'Orbitron',sans-serif"}}>⚠️ SLABINY</div>
                         {weakCats.length===0
-                          ? <div style={{fontSize:11,color:'#334455'}}>Zatím málo dat</div>
+                          ? <div style={{fontSize:10,color:'#334455'}}>Zatím málo dat</div>
                           : weakCats.map(c=>(
-                            <div key={c.cat} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'3px 0',borderBottom:'1px solid #301a1a',fontSize:11}}>
-                              <span style={{color:'#8899bb',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1,marginRight:6}}>{c.cat}</span>
+                            <div key={c.cat} style={{display:'flex',justifyContent:'space-between',padding:'2px 0',borderBottom:'1px solid #301a1a',fontSize:10}}>
+                              <span style={{color:'#8899bb',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1,marginRight:4}}>{c.cat}</span>
                               <span style={{color:C.red,fontWeight:700,flexShrink:0}}>{c.acc}%</span>
                             </div>
                           ))
@@ -2913,40 +3119,39 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
                     </div>
                   )}
 
-                  {/* Mini bar graf přesnosti kategorií */}
-                  {catList.length >= 3 && (
-                    <div style={{background:'rgba(10,15,40,0.6)',border:'1px solid #1a2a4a',borderRadius:10,padding:'12px',marginBottom:14}}>
-                      <div style={{fontSize:9,color:'#4488ff',letterSpacing:2,marginBottom:10,fontFamily:"'Orbitron',sans-serif"}}>📊 PŘESNOST PO KATEGORIÍCH</div>
+                  {/* Bar graf kategorií */}
+                  {catList.length>=3 && (
+                    <div style={{background:'rgba(10,15,40,0.6)',border:'1px solid #1a2a4a',borderRadius:10,padding:'10px 12px',marginBottom:10}}>
+                      <div style={{fontSize:9,color:'#4488ff',letterSpacing:2,marginBottom:8,fontFamily:"'Orbitron',sans-serif"}}>📊 PŘESNOST PER KATEGORIE</div>
                       {catList.slice(0,6).map(c=>{
-                        const col = c.acc>=80?C.green:c.acc>=60?C.gold:C.red;
+                        const col=c.acc>=80?C.green:c.acc>=60?C.gold:C.red;
                         return (
-                          <div key={c.cat} style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
-                            <div style={{fontSize:10,color:'#778899',width:80,flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.cat}</div>
-                            <div style={{flex:1,background:'#1a2040',borderRadius:3,height:8,overflow:'hidden'}}>
-                              <div style={{height:'100%',width:`${c.acc}%`,background:col,borderRadius:3,boxShadow:`0 0 4px ${col}66`,transition:'width 0.5s ease'}}/>
+                          <div key={c.cat} style={{display:'flex',alignItems:'center',gap:7,marginBottom:5}}>
+                            <div style={{fontSize:9,color:'#778899',width:68,flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.cat}</div>
+                            <div style={{flex:1,background:'#1a2040',borderRadius:2,height:5,overflow:'hidden'}}>
+                              <div style={{height:'100%',width:`${c.acc}%`,background:col,borderRadius:2}}/>
                             </div>
-                            <div style={{fontSize:10,color:col,fontWeight:700,minWidth:30,textAlign:'right'}}>{c.acc}%</div>
+                            <div style={{fontSize:9,color:col,fontWeight:700,minWidth:26,textAlign:'right'}}>{c.acc}%</div>
+                            <div style={{fontSize:8,color:'#445566',minWidth:24,textAlign:'right'}}>{c.avgTime}s</div>
                           </div>
                         );
                       })}
                     </div>
                   )}
 
-                  {/* Školení doporučení */}
-                  {weakCats.length>0 && weakCats[0].acc<60 && (
-                    <div style={{background:'rgba(255,180,0,0.06)',border:'1px solid #ffd70033',borderRadius:10,padding:'10px 14px',marginBottom:14,fontSize:11,color:'#cc9900'}}>
-                      🎓 <strong>Doporučené školení:</strong> {weakCats.filter(c=>c.acc<60).map(c=>c.cat).join(', ')}
-                      {weakCats[0].acc<40 && <span style={{color:'#ff6666'}}> — urgentně!</span>}
+                  {/* Doporučení školení */}
+                  {weakCats.length>0 && weakCats[0].acc<55 && (
+                    <div style={{background:'rgba(255,180,0,0.06)',border:'1px solid #ffd70033',borderRadius:8,padding:'8px 12px',marginBottom:10,fontSize:10,color:'#cc9900'}}>
+                      🎓 <strong>Doporučené školení:</strong> {weakCats.filter(c=>c.acc<55).map(c=>c.cat).join(', ')}
+                      {weakCats[0].acc<35&&<span style={{color:'#ff6666'}}> — urgentně!</span>}
                     </div>
                   )}
 
-                  {/* Lucky box mini stats */}
-                  {luckyTotal>=2 && (
-                    <div style={{fontSize:11,color:'#445566',textAlign:'center',padding:'4px 0'}}>
-                      🎲 Lucky Box: {luckyJackpots}× jackpot, {luckyBombs}× bomba z {luckyTotal} pokusů
-                      {luckyJackpots>luckyBombs ? <span style={{color:C.gold}}> — šťastlivec</span>
-                       : luckyBombs>luckyJackpots ? <span style={{color:C.red}}> — smolař</span>
-                       : <span style={{color:C.gray}}> — vyrovnaný</span>}
+                  {/* Lucky box */}
+                  {lTot>=2 && (
+                    <div style={{fontSize:10,color:'#445566',textAlign:'center',padding:'4px 0',borderTop:'1px solid #1a2040',paddingTop:8}}>
+                      🎲 Lucky Box: {lJack}× jackpot · {lBomb}× bomba · celkem {lPts>=0?'+':''}{lPts} b
+                      {lJack>lBomb?<span style={{color:C.gold}}> — šťastlivec</span>:lBomb>lJack?<span style={{color:C.red}}> — smolař</span>:<span> — vyrovnaný</span>}
                     </div>
                   )}
                 </div>

@@ -822,15 +822,13 @@ function getDailyQuestions(dateKey) {
     return { ...q, opts: shuffledOpts.map(o => o.opt), a: newA };
   });
 
-  // 16. slot — Lucky Box (stejné rozložení pro všechny hráče daný den)
-  const prizeSeed = seed * 7 + 42;
-  const shuffledPrizes = seededShuffle([...LUCKY_PRIZES], prizeSeed).slice(0, 4);
+  // 16. slot — Lucky Box (prizes se zamíchají náhodně při startu kvízu pro každého hráče)
   questions.push({
     id: 'lucky',
     type: 'lucky',
     cat: '🎲 Lucky Box',
     q: 'Zkus štěstí! Vyber jednu ze 4 skrytých truhliček.',
-    prizes: shuffledPrizes, // 4 hodnoty, hráč nevidí obsah
+    prizes: null, // nastavuje se při startu kvízu náhodně
   });
 
   return questions;
@@ -839,6 +837,36 @@ function getDailyQuestions(dateKey) {
 function calcPoints(tl) { return Math.round(MIN_PTS+(MAX_PTS-MIN_PTS)*(tl/QUIZ_DURATION)); }
 function ls(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}}
 function lss(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch{}}
+function lsDel(k){try{localStorage.removeItem(k);}catch{}}
+
+// Náhodné zamíchání Lucky Box prizes (volá se při startu kvízu, různé pro každého hráče)
+function randomLuckyPrizes() {
+  const pool = [...LUCKY_PRIZES];
+  // Fisher-Yates shuffle s Math.random — opravdová náhoda, ne seeded
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, 4);
+}
+
+// Uloží rozehraný kvíz do localStorage
+function saveActiveQuiz(quiz) {
+  lss('itq_active_quiz', {
+    ...quiz,
+    savedAt: getTodayKey(), // den kdy byl kvíz uložen
+  });
+}
+
+// Načte rozehraný kvíz — vrátí null pokud neexistuje nebo je ze starého dne
+function loadActiveQuiz(todayKey) {
+  const saved = ls('itq_active_quiz', null);
+  if (!saved) return null;
+  if (saved.savedAt !== todayKey) { lsDel('itq_active_quiz'); return null; }
+  // Kvíz byl dokončen nebo výsledky zobrazeny
+  if (saved.finished) { lsDel('itq_active_quiz'); return null; }
+  return saved;
+}
 
 // ─── 500 OTÁZEK ──────────────────────────────────────
 const ALL_QUESTIONS = [
@@ -1355,14 +1383,21 @@ function App() {
   const [comboPopup, setComboPopup] = useState(null);
   const [dbOk, setDbOk] = useState(true);
   const [timeBonusToday, setTimeBonusToday] = useState(0);
-  const [monthlyChampions, setMonthlyChampions] = useState([]); // historičtí vítězové měsíce
+  const [monthlyChampions, setMonthlyChampions] = useState([]);
+  const [resumableQuiz, setResumableQuiz] = useState(null); // rozehraný kvíz z localStorage
 
   const todayKey = getTodayKey();
   const yesterdayKey = getYesterdayKey();
   const todayQuestions = getDailyQuestions(todayKey);
   const hasPlayedToday = user && scores.some(s => s.user_id === user.id && s.date === todayKey);
 
-  useEffect(() => { loadScores(); loadMonthlyChampions(); }, []);
+  useEffect(() => {
+    loadScores();
+    loadMonthlyChampions();
+    // Zkontroluj rozehraný kvíz z dnešního dne
+    const saved = loadActiveQuiz(getTodayKey());
+    if (saved) setResumableQuiz(saved);
+  }, []);
 
   // Načti time bonus z předchozího dne jakmile je user přihlášen
   useEffect(() => {
@@ -1476,6 +1511,9 @@ function App() {
       perfect: allCorrect,
     };
     await db.from('scores').upsert(entry, { onConflict: 'user_id,date' });
+    // Kvíz dokončen — smaž uložený stav
+    lsDel('itq_active_quiz');
+    setResumableQuiz(null);
 
     // Zkusíme korunovat měsíčního vítěze (spustí se jen pokud ještě nikdo není korunován)
     await tryCoronateMonthlyChampion(monthKey);
@@ -1657,11 +1695,29 @@ function App() {
       <div style={S.content}>
         {screen===SCREENS.HOME && <HomeScreen user={user} hasPlayedToday={hasPlayedToday} todayKey={todayKey} todayQuestions={todayQuestions}
           timeBonusToday={timeBonusToday}
+          resumableQuiz={resumableQuiz}
+          onResume={()=>{
+            setCurrentQuiz(resumableQuiz);
+            setResumableQuiz(null);
+            setScreen(SCREENS.QUIZ);
+          }}
           onRegister={()=>setScreen(SCREENS.REGISTER)}
           onProfile={()=>setScreen(SCREENS.PROFILE)}
           onStart={()=>{
             const totalTime = QUIZ_DURATION + timeBonusToday;
-            setCurrentQuiz({questions:todayQuestions,answers:[],current:0,timeLeft:totalTime,totalDuration:totalTime,totalScore:0,timeBonusUsed:timeBonusToday});
+            // Zamíchej Lucky Box prizes náhodně pro tohoto hráče
+            const questions = todayQuestions.map(q =>
+              q.type === 'lucky' ? { ...q, prizes: randomLuckyPrizes() } : q
+            );
+            const newQuiz = {
+              questions, answers: [], current: 0,
+              timeLeft: totalTime, totalDuration: totalTime,
+              totalScore: 0, timeBonusUsed: timeBonusToday,
+              savedAt: getTodayKey(),
+            };
+            saveActiveQuiz(newQuiz);
+            setResumableQuiz(null);
+            setCurrentQuiz(newQuiz);
             setScreen(SCREENS.QUIZ);
           }}
           onBoard={()=>setScreen(SCREENS.BOARD)}
@@ -1691,10 +1747,13 @@ function App() {
 }
 
 // ─── HOME ─────────────────────────────────────────────
-function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusToday, onRegister, onStart, onBoard, onLogout, onProfile, loading }) {
-  const cats = [...new Set(todayQuestions.map(q=>q.cat))];
+function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusToday, resumableQuiz, onResume, onRegister, onStart, onBoard, onLogout, onProfile, loading }) {
+  const cats = [...new Set(todayQuestions.map(q=>q.cat).filter(c=>c!=='🎲 Lucky Box'))];
   const OS_LABELS = {linux:'🐧 Linux', windows:'🪟 Windows', macos:' macOS', bsd:'👹 BSD', arch:'💀 Arch (btw)'};
   const totalTime = QUIZ_DURATION + (timeBonusToday||0);
+  // Kolik otázek bylo zodpovězeno v rozehraném kvízu
+  const resumeProgress = resumableQuiz ? resumableQuiz.answers.length : 0;
+  const resumeTotal = resumableQuiz ? resumableQuiz.questions.length : 0;
   return (
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:20}}>
       <div className="slide-in" style={{width:'100%',maxWidth:640,textAlign:'center'}}>
@@ -1727,6 +1786,33 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusT
               <div style={{fontSize:13,fontWeight:700,color:'#44ffaa',letterSpacing:0.5}}>Máš {timeBonusToday}s bonusový čas!</div>
               <div style={{fontSize:11,color:'#338866'}}>Ušetřils ho včera dokončením kvízu dřív. Dnes ho využij.</div>
             </div>
+          </div>
+        )}
+
+        {/* Resume banner — rozehraný kvíz */}
+        {user && resumableQuiz && !hasPlayedToday && (
+          <div style={{
+            background:'linear-gradient(135deg,rgba(68,136,255,0.18),rgba(34,85,200,0.1))',
+            border:'1px solid #4488ff88', borderRadius:12,
+            padding:'14px 18px', marginBottom:16,
+            display:'flex', alignItems:'center', gap:14,
+          }}>
+            <div style={{fontSize:28,flexShrink:0}}>⏯️</div>
+            <div style={{flex:1,textAlign:'left'}}>
+              <div style={{fontSize:13,fontWeight:700,color:'#88aaff',marginBottom:3}}>
+                Máš rozehraný kvíz!
+              </div>
+              <div style={{fontSize:11,color:'#4a6a9a',lineHeight:1.4}}>
+                Zodpovězeno {resumeProgress}/{resumeTotal} otázek
+                &nbsp;•&nbsp; {resumableQuiz.totalScore?.toLocaleString()||0} bodů
+                &nbsp;•&nbsp; zbývá ~{resumableQuiz.timeLeft}s
+              </div>
+            </div>
+            <button className="btn" onClick={onResume} style={{
+              background:'linear-gradient(135deg,#1a3a8a,#2255cc)',
+              padding:'9px 18px', borderRadius:8, fontSize:12,
+              color:'#fff', letterSpacing:1, flexShrink:0,
+            }}>POKRAČOVAT</button>
           </div>
         )}
 
@@ -1764,7 +1850,9 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusT
           {user ? (
             hasPlayedToday
               ? <div style={{background:'rgba(20,60,20,0.5)',border:'1px solid #334433',borderRadius:10,padding:16,color:'#66aa66',fontSize:12,letterSpacing:1}}>✓ DNES JSI UŽ HRÁL</div>
-              : <button className="btn" onClick={onStart} style={{background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'18px 40px',borderRadius:10,fontSize:17,color:'#fff',letterSpacing:3,boxShadow:'0 0 30px rgba(68,136,255,0.35)'}}>▶ SPUSTIT KVÍZ</button>
+              : <button className="btn" onClick={onStart} style={{background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'18px 40px',borderRadius:10,fontSize:17,color:'#fff',letterSpacing:3,boxShadow:'0 0 30px rgba(68,136,255,0.35)'}}>
+                  {resumableQuiz ? '🔄 ZAČÍT ZNOVU' : '▶ SPUSTIT KVÍZ'}
+                </button>
           ) : (
             <button className="btn" onClick={onRegister} style={{background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'18px 40px',borderRadius:10,fontSize:17,color:'#fff',letterSpacing:3,boxShadow:'0 0 30px rgba(68,136,255,0.35)'}}>REGISTROVAT SE</button>
           )}
@@ -2119,7 +2207,11 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
           comboCountRef.current = 0;
           setComboCount(0);
           questionStartTimeRef.current = timeLeftRef.current;
-          setQuiz(p => ({...p, answers: newAns, current: next}));
+          setQuiz(p => {
+            const updated = {...p, answers: newAns, current: next};
+            saveActiveQuiz({...updated, timeLeft: timeLeftRef.current});
+            return updated;
+          });
           setSelected(null);
           setLocked(false);
         }
@@ -2195,7 +2287,11 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
         } else {
           // Reset start time pro novou otázku
           questionStartTimeRef.current = timeLeftRef.current;
-          setQuiz(p => ({...p, answers: newAns, totalScore: newScore, current: next}));
+          setQuiz(p => {
+            const updated = {...p, answers: newAns, totalScore: newScore, current: next};
+            saveActiveQuiz({...updated, timeLeft: timeLeftRef.current});
+            return updated;
+          });
           setSelected(null);
           setLocked(false);
         }

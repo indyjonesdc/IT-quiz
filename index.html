@@ -216,7 +216,7 @@ const QUIZ_DURATION = 120;
 const QUESTIONS_PER_QUIZ = 15;
 const MAX_PTS = 1000;
 const MIN_PTS = 100;
-const SCREENS = { HOME:'home', REGISTER:'register', PROFILE:'profile', QUIZ:'quiz', RESULT:'result', BOARD:'board', STATS:'stats' };
+const SCREENS = { HOME:'home', REGISTER:'register', LOGIN:'login', PROFILE:'profile', QUIZ:'quiz', RESULT:'result', BOARD:'board', STATS:'stats' };
 
 // Kombo konstanty
 const COMBO_TIME_LIMIT = 3; // sekund od zobrazení otázky
@@ -1896,6 +1896,7 @@ function App() {
             setScreen(SCREENS.QUIZ);
           }}
           onRegister={()=>setScreen(SCREENS.REGISTER)}
+          onLogin={()=>setScreen(SCREENS.LOGIN)}
           onProfile={()=>setScreen(SCREENS.PROFILE)}
           onStart={()=>{
             const totalTime = QUIZ_DURATION + timeBonusToday;
@@ -1916,7 +1917,8 @@ function App() {
           onStats={()=>setScreen(SCREENS.STATS)}
           onLogout={()=>{setUser(null);lss('itq_user',null);}}
           loading={loading}/>}
-        {screen===SCREENS.REGISTER && <RegisterScreen onRegister={registerUser} onBack={()=>setScreen(SCREENS.HOME)} loading={loading}/>}
+        {screen===SCREENS.REGISTER && <RegisterScreen onRegister={registerUser} onBack={()=>setScreen(SCREENS.HOME)} loading={loading} initialTab="register"/>}
+        {screen===SCREENS.LOGIN    && <RegisterScreen onRegister={registerUser} onBack={()=>setScreen(SCREENS.HOME)} loading={loading} initialTab="login"/>}
         {screen===SCREENS.PROFILE && user && <ProfileScreen user={user} onSave={saveProfile} onBack={()=>setScreen(SCREENS.HOME)} loading={loading}/>}
         {screen===SCREENS.QUIZ && currentQuiz && <QuizScreen quiz={currentQuiz} onFinish={finishQuiz}
           onWrong={(q)=>{
@@ -1941,7 +1943,7 @@ function App() {
 }
 
 // ─── HOME ─────────────────────────────────────────────
-function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusToday, resumableQuiz, onResume, onRegister, onStart, onBoard, onStats, onLogout, onProfile, loading }) {
+function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusToday, resumableQuiz, onResume, onRegister, onLogin, onStart, onBoard, onStats, onLogout, onProfile, loading }) {
   const cats = [...new Set(todayQuestions.map(q=>q.cat).filter(c=>c!=='🎲 Lucky Box'))];
   const OS_LABELS = {linux:'🐧 Linux', windows:'🪟 Windows', macos:' macOS', bsd:'👹 BSD', arch:'💀 Arch (btw)'};
   const totalTime = QUIZ_DURATION + (timeBonusToday||0);
@@ -2111,7 +2113,10 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusT
                 ? null  // pokud je rozehraný kvíz, tlačítko "spustit" se nezobrazuje — jen banner POKRAČOVAT nahoře
                 : <button className="btn" onClick={onStart} style={{background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'18px 40px',borderRadius:10,fontSize:17,color:'#fff',letterSpacing:3,boxShadow:'0 0 30px rgba(68,136,255,0.35)'}}>▶ SPUSTIT KVÍZ</button>
           ) : (
-            <button className="btn" onClick={onRegister} style={{background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'18px 40px',borderRadius:10,fontSize:17,color:'#fff',letterSpacing:3,boxShadow:'0 0 30px rgba(68,136,255,0.35)'}}>REGISTROVAT SE</button>
+            <>
+              <button className="btn" onClick={onRegister} style={{background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'16px 40px',borderRadius:10,fontSize:16,color:'#fff',letterSpacing:3,boxShadow:'0 0 30px rgba(68,136,255,0.35)'}}>✦ REGISTROVAT SE</button>
+              <button className="btn" onClick={onLogin} style={{background:'transparent',border:'1px solid #4488ff',padding:'13px 40px',borderRadius:10,fontSize:13,color:'#88aaff',letterSpacing:2}}>↩ PŘIHLÁSIT SE</button>
+            </>
           )}
           <button className="btn" onClick={onBoard} style={{background:'transparent',border:'1px solid #2a3a6a',padding:'13px 40px',borderRadius:10,fontSize:13,color:'#88aaff',letterSpacing:2}}>🏆 ŽEBŘÍČEK</button>
           {user && <button className="btn" onClick={onStats} style={{background:'transparent',border:'1px solid #2a3a6a',padding:'13px 40px',borderRadius:10,fontSize:13,color:'#88aaff',letterSpacing:2}}>
@@ -2278,8 +2283,8 @@ function ProfileScreen({ user, onSave, onBack, loading }) {
 }
 
 // ─── REGISTER ─────────────────────────────────────────
-function RegisterScreen({ onRegister, onBack, loading }) {
-  const [tab, setTab] = useState('login'); // 'login' | 'register'
+function RegisterScreen({ onRegister, onBack, loading, initialTab='login' }) {
+  const [tab, setTab] = useState(initialTab); // 'login' | 'register'
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [showProfile, setShowProfile] = useState(false);

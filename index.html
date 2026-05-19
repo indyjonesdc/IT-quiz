@@ -2289,7 +2289,20 @@ function RegisterScreen({ onRegister, onBack, loading }) {
     <div style={{minHeight:'100vh',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:20,overflowY:'auto'}}>
       <div className="slide-in" style={{width:'100%',maxWidth:440,textAlign:'center',paddingTop:40,paddingBottom:30}}>
         <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:11,letterSpacing:4,color:'#4488ff',marginBottom:10}}>REGISTRACE / PŘIHLÁŠENÍ</div>
-        <h2 style={{fontFamily:"'Orbitron', sans-serif",fontSize:26,fontWeight:900,color:'#fff',marginBottom:28}}>Kdo jsi?</h2>
+        <h2 style={{fontFamily:"'Orbitron', sans-serif",fontSize:26,fontWeight:900,color:'#fff',marginBottom:12}}>Kdo jsi?</h2>
+
+        {/* Vysvětlení */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:20}}>
+          <div style={{background:'rgba(0,60,30,0.3)',border:'1px solid #226644',borderRadius:10,padding:'12px 10px',textAlign:'left'}}>
+            <div style={{fontSize:11,fontWeight:700,color:'#44ffaa',marginBottom:5}}>✦ Nový hráč</div>
+            <div style={{fontSize:11,color:'#556688',lineHeight:1.5}}>Zadej přezdívku a zvol si heslo — účet se vytvoří automaticky.</div>
+          </div>
+          <div style={{background:'rgba(20,35,80,0.4)',border:'1px solid #2a3a6a',borderRadius:10,padding:'12px 10px',textAlign:'left'}}>
+            <div style={{fontSize:11,fontWeight:700,color:'#88aaff',marginBottom:5}}>↩ Vracím se</div>
+            <div style={{fontSize:11,color:'#556688',lineHeight:1.5}}>Zadej svou přezdívku a heslo — přihlásíš se ke stávajícímu účtu.</div>
+          </div>
+        </div>
+
         <div style={{background:'rgba(20,35,80,0.6)',border:'1px solid #2a3a6a',borderRadius:12,padding:24}}>
           <div className="field-label">Přezdívka</div>
           <input value={name} onChange={e=>{setName(e.target.value);setErr('');}} placeholder="Tvá přezdívka..." maxLength={20} autoFocus/>

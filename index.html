@@ -2876,15 +2876,21 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
   return (
     <div style={{minHeight:'100vh',padding:20,maxWidth:660,margin:'0 auto'}}>
 
-      {/* PROFILE MODAL */}
+      {/* PROFILE MODAL — fullscreen stejný jako StatsScreen */}
       {profileView && (
-        <div onClick={()=>{setProfileView(null);setProfileScores([]);}}
-          style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.9)',zIndex:200,display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'16px',overflowY:'auto',cursor:'pointer'}}>
-          <div onClick={e=>e.stopPropagation()}
-            style={{background:'#0b1020',border:'1px solid #2a3a6a',borderRadius:18,padding:24,maxWidth:520,width:'100%',cursor:'default',marginTop:8}}>
+        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'#0a0a0f',zIndex:200,overflowY:'auto'}}>
+          <div style={{maxWidth:700,margin:'0 auto',padding:'16px 20px 40px'}}>
 
-            {/* ── HLAVIČKA ── */}
-            <div style={{display:'flex',alignItems:'center',gap:16,marginBottom:20,paddingBottom:16,borderBottom:'1px solid #1a2a4a'}}>
+            {/* Zpět */}
+            <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:20,paddingTop:12}}>
+              <button onClick={()=>{setProfileView(null);setProfileScores([]);}}
+                style={{background:'transparent',border:'none',color:'#4488ff',fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}>
+                ← ZPĚT DO ŽEBŘÍČKU
+              </button>
+            </div>
+
+            {/* Hlavička hráče */}
+            <div style={{display:'flex',alignItems:'center',gap:16,marginBottom:20,padding:'16px 20px',background:'rgba(15,25,60,0.8)',border:'1px solid #2a3a6a',borderRadius:14}}>
               <div style={{width:72,height:72,borderRadius:'50%',border:'2px solid #2a3a6a',overflow:'hidden',background:'#0a0a1f',flexShrink:0}}>
                 {profileView.avatar_url
                   ? <img src={avatarSrc(profileView.avatar_url)} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
@@ -2892,55 +2898,51 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
                 }
               </div>
               <div style={{flex:1,minWidth:0}}>
-                <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:18,fontWeight:900,color:'#fff',marginBottom:4}}>{profileView.name}</div>
+                <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:20,fontWeight:900,color:'#fff',marginBottom:4}}>{profileView.name}</div>
                 {profileView.cheater && (
                   <div style={{fontSize:11,color:'#ff4444',background:'rgba(255,50,50,0.1)',border:'1px solid #ff444433',borderRadius:6,padding:'2px 10px',display:'inline-block',marginBottom:4}}>🚨 PODVODNÍK</div>
                 )}
                 {(profileView.company||profileView.position) && (
-                  <div style={{fontSize:12,color:'#556688'}}>
+                  <div style={{fontSize:13,color:'#556688'}}>
                     {profileView.company&&`🏢 ${profileView.company}`}{profileView.company&&profileView.position?' · ':''}{profileView.position&&`💼 ${profileView.position}`}
                   </div>
                 )}
+                {(profileView.fav_hw||profileView.os_religion||profileView.debug_style||profileView.coffee_cups) && (
+                  <div style={{display:'flex',gap:12,flexWrap:'wrap',marginTop:4,fontSize:11,color:'#445566'}}>
+                    {profileView.os_religion && <span>{OS_LABELS[profileView.os_religion]||profileView.os_religion}</span>}
+                    {profileView.coffee_cups && <span>☕ {COFFEE_LABELS[profileView.coffee_cups]||profileView.coffee_cups}</span>}
+                    {profileView.debug_style && <span>🐛 {DEBUG_LABELS[profileView.debug_style]||profileView.debug_style}</span>}
+                    {profileView.fav_hw && <span>💻 {profileView.fav_hw}</span>}
+                  </div>
+                )}
+                {profileView.superpower && <div style={{fontSize:11,color:'#334455',marginTop:3}}>🦸 {profileView.superpower}</div>}
               </div>
             </div>
 
-            {/* ── PROFIL INFO ── */}
-            {(profileView.fav_hw||profileView.os_religion||profileView.coffee_cups||profileView.debug_style||profileView.superpower) && (
-              <div style={{marginBottom:16,paddingBottom:16,borderBottom:'1px solid #1a2a4a'}}>
-                {[
-                  profileView.fav_hw && ['💻',profileView.fav_hw],
-                  profileView.os_religion && ['🐧',OS_LABELS[profileView.os_religion]||profileView.os_religion],
-                  profileView.coffee_cups && ['☕',COFFEE_LABELS[profileView.coffee_cups]||profileView.coffee_cups],
-                  profileView.debug_style && ['🐛',DEBUG_LABELS[profileView.debug_style]||profileView.debug_style],
-                  profileView.superpower && ['🦸',profileView.superpower],
-                ].filter(Boolean).map(([e,v])=>(
-                  <div key={e} style={{display:'flex',gap:8,padding:'4px 0',fontSize:12,color:'#8899bb'}}>
-                    <span style={{flexShrink:0}}>{e}</span><span>{v}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* ── STATISTIKY ── */}
+            {/* Statistiky */}
             {profileLoading ? (
-              <div style={{textAlign:'center',padding:'30px 0',color:'#445566',fontSize:13}}>Načítám statistiky...</div>
+              <div style={{textAlign:'center',padding:'60px 0',color:'#445566',fontSize:14}}>
+                <div style={{fontSize:32,marginBottom:12}}>⏳</div>
+                Načítám statistiky...
+              </div>
             ) : profileScores.length === 0 ? (
-              <div style={{textAlign:'center',padding:'20px 0',color:'#334455',fontSize:13}}>
-                {!profileView.company && !profileView.position && !profileView.fav_hw ? 'Záhadná osobnost. Profil ani skóre nenalezeno.' : 'Zatím žádné odehrané kvízy.'}
+              <div style={{textAlign:'center',padding:'60px 0'}}>
+                <div style={{fontSize:48,marginBottom:12}}>🥚</div>
+                <div style={{color:'#445566',fontSize:14}}>Zatím žádné odehrané kvízy.</div>
               </div>
             ) : (() => {
               const ps = profileScores;
-              const total = ps.length;
+              const totalPlayed = ps.length;
               const totalScore2 = ps.reduce((s,r)=>s+r.score,0);
-              const avgSc   = Math.round(totalScore2/total);
-              const bestSc  = Math.max(...ps.map(r=>r.score));
+              const avgSc = Math.round(totalScore2/totalPlayed);
+              const bestSc = Math.max(...ps.map(r=>r.score));
               const perfects = ps.filter(r=>r.perfect).length;
               const totCorr = ps.reduce((s,r)=>s+(r.correct||0),0);
-              const totQs   = ps.reduce((s,r)=>s+(r.total||0),0);
-              const accPct  = totQs ? Math.round((totCorr/totQs)*100) : 0;
+              const totQs = ps.reduce((s,r)=>s+(r.total||0),0);
+              const accPct = totQs ? Math.round((totCorr/totQs)*100) : 0;
 
               // Streak
-              let maxStreak2=0, tempS2=0, curStreak2=0;
+              let maxStreak2=0,tempS2=0,curStreak2=0;
               const days2=[...new Set(ps.map(r=>r.date))].sort();
               for(let i=0;i<days2.length;i++){
                 if(i===0){tempS2=1;}
@@ -2956,8 +2958,10 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
 
               // Globální průměr a rank
               const globalAvg = scores.length ? Math.round(scores.reduce((s,r)=>s+r.score,0)/scores.length) : 0;
-              const allIds = [...new Set(scores.map(s=>s.user_id))];
-              const ranked = allIds.map(id=>({id,t:scores.filter(s=>s.user_id===id).reduce((a,r)=>a+r.score,0)})).sort((a,b)=>b.t-a.t);
+              const allPlayers = new Set(scores.map(s=>s.user_id)).size;
+              const ranked = [...new Set(scores.map(s=>s.user_id))]
+                .map(id=>({id,t:scores.filter(s=>s.user_id===id).reduce((a,r)=>a+r.score,0)}))
+                .sort((a,b)=>b.t-a.t);
               const rank = ranked.findIndex(r=>r.id===profileView.id)+1;
 
               // Play log analýza
@@ -2995,12 +2999,9 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
                   avgTime:d.total?(d.totalTime/d.total).toFixed(1):0,
                 }))
                 .sort((a,b)=>b.acc-a.acc);
-
-              // Průměrná přesnost přes kategorie
-              const avgCatAcc = catList.length ? Math.round(catList.reduce((s,c)=>s+c.acc,0)/catList.length) : 50;
-              // Silné = nad průměrem, slabé = pod průměrem — bez překryvu
-              const strongCats = catList.filter(c=>c.acc>avgCatAcc).slice(0,3);
-              const weakCats   = catList.filter(c=>c.acc<=avgCatAcc).sort((a,b)=>a.acc-b.acc).slice(0,3);
+              const avgCatAcc=catList.length?Math.round(catList.reduce((s,c)=>s+c.acc,0)/catList.length):50;
+              const strongCats=catList.filter(c=>c.acc>avgCatAcc).slice(0,4);
+              const weakCats=catList.filter(c=>c.acc<=avgCatAcc).sort((a,b)=>a.acc-b.acc).slice(0,4);
 
               // Odvětvová analýza
               const SECTORS={'Sítě & Infrastruktura':['Sítě','WiFi','Konektory','Telco','DC'],'Bezpečnost':['Bezpečnost','Šifrování'],'Cloud & DevOps':['Cloud','Virtualizace','Správa'],'Systémy & OS':['OS','Linux','Windows'],'Data & Protokoly':['Databáze','Protokoly','Email'],'Hardware':['Hardware','Periferie','Úložiště','Zálohy'],'AI & Moderní tech':['AI/ML','IoT','Telco']};
@@ -3011,107 +3012,177 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
               }).filter(s=>s.total>=2).sort((a,b)=>b.acc-a.acc);
 
               // Lucky box
-              let lJack=0,lBomb=0,lTot=0,lPts=0;
+              let lJack=0,lBomb=0,lTot=0,lPts=0,lWins=0,lZeros=0;
               ps.forEach(s=>{
                 if(!s.play_log) return;
                 s.play_log.filter(e=>e.qId==='lucky').forEach(e=>{
-                  lTot++;lPts+=(e.chosen||0);
-                  if(e.chosen===1000)lJack++;
-                  if(e.chosen===-500)lBomb++;
+                  lTot++;const v=e.chosen||0;lPts+=v;
+                  if(v===1000)lJack++;
+                  else if(v===-500)lBomb++;
+                  else if(v===0)lZeros++;
+                  else if(v>0)lWins++;
                 });
               });
 
-              // Verdikt
+              // Časové statistiky
+              const timeScores=ps.filter(s=>s.time_saved!=null);
+              const avgTimeSaved=timeScores.length?Math.round(timeScores.reduce((a,s)=>a+(s.time_saved||0),0)/timeScores.length):0;
+
+              // Verdikt a persóna
+              function speedRoast(avg){
+                const a=parseFloat(avg);
+                if(a<=2)return{e:'⚡',t:'Kvantový procesor',d:'Odpovídá rychleji než si stihne přečíst otázku.'};
+                if(a<=4)return{e:'🚀',t:'Rychlý jako NVMe',d:'Průměr pod 4s. Připraven nebo odhaduje naslepo.'};
+                if(a<=7)return{e:'🎯',t:'Rozvážný expert',d:'Přemýšlí před kliknutím. Zvyk správného admina.'};
+                if(a<=12)return{e:'🐢',t:'Důkladný čtenář',d:'Čte otázku třikrát. Jednou by stačilo.'};
+                return{e:'🦥',t:'Filosof v IT',d:'Každá odpověď je existenciální rozhodnutí.'};
+              }
+              function accuracyRoast(acc){
+                if(acc>=95)return{e:'🧠',t:'Kyborg v lidském těle',d:'Podezřele správně. IT oddělení ho sleduje.'};
+                if(acc>=85)return{e:'🎯',t:'Ostrý jako nový SSD',d:'Nemá odpovědi, on je odpověď.'};
+                if(acc>=70)return{e:'💪',t:'Nadprůměrný člověk',d:'Ve firmě by byl ten co opravuje ostatní.'};
+                if(acc>=55)return{e:'🤔',t:'Slušný pokus',d:'Senior developer styl — polovina správně, polovina kreativně.'};
+                if(acc>=40)return{e:'😅',t:'Optimistický začátečník',d:'Aspoň heslo na WiFi ví. Doufáme.'};
+                return{e:'💀',t:'Živoucí důkaz chaosu',d:'Tiskárna by ho přechytračila.'};
+              }
+              function streakRoast(s){
+                if(s>=30)return{e:'🔥',t:'Na dovolené s laptopem',d:'Normální lidé odpočívají. Tento kvízuje.'};
+                if(s>=14)return{e:'⚡',t:'Pravidelný jako cron job',d:`${s} dní v kuse. Terapeut o tom neví.`};
+                if(s>=7)return{e:'📅',t:'Solidní návyk',d:'Týden v kuse. Víc než většina projektů.'};
+                if(s>=3)return{e:'🌱',t:'Roste to',d:'Nezruší to zítra jako gym membership.'};
+                if(s>=1)return{e:'🐢',t:'Začátek je těžký',d:'Aspoň tu je. Na rozdíl od dokumentace.'};
+                return{e:'👻',t:'Přízrak čtenář',d:'Streak = 0. Ani cron by ho nenaplánoval.'};
+              }
+              const accR=accuracyRoast(accPct);
+              const spdR=speedRoast(avgT);
+              const strR=streakRoast(curStreak2);
               const C={gold:'#ffd700',blue:'#4488ff',green:'#44ffaa',red:'#ff4444',gray:'#556688',purple:'#bb44ff',orange:'#ff9900'};
-              const verdicts=[
-                accPct>=85&&avgSc>=globalAvg?{e:'🧠',t:'Živoucí wiki',d:'Ví víc než dokumentace. A je dostupnější.'}:null,
-                accPct>=85&&avgSc<globalAvg?{e:'🐢',t:'Správně, ale pomalu',d:'Odpovědi výborné. WiFi router by byl rychlejší.'}:null,
-                accPct<50&&avgSc>=globalAvg?{e:'⚡',t:'Rychlý střelec',d:'Kliká rychle, přemýšlí volitelně.'}:null,
-                accPct<50&&avgSc<globalAvg?{e:'🎪',t:'Unikátní talent',d:'Ani rychlost ani přesnost. Ale aspoň hraje.'}:null,
-                perfects>=3?{e:'💎',t:'Perfekcionista',d:`${perfects}× bez chyby. Génius nebo výborná paměť.`}:null,
-              ].filter(Boolean)[0]||{e:'🙂',t:'Solidní hráč',d:'Funguje, nevybuchuje.'};
+
+              const trainingTips=[];
+              if(accPct<60) trainingTips.push({e:'🎓',t:'IT základy',d:'Kurz "Proč je kabel důležitý a jiné záhady"'});
+              if(parseFloat(avgT)>12) trainingTips.push({e:'⚡',t:'Rychlost rozhodování',d:'Trénink rychlého rozhodování — ideálně bez Google'});
+              if(perfects===0&&totalPlayed>=5) trainingTips.push({e:'💎',t:'Konzistence',d:'Na perfect run potřebuje znalosti, ne štěstí'});
+              if(weakCats.length&&weakCats[0].acc<50) trainingTips.push({e:'📚',t:weakCats[0].cat,d:`Přesnost ${weakCats[0].acc}% — tady by pomohlo školení`});
+              if(lBomb>lJack&&lTot>=3) trainingTips.push({e:'🎲',t:'Risk management',d:'Instinkt na Lucky Box je statisticky tragický'});
 
               return (
                 <div>
-                  {/* Verdikt */}
-                  <div style={{background:'rgba(68,136,255,0.08)',border:'1px solid #1e2a4a',borderRadius:10,padding:'10px 14px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
-                    <span style={{fontSize:24,flexShrink:0}}>{verdicts.e}</span>
+                  {/* Persóna */}
+                  <div style={{background:'linear-gradient(135deg,rgba(68,136,255,0.12),rgba(34,85,200,0.06))',border:'1px solid #2a3a6a',borderRadius:14,padding:'14px 18px',marginBottom:16,display:'flex',alignItems:'center',gap:14}}>
+                    <span style={{fontSize:38,flexShrink:0}}>{accR.e}</span>
                     <div>
-                      <div style={{fontSize:12,fontWeight:700,color:'#88aaff',marginBottom:1}}>{verdicts.t}</div>
-                      <div style={{fontSize:10,color:'#556688'}}>{verdicts.d}</div>
+                      <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:14,fontWeight:900,color:'#88aaff',letterSpacing:2,marginBottom:3}}>{accR.t}</div>
+                      <div style={{fontSize:12,color:'#556688',lineHeight:1.5}}>{accR.d}</div>
                     </div>
                   </div>
 
-                  {/* 4+4 čísel */}
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:5,marginBottom:5}}>
+                  {/* 12 čísel */}
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:8}}>
                     {[
-                      {l:'Kvízy',v:total,c:C.blue},
-                      {l:'Přesnost',v:`${accPct}%`,c:accPct>=70?C.green:accPct>=50?C.gold:C.red},
-                      {l:'Avg čas',v:`${avgT}s`,c:parseFloat(avgT)<=5?C.green:parseFloat(avgT)<=10?C.gold:C.red},
-                      {l:'Avg skóre',v:avgSc.toLocaleString(),c:avgSc>=globalAvg?C.green:C.blue},
+                      {e:'🎯',l:'Přesnost',v:`${accPct}%`,c:accPct>=70?C.green:accPct>=50?C.gold:C.red},
+                      {e:'⚡',l:'Průměrný čas',v:`${avgT}s`,c:parseFloat(avgT)<=5?C.green:parseFloat(avgT)<=10?C.gold:C.red},
+                      {e:'📊',l:'Průměr/kvíz',v:avgSc.toLocaleString(),c:avgSc>=globalAvg?C.green:C.blue},
+                      {e:'🏆',l:'Nejlepší kvíz',v:bestSc.toLocaleString(),c:C.gold},
+                      {e:'💎',l:'Perfect runs',v:perfects,c:perfects>0?C.gold:C.gray},
+                      {e:'🔥',l:'Streak',v:`${curStreak2}d`,c:curStreak2>=7?C.purple:curStreak2>=3?C.gold:C.gray},
                     ].map(s=>(
-                      <div key={s.l} style={{background:'rgba(10,15,40,0.7)',borderRadius:7,padding:'7px 4px',textAlign:'center',border:'1px solid #1a2a4a'}}>
-                        <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:12,fontWeight:900,color:s.c}}>{s.v}</div>
-                        <div style={{fontSize:8,color:'#445566',marginTop:2}}>{s.l}</div>
+                      <div key={s.l} style={{background:'rgba(12,18,50,0.8)',border:'1px solid #1e2a4a',borderRadius:10,padding:'12px 6px',textAlign:'center'}}>
+                        <div style={{fontSize:16,marginBottom:4}}>{s.e}</div>
+                        <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:14,fontWeight:900,color:s.c}}>{s.v}</div>
+                        <div style={{fontSize:9,color:'#445566',marginTop:3}}>{s.l}</div>
                       </div>
                     ))}
                   </div>
-                  <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:5,marginBottom:12}}>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:16}}>
                     {[
-                      {l:'Nejlepší',v:bestSc.toLocaleString(),c:C.gold},
-                      {l:'Perfect',v:perfects,c:perfects>0?C.gold:C.gray},
-                      {l:'Streak',v:`${curStreak2}d`,c:curStreak2>=7?C.purple:curStreak2>=3?C.gold:C.gray},
-                      {l:'Rank',v:rank?`#${rank}`:'—',c:rank<=3?C.gold:rank<=10?C.blue:C.gray},
+                      {e:'🚀',l:'Rychlé ans.',v:`${fastPct}%`,c:C.blue,sub:'do 3s'},
+                      {e:'🐢',l:'Pomalé ans.',v:`${slowPct}%`,c:slowPct>40?C.red:C.gray,sub:'nad 15s'},
+                      {e:'🏅',l:'Rank',v:rank?`#${rank}`:'—',c:rank<=3?C.gold:rank<=10?C.blue:C.gray,sub:`z ${allPlayers} hráčů`},
+                      {e:'📈',l:'vs průměr',v:`${avgSc>=globalAvg?'+':''}${avgSc-globalAvg}`,c:avgSc>=globalAvg?C.green:C.red,sub:`avg ${globalAvg.toLocaleString()} b`},
+                      {e:'⏱️',l:'Ušetřený čas',v:`${avgTimeSaved}s`,c:avgTimeSaved>=20?C.green:avgTimeSaved>=10?C.gold:C.gray,sub:'průměr/kvíz'},
+                      {e:'🎯',l:'Nejdelší série',v:`${maxSerie}×`,c:maxSerie>=10?C.gold:maxSerie>=5?C.blue:C.gray,sub:'správných za sebou'},
                     ].map(s=>(
-                      <div key={s.l} style={{background:'rgba(10,15,40,0.7)',borderRadius:7,padding:'7px 4px',textAlign:'center',border:'1px solid #1a2a4a'}}>
-                        <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:12,fontWeight:900,color:s.c}}>{s.v}</div>
-                        <div style={{fontSize:8,color:'#445566',marginTop:2}}>{s.l}</div>
+                      <div key={s.l} style={{background:'rgba(12,18,50,0.8)',border:'1px solid #1e2a4a',borderRadius:10,padding:'10px 6px',textAlign:'center'}}>
+                        <div style={{fontSize:14,marginBottom:3}}>{s.e}</div>
+                        <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:13,fontWeight:900,color:s.c}}>{s.v}</div>
+                        <div style={{fontSize:9,color:'#445566',marginTop:1}}>{s.l}</div>
+                        {s.sub&&<div style={{fontSize:8,color:'#334455',marginTop:1}}>{s.sub}</div>}
                       </div>
                     ))}
+                  </div>
+
+                  {/* Rychlost komentář */}
+                  <div style={{background:'rgba(12,18,50,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:'12px 16px',marginBottom:16,display:'flex',alignItems:'center',gap:12}}>
+                    <span style={{fontSize:26,flexShrink:0}}>{spdR.e}</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:12,fontWeight:700,color:'#88aaff',marginBottom:2}}>{spdR.t}</div>
+                      <div style={{fontSize:11,color:'#556688'}}>{spdR.d}</div>
+                    </div>
+                    <div style={{textAlign:'right',flexShrink:0}}>
+                      <div style={{fontSize:9,color:'#334455'}}>avg čas</div>
+                      <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:18,fontWeight:900,color:C.blue}}>{avgT}s</div>
+                    </div>
                   </div>
 
                   {/* Odvětvová analýza */}
                   {sectorData.length>=2 && (
-                    <div style={{background:'rgba(10,15,40,0.6)',border:'1px solid #1a2a4a',borderRadius:10,padding:'10px 12px',marginBottom:10}}>
-                      <div style={{fontSize:9,color:'#4488ff',letterSpacing:2,marginBottom:8,fontFamily:"'Orbitron',sans-serif"}}>🏭 ODVĚTVOVÁ ANALÝZA</div>
+                    <div style={{background:'rgba(12,18,50,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:16}}>
+                      <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,color:'#4488ff',letterSpacing:2,marginBottom:14}}>🏭 ODVĚTVOVÁ ANALÝZA</div>
                       {sectorData.map((s,i)=>{
                         const col=s.acc>=80?C.green:s.acc>=60?C.gold:s.acc>=40?C.orange:C.red;
+                        const emoji=s.acc>=80?'✅':s.acc>=60?'🟡':s.acc>=40?'⚠️':'❌';
+                        const label=s.acc>=80?'Ovládá':s.acc>=60?'Solidní':s.acc>=40?'Slabší':'Potřebuje práci';
                         return (
-                          <div key={s.sector} style={{display:'flex',alignItems:'center',gap:8,marginBottom:i<sectorData.length-1?6:0}}>
-                            <div style={{fontSize:9,color:'#778899',width:68,flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.sector}</div>
-                            <div style={{flex:1,background:'#1a2040',borderRadius:2,height:5,overflow:'hidden'}}>
-                              <div style={{height:'100%',width:`${s.acc}%`,background:col,borderRadius:2}}/>
+                          <div key={s.sector} style={{display:'flex',alignItems:'center',gap:10,marginBottom:i<sectorData.length-1?10:0,padding:'5px 0',borderBottom:i<sectorData.length-1?'1px solid #1a2040':'none'}}>
+                            <span style={{fontSize:13,flexShrink:0}}>{emoji}</span>
+                            <div style={{flex:1,minWidth:0}}>
+                              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}}>
+                                <span style={{fontSize:12,color:'#aabbdd',fontWeight:600}}>{s.sector}</span>
+                                <span style={{fontSize:11,color:col,fontWeight:700,flexShrink:0,marginLeft:8}}>{s.acc}% — {label}</span>
+                              </div>
+                              <div style={{background:'#1a2040',borderRadius:3,height:6,overflow:'hidden'}}>
+                                <div style={{height:'100%',width:`${s.acc}%`,background:col,borderRadius:3}}/>
+                              </div>
                             </div>
-                            <div style={{fontSize:9,color:col,fontWeight:700,minWidth:26,textAlign:'right'}}>{s.acc}%</div>
                           </div>
                         );
                       })}
+                      <div style={{marginTop:10,fontSize:11,color:'#445566',textAlign:'center'}}>
+                        {sectorData[0]&&`💪 Nejsilnější: ${sectorData[0].sector} (${sectorData[0].acc}%)`}
+                        {sectorData.length>1&&` · 📚 Zlepšit: ${sectorData[sectorData.length-1].sector} (${sectorData[sectorData.length-1].acc}%)`}
+                      </div>
                     </div>
                   )}
 
-                  {/* Silné / slabé bez překryvů */}
+                  {/* Silné / slabé */}
                   {catList.length>=2 && (
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginBottom:10}}>
-                      <div style={{background:'rgba(0,50,30,0.3)',border:'1px solid #226644',borderRadius:8,padding:'8px 10px'}}>
-                        <div style={{fontSize:8,color:'#44ffaa',letterSpacing:2,marginBottom:6,fontFamily:"'Orbitron',sans-serif"}}>✅ SILNÉ STRÁNKY</div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:16}}>
+                      <div style={{background:'rgba(0,50,30,0.3)',border:'1px solid #226644',borderRadius:10,padding:'12px'}}>
+                        <div style={{fontSize:9,color:'#44ffaa',letterSpacing:2,marginBottom:8,fontFamily:"'Orbitron',sans-serif"}}>✅ SILNÉ STRÁNKY</div>
                         {strongCats.length===0
-                          ? <div style={{fontSize:10,color:'#334455'}}>Zatím málo dat</div>
+                          ? <div style={{fontSize:11,color:'#334455'}}>Zatím málo dat</div>
                           : strongCats.map(c=>(
-                            <div key={c.cat} style={{display:'flex',justifyContent:'space-between',padding:'2px 0',borderBottom:'1px solid #1a3020',fontSize:10}}>
-                              <span style={{color:'#8899bb',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1,marginRight:4}}>{c.cat}</span>
-                              <span style={{color:C.green,fontWeight:700,flexShrink:0}}>{c.acc}%</span>
+                            <div key={c.cat} style={{display:'flex',justifyContent:'space-between',padding:'3px 0',borderBottom:'1px solid #1a3020',fontSize:11}}>
+                              <div style={{flex:1,overflow:'hidden'}}>
+                                <span style={{color:'#8899bb',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.cat}</span>
+                                <span style={{fontSize:9,color:'#334455'}}>⏱ {c.avgTime}s</span>
+                              </div>
+                              <span style={{color:C.green,fontWeight:700,marginLeft:6,flexShrink:0}}>{c.acc}%</span>
                             </div>
                           ))
                         }
                       </div>
-                      <div style={{background:'rgba(60,10,10,0.3)',border:'1px solid #662222',borderRadius:8,padding:'8px 10px'}}>
-                        <div style={{fontSize:8,color:'#ff8888',letterSpacing:2,marginBottom:6,fontFamily:"'Orbitron',sans-serif"}}>⚠️ SLABINY</div>
+                      <div style={{background:'rgba(60,10,10,0.3)',border:'1px solid #662222',borderRadius:10,padding:'12px'}}>
+                        <div style={{fontSize:9,color:'#ff8888',letterSpacing:2,marginBottom:8,fontFamily:"'Orbitron',sans-serif"}}>⚠️ SLABINY</div>
                         {weakCats.length===0
-                          ? <div style={{fontSize:10,color:'#334455'}}>Zatím málo dat</div>
+                          ? <div style={{fontSize:11,color:'#334455'}}>Zatím málo dat</div>
                           : weakCats.map(c=>(
-                            <div key={c.cat} style={{display:'flex',justifyContent:'space-between',padding:'2px 0',borderBottom:'1px solid #301a1a',fontSize:10}}>
-                              <span style={{color:'#8899bb',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1,marginRight:4}}>{c.cat}</span>
-                              <span style={{color:C.red,fontWeight:700,flexShrink:0}}>{c.acc}%</span>
+                            <div key={c.cat} style={{display:'flex',justifyContent:'space-between',padding:'3px 0',borderBottom:'1px solid #301a1a',fontSize:11}}>
+                              <div style={{flex:1,overflow:'hidden'}}>
+                                <span style={{color:'#8899bb',display:'block',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.cat}</span>
+                                <span style={{fontSize:9,color:'#334455'}}>⏱ {c.avgTime}s</span>
+                              </div>
+                              <span style={{color:C.red,fontWeight:700,marginLeft:6,flexShrink:0}}>{c.acc}%</span>
                             </div>
                           ))
                         }
@@ -3121,47 +3192,133 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
 
                   {/* Bar graf kategorií */}
                   {catList.length>=3 && (
-                    <div style={{background:'rgba(10,15,40,0.6)',border:'1px solid #1a2a4a',borderRadius:10,padding:'10px 12px',marginBottom:10}}>
-                      <div style={{fontSize:9,color:'#4488ff',letterSpacing:2,marginBottom:8,fontFamily:"'Orbitron',sans-serif"}}>📊 PŘESNOST PER KATEGORIE</div>
-                      {catList.slice(0,6).map(c=>{
+                    <div style={{background:'rgba(12,18,50,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:16}}>
+                      <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,color:'#4488ff',letterSpacing:2,marginBottom:12}}>📊 PŘESNOST + RYCHLOST PER KATEGORIE</div>
+                      {catList.slice(0,8).map(c=>{
                         const col=c.acc>=80?C.green:c.acc>=60?C.gold:C.red;
+                        const speedCol=parseFloat(c.avgTime)<=4?C.green:parseFloat(c.avgTime)<=8?C.gold:C.red;
                         return (
-                          <div key={c.cat} style={{display:'flex',alignItems:'center',gap:7,marginBottom:5}}>
-                            <div style={{fontSize:9,color:'#778899',width:68,flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.cat}</div>
-                            <div style={{flex:1,background:'#1a2040',borderRadius:2,height:5,overflow:'hidden'}}>
-                              <div style={{height:'100%',width:`${c.acc}%`,background:col,borderRadius:2}}/>
+                          <div key={c.cat} style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                            <div style={{fontSize:10,color:'#778899',width:80,flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.cat}</div>
+                            <div style={{flex:1,background:'#1a2040',borderRadius:3,height:7,overflow:'hidden'}}>
+                              <div style={{height:'100%',width:`${c.acc}%`,background:col,borderRadius:3,boxShadow:`0 0 4px ${col}44`}}/>
                             </div>
-                            <div style={{fontSize:9,color:col,fontWeight:700,minWidth:26,textAlign:'right'}}>{c.acc}%</div>
-                            <div style={{fontSize:8,color:'#445566',minWidth:24,textAlign:'right'}}>{c.avgTime}s</div>
+                            <div style={{fontSize:10,color:col,fontWeight:700,minWidth:28,textAlign:'right'}}>{c.acc}%</div>
+                            <div style={{fontSize:9,color:speedCol,minWidth:26,textAlign:'right',opacity:0.8}}>{c.avgTime}s</div>
                           </div>
                         );
                       })}
+                      <div style={{fontSize:9,color:'#334455',textAlign:'right',marginTop:4}}>% přesnost · čas/odpověď</div>
                     </div>
                   )}
 
-                  {/* Doporučení školení */}
-                  {weakCats.length>0 && weakCats[0].acc<55 && (
-                    <div style={{background:'rgba(255,180,0,0.06)',border:'1px solid #ffd70033',borderRadius:8,padding:'8px 12px',marginBottom:10,fontSize:10,color:'#cc9900'}}>
-                      🎓 <strong>Doporučené školení:</strong> {weakCats.filter(c=>c.acc<55).map(c=>c.cat).join(', ')}
-                      {weakCats[0].acc<35&&<span style={{color:'#ff6666'}}> — urgentně!</span>}
-                    </div>
-                  )}
+                  {/* Graf 14 dní */}
+                  {(() => {
+                    const last14=[];
+                    for(let i=13;i>=0;i--){
+                      const d=new Date();d.setDate(d.getDate()-i);
+                      const dk=d.toISOString().slice(0,10);
+                      const r=ps.find(s=>s.date===dk);
+                      last14.push({date:dk,score:r?.score||0,played:!!r,perfect:r?.perfect||false});
+                    }
+                    const maxB=Math.max(...last14.map(d=>d.score),1);
+                    return (
+                      <div style={{background:'rgba(12,18,50,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:16}}>
+                        <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,color:'#4488ff',letterSpacing:2,marginBottom:14}}>📈 POSLEDNÍCH 14 DNÍ</div>
+                        <div style={{display:'flex',alignItems:'flex-end',gap:3,height:72}}>
+                          {last14.map((d,i)=>{
+                            const h=d.played?Math.max(Math.round((d.score/maxB)*68),4):0;
+                            const col=d.perfect?C.gold:d.played?C.blue:'#1a2040';
+                            return (
+                              <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:2,height:'100%',justifyContent:'flex-end'}}>
+                                <div title={d.played?`${d.date}: ${d.score.toLocaleString()} b`:'Nehrál'}
+                                  style={{width:'100%',height:h||2,background:col,borderRadius:'2px 2px 0 0',opacity:d.played?1:0.2,boxShadow:d.played?`0 0 4px ${col}66`:'none'}}/>
+                                <div style={{fontSize:7,color:'#334455'}}>{new Date(d.date).getDate()}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div style={{display:'flex',gap:12,marginTop:6,fontSize:10,color:'#445566',justifyContent:'center'}}>
+                          <span><span style={{color:C.gold}}>■</span> Perfect</span>
+                          <span><span style={{color:C.blue}}>■</span> Odehráno</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
-                  {/* Lucky box */}
+                  {/* Lucky Box */}
                   {lTot>=2 && (
-                    <div style={{fontSize:10,color:'#445566',textAlign:'center',padding:'4px 0',borderTop:'1px solid #1a2040',paddingTop:8}}>
-                      🎲 Lucky Box: {lJack}× jackpot · {lBomb}× bomba · celkem {lPts>=0?'+':''}{lPts} b
-                      {lJack>lBomb?<span style={{color:C.gold}}> — šťastlivec</span>:lBomb>lJack?<span style={{color:C.red}}> — smolař</span>:<span> — vyrovnaný</span>}
+                    <div style={{background:'rgba(12,18,50,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:16}}>
+                      <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,color:'#4488ff',letterSpacing:2,marginBottom:12}}>🎲 LUCKY BOX PROFIL</div>
+                      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:8}}>
+                        {[
+                          {e:'🏆',l:'Jackpoty',v:lJack,c:C.gold},
+                          {e:'💣',l:'Bomby',v:lBomb,c:C.red},
+                          {e:'💰',l:'Výhry',v:lWins,c:C.green},
+                          {e:'📦',l:'Celkem',v:lTot,c:C.blue},
+                        ].map(s=>(
+                          <div key={s.l} style={{padding:'8px 4px',background:'rgba(8,12,35,0.6)',borderRadius:8,textAlign:'center',border:'1px solid #1a2a4a'}}>
+                            <div style={{fontSize:18,marginBottom:3}}>{s.e}</div>
+                            <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:16,fontWeight:900,color:s.c}}>{s.v}</div>
+                            <div style={{fontSize:9,color:'#445566',marginTop:2}}>{s.l}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{fontSize:11,color:'#556688',textAlign:'center'}}>
+                        Celkem: {lPts>=0?'+':''}{lPts} b
+                        {lJack>lBomb?<span style={{color:C.gold}}> — šťastlivec</span>:lBomb>lJack?<span style={{color:C.red}}> — smolař</span>:<span> — vyrovnaný</span>}
+                      </div>
                     </div>
                   )}
+
+                  {/* Streak komentář */}
+                  <div style={{background:'rgba(12,18,50,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:'12px 16px',marginBottom:16,display:'flex',alignItems:'center',gap:12}}>
+                    <span style={{fontSize:26,flexShrink:0}}>{strR.e}</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:12,fontWeight:700,color:'#88aaff',marginBottom:2}}>{strR.t}</div>
+                      <div style={{fontSize:11,color:'#556688'}}>{strR.d}</div>
+                    </div>
+                    <div style={{textAlign:'right',flexShrink:0}}>
+                      <div style={{fontSize:9,color:'#334455'}}>max streak</div>
+                      <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:16,fontWeight:900,color:C.purple}}>{maxStreak2}d</div>
+                    </div>
+                  </div>
+
+                  {/* Školení */}
+                  {trainingTips.length>0 && (
+                    <div style={{background:'rgba(12,18,50,0.8)',border:'1px solid #2a3a6a',borderRadius:12,padding:16,marginBottom:16}}>
+                      <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,color:'#4488ff',letterSpacing:2,marginBottom:12}}>🎓 DOPORUČENÉ ŠKOLENÍ</div>
+                      {trainingTips.map((t,i)=>(
+                        <div key={i} style={{display:'flex',gap:10,padding:'7px 0',borderBottom:i<trainingTips.length-1?'1px solid #1a2040':'none'}}>
+                          <span style={{fontSize:18,flexShrink:0}}>{t.e}</span>
+                          <div>
+                            <div style={{fontSize:12,fontWeight:700,color:'#88aaff'}}>{t.t}</div>
+                            <div style={{fontSize:11,color:'#556688',marginTop:2}}>{t.d}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Verdikt */}
+                  <div style={{background:'rgba(12,18,50,0.8)',border:'1px dashed #2a3a6a',borderRadius:12,padding:16,textAlign:'center'}}>
+                    <div style={{fontSize:9,color:'#334455',letterSpacing:2,marginBottom:8,fontFamily:"'Orbitron',sans-serif"}}>CELKOVÝ VERDIKT</div>
+                    <div style={{fontSize:12,color:'#556688',lineHeight:1.8}}>
+                      {accPct>=75&&avgSc>=globalAvg&&parseFloat(avgT)<=6
+                        ? `${profileView.name} ví co dělá, dělá to rychle a nepotřebuje Stack Overflow. Ostatní to jen předstírají.`
+                        : accPct>=75&&avgSc>=globalAvg
+                        ? `${profileView.name} má znalosti i skóre výborné. Jen ta rychlost — ale kdo se nespěchá, taky někam dojde.`
+                        : accPct>=75
+                        ? `${profileView.name} je přesný, ale skóre by mohlo být vyšší.`
+                        : avgSc>=globalAvg
+                        ? `${profileView.name} má skóre nad průměrem, ale přesnost to trochu kazí.`
+                        : `${profileView.name} má co zlepšovat. To je pozitivní zpráva.`
+                      }
+                    </div>
+                  </div>
                 </div>
               );
             })()}
-
-            <button onClick={()=>{setProfileView(null);setProfileScores([]);}}
-              style={{marginTop:16,width:'100%',background:'transparent',border:'1px solid #2a3a6a',color:'#88aaff',padding:'10px',borderRadius:8,cursor:'pointer',fontFamily:'inherit',fontSize:12,letterSpacing:2}}>
-              ZAVŘÍT
-            </button>
           </div>
         </div>
       )}

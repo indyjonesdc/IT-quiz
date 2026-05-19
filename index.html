@@ -26,6 +26,33 @@ body{font-family:'Inter', sans-serif;color:#e0e8ff;overflow-x:hidden}
 // ═══════════════════════════════════════════════════════
 const SUPABASE_URL  = 'https://nueprvtkefezraibnlyo.supabase.co';
 const SUPABASE_KEY  = 'sb_publishable_kEir70MApmMucBkp5BHpzg_jhDettKH';
+// POZN: V Supabase SQL Editoru spusť:
+// ALTER TABLE scores ADD COLUMN IF NOT EXISTS time_saved INTEGER DEFAULT 0;
+// ALTER TABLE scores ADD COLUMN IF NOT EXISTS perfect BOOLEAN DEFAULT false;
+// ALTER TABLE users  ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+//
+// -- RLS pro users tabulku (pokud UPDATE nefunguje):
+// ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+// CREATE POLICY "Kdokoliv může číst users"   ON users FOR SELECT USING (true);
+// CREATE POLICY "Kdokoliv může vytvořit user" ON users FOR INSERT WITH CHECK (true);
+// CREATE POLICY "Kdokoliv může upravit user"  ON users FOR UPDATE USING (true) WITH CHECK (true);
+//
+// CREATE TABLE IF NOT EXISTS monthly_champions (
+//   id TEXT PRIMARY KEY,
+//   month TEXT NOT NULL,
+//   user_id TEXT NOT NULL,
+//   user_name TEXT NOT NULL,
+//   total_score BIGINT NOT NULL,
+//   days_played INTEGER NOT NULL,
+//   crowned_at TIMESTAMPTZ DEFAULT NOW()
+// );
+// --- STORAGE (v Supabase → Storage → New bucket) ---
+// Název bucketu: avatars
+// Public bucket: ANO (zaškrtni)
+// Pak spusť tuto RLS policy:
+// CREATE POLICY "Public avatars" ON storage.objects FOR SELECT USING (bucket_id = 'avatars');
+// CREATE POLICY "Upload avatars" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'avatars');
+// CREATE POLICY "Update avatars" ON storage.objects FOR UPDATE USING (bucket_id = 'avatars');
 // ═══════════════════════════════════════════════════════
 
 const { createClient } = supabase;
@@ -38,7 +65,72 @@ const QUIZ_DURATION = 120;
 const QUESTIONS_PER_QUIZ = 15;
 const MAX_PTS = 1000;
 const MIN_PTS = 100;
-const SCREENS = { HOME:'home', REGISTER:'register', QUIZ:'quiz', RESULT:'result', BOARD:'board' };
+const SCREENS = { HOME:'home', REGISTER:'register', PROFILE:'profile', QUIZ:'quiz', RESULT:'result', BOARD:'board' };
+
+// Kombo konstanty
+const COMBO_TIME_LIMIT = 3; // sekund od zobrazení otázky
+const COMBO3_BONUS = 500;
+const COMBO4_BONUS = 1000;
+const COMBO5_BONUS = 2000;
+const PERFECT_BONUS = 2000; // bonus za bezchybný kvíz (všechny správně)
+
+// ─── LUCKY BOX ────────────────────────────────────────
+const LUCKY_PRIZES = [-500, -200, 0, 100, 200, 300, 500, 750, 1000];
+const LUCKY_REACTIONS = {
+  '-500': [
+    '💀 Gratuluji! Úspěšně jsi smazal část svého skóre.',
+    '🗑️ Takhle se truhličky neotevírají. Takhle se fláká.',
+    '😂 To bolelo víc než produkční outage v pátek odpoledne.',
+    '🪦 RIP bodům. Nezapomeneme. Na chvíli.',
+    '🤡 Našel jsi skrytý achievement: "Nejhorší volba dne".',
+  ],
+  '-200': [
+    '😬 Malá rána. Jako restart bez uložení.',
+    '📉 Tvůj graf výsledků vypadá jako IPO startupu co zkrachoval.',
+    '🥲 Mohlo být hůř. Ale mohlo být i mnohem líp.',
+    '💸 -200 bodů. Investice do zkušeností.',
+  ],
+  '0': [
+    '😶 Nula. Přesně jako přidaná hodnota tohoto výběru.',
+    '🫥 Prázdná truhlička. Jak prázdný kalendář seniora na LinkedIn.',
+    '🤷 Ani zisk ani ztráta. Jak průměrný sprint.',
+    '⚖️ Nula. Karmická rovnováha zachována.',
+  ],
+  '100': [
+    '🙂 100 bodíků. Jako prémie za to že jsi přišel do práce.',
+    '📦 Malý poklad. Ale stále poklad.',
+  ],
+  '200': [
+    '😊 200 bodů! Slušná volba pro začátek.',
+    '🎯 Ne nejlepší, ale ne nejhorší. Jako průměrný code review.',
+  ],
+  '300': [
+    '👍 300 bodů! Tohle je ta správná energie.',
+    '🎲 Štěstí přeje připraveným. Nebo tobě.',
+  ],
+  '500': [
+    '🎉 500 bodů! Tady je někdo oblíbenec náhody!',
+    '🔥 Půl tisíce! Server applauduje.',
+    '⚡ Tohle byl fakt dobrý klik.',
+  ],
+  '750': [
+    '🤩 750 bodů!! Ty máš ale šťastnou ruku!',
+    '🚀 750! Skoro jako dostat produkci bez bugů.',
+    '💎 Tenhle výběr byl lepší než posledních 5 deploymentů dohromady.',
+  ],
+  '1000': [
+    '🏆 JACKPOT!! 1000 bodů!! Tebe ani blesk netrefí!',
+    '👑 MAXIMUM! Sys admin bohové ti dnes přejí!',
+    '💥 TISÍC BODŮ!! Tohle se stává jednou za deployment bez chyb!',
+    '🌟 1000 BODŮ! Okamžitě kup los. Nebo restartuj server. Funguje vše.',
+  ],
+};
+
+function getLuckyReaction(pts) {
+  const key = String(pts);
+  const arr = LUCKY_REACTIONS[key] || ['🎲 Zajímavá volba.'];
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
 const INSULTS = [
   '💀 KATASTROFA! Ani klávesnice tě nezachránila!',
@@ -56,10 +148,657 @@ const INSULTS = [
   '🐛 Nalezl jsem chybu — v tvém mozku!',
   '📡 Signál IQ: příliš slabý na příjem!',
   '🔌 Unplugged from reality, are we?',
+  '🖥️ Ty jsi ajťák asi jako kalkulačka je superpočítač.',
+  '🌐 Tvoje odpověď měla tolik logiky co Internet Explorer bezpečnosti.',
+  '📦 Kdyby byl bullshit open-source, tak jsi maintainer.',
+  '🔧 Tobě bych nesvěřil ani restart routeru.',
+  '📋 Ty jsi důkaz, že Ctrl+C a Ctrl+V není vzdělání.',
+  '😭 Když jsi odpovídal, tak někde plakal jeden admin.',
+  '🖱️ Tvoje IT znalosti skončily u zapnutí monitoru.',
+  '📶 Máš charisma DHCP konfliktu.',
+  '⌨️ Ty budeš asi ten typ ajťáka, co hledá Any key.',
+  '👻 Tvůj debugging vypadá jak exorcismus.',
+  '🤖 Takovou odpověď nevymyslí ani AI po lobotomii.',
+  '📰 Ty ses učil IT podle komentářů na Novinkách?',
+  '🖨️ Jestli je tohle expert, tak tiskárna je quantum computer.',
+  '📡 Tvoje odpověď měla větší packet loss než veřejná Wi-Fi na nádraží.',
+  '⚡ Kdybys byl proces, tak tě Task Manager zabije jako první.',
+  '🐧 Ty jsi Linux nikdy neviděl jinak než na wallpaperu.',
+  '🧩 Tvůj mozek běží asi na trial verzi.',
+  '💙 Tohle nebyla odpověď, to byl BSOD v přímém přenosu.',
+  '💾 Ty máš místo znalostí jen cache sebevědomí.',
+  '🔀 Když jsi mluvil o IT, Git začal vracet konflikty.',
+  '🚨 Tvoje rada je ideální způsob, jak rozbít produkci během pěti minut.',
+  '🔦 Ty bys shodil server i vypínačem od lampičky.',
+  '☁️ Jediný cloud, co znáš, je ten na obloze.',
+  '⚙️ Tvoje konfigurace života je evidentně defaultní a rozbitá.',
+  '🔒 Tohle nebyla technická odpověď, ale kybernetický zločin.',
+  '🔄 Ty budeš ten admin, co opravuje problémy restartem celé firmy.',
+  '📚 Po tvé odpovědi se i Stack Overflow stydí.',
+  '🗂️ Tvoje IT znalosti jsou jak WinRAR licence — věčně trial.',
+  '🛰️ Ty jsi tak mimo, že by tě nenašel ani traceroute.',
+  '🖧 Když jsi odpověděl, tak se někde sám od sebe odpojil server.',
 ];
+
+const INSULT_ENDINGS = [
+  'To byl fakt výkon. Zapsáno do síně hanby.',
+  'I ten restart routeru by ti to nevysvětlil.',
+  'Certifikát Clueless Admin™ ti přijde poštou.',
+  'Příště si přečti aspoň Wikipedia. Prosím tě.',
+  'Tvůj mentor tě vzdáleně právě pláče.',
+  'Uloženo do archivu nejhorších odpovědí všech dob.',
+  'Doufám, že tohle je probuzení, ne potvrzení.',
+  'Zkus to zítra znovu. Nebo se vyspat. Obojí.',
+];
+
+// ─── VYSVĚTLENÍ KE VŠEM OTÁZKÁM ──────────────────────
+const EXPLANATIONS = {
+  // SÍTĚ
+  1: 'DNS (Domain Name System) je distribuovaná databáze překládající doménová jména (google.com) na IP adresy. Bez DNS bys musel pamatovat IP každé stránky.',
+  2: 'HTTPS běží na portu 443. HTTP je na 80, SSH na 22, SMTP na 25. Port 8080 je alternativní HTTP.',
+  3: 'Třída A: 0–127 v prvním oktetu, maska /8. Třída B: 128–191, maska /16. Třída C: 192–223, maska /24.',
+  4: 'SMTP (Simple Mail Transfer Protocol) odesílá e-maily. Pro příjem se používá IMAP (port 143/993) nebo POP3 (110/995).',
+  5: '/24 = 24 bitů síťová část → maska 255.255.255.0. Zbývá 8 bitů pro hostitele = 254 použitelných adres.',
+  6: 'MAC adresa je 48bitová fyzická adresa síťového adaptéru přidělená výrobcem (OUI + sériové číslo). Nezaměňuj s IP adresou.',
+  7: 'DHCP (Dynamic Host Configuration Protocol) automaticky přiděluje IP, masku, bránu a DNS klientům v síti.',
+  8: 'VPN (Virtual Private Network) vytváří šifrovaný tunel přes veřejnou síť. Zařízení se chová, jako by bylo v privátní síti.',
+  9: 'IPv6 používá 128 bitů = 3,4×10³⁸ adres. IPv4 má 32 bitů = ~4,3 miliardy adres, které jsou vyčerpány.',
+  10: 'SSH (Secure Shell) běží na portu 22, nahradil nešifrovaný Telnet (23). Používá asymetrické šifrování pro autentizaci.',
+  11: 'NAT (Network Address Translation) přepisuje hlavičky paketů – umožňuje sdílet jednu veřejnou IP mezi mnoha zařízeními.',
+  12: 'CIDR (Classless Inter-Domain Routing) zavádí variabilní délku prefixu (/0 až /32) místo pevných tříd A/B/C.',
+  13: '1000BASE-T = Gigabit Ethernet po Cat5e kabelu. 100BASE-TX = 100 Mbit/s, 10GBASE-T = 10 Gbit/s.',
+  14: 'Ping používá ICMP Echo Request/Reply. Měří RTT (Round Trip Time) a zjišťuje dostupnost hostitele.',
+  15: 'TCP garantuje doručení, pořadí a integritu dat (three-way handshake, ACK). UDP je rychlejší, ale bez záruky doručení.',
+  16: 'Firewall filtruje provoz podle pravidel (IP, port, protokol, stav spojení). Může být stavový (stateful) nebo bezstavový.',
+  17: 'OSI (Open Systems Interconnection) je referenční model ISO pro síťovou komunikaci se 7 vrstvami.',
+  18: 'OSI vrstvy zdola: 1-Fyzická, 2-Linková, 3-Síťová, 4-Transportní, 5-Relační, 6-Prezentační, 7-Aplikační.',
+  19: 'Router pracuje na vrstvě 3 (síťová) a směruje pakety mezi různými sítěmi. Switch pracuje na vrstvě 2 (linková).',
+  20: 'Traceroute posílá pakety s TTL=1, 2, 3… Každý router sníží TTL o 1, při TTL=0 pošle ICMP Time Exceeded zpět.',
+  21: 'BGP (Border Gateway Protocol) je routovací protokol internetu – řídí výměnu routovacích informací mezi autonomními systémy (AS).',
+  22: 'Switch pracuje na vrstvě 2 OSI, přeposílá rámce podle MAC adres. Udržuje CAM tabulku (MAC → port).',
+  23: 'FTP používá dva porty: 21 pro řízení (příkazy) a 20 pro přenos dat (aktivní režim). SFTP/FTPS jsou bezpečné alternativy.',
+  24: 'VLAN (Virtual LAN) logicky odděluje síť na switchích. Provoz mezi VLANy musí procházet routerem (inter-VLAN routing).',
+  25: 'STP (Spanning Tree Protocol, IEEE 802.1D) zabraňuje smyčkám v síti blokováním redundantních portů. RSTP je rychlejší verze.',
+  // HARDWARE
+  26: 'CPU (Central Processing Unit) je hlavní výpočetní jednotka počítače. Obsahuje ALU, řadič a cache paměti L1/L2/L3.',
+  27: 'RAM (Random Access Memory) je rychlá volatilní paměť pro běžící procesy. Po vypnutí se obsah ztratí.',
+  28: 'SSD (Solid State Drive) nemá pohyblivé části, čte/zapisuje přes flash paměť. Rychlejší, odolnější, ale dražší než HDD.',
+  29: 'BIOS (Basic Input/Output System) inicializuje hardware při startu (POST) a předá řízení bootloaderu. Nahrazuje ho UEFI.',
+  30: 'PCIe (Peripheral Component Interconnect Express) je sériová linka pro GPU, SSD, síťové karty. Gen 4 = 16 GT/s na linku.',
+  31: 'NVMe (Non-Volatile Memory Express) je protokol pro SSD přes PCIe. Výrazně rychlejší než SATA (6 Gbit/s limit).',
+  32: 'GPU (Graphics Processing Unit) má tisíce menších jader pro paralelní výpočty. Dnes klíčový pro AI/ML i rendering.',
+  33: 'RAID 1 zrcadlí data na 2+ discích. Výhodou je redundance, nevýhodou využití jen 50 % kapacity.',
+  34: 'UEFI (Unified Extensible Firmware Interface) nahradil BIOS. Podporuje GPT, Secure Boot, větší disky, grafické UI.',
+  35: 'Cache procesoru je ultrarychlá paměť přímo v CPU. L1 (~100 KB) nejrychlejší, L3 (~32 MB) největší ale pomalejší.',
+  36: 'ECC (Error Correcting Code) paměť detekuje a opravuje jednobiotové chyby. Klíčová pro servery a vědecké výpočty.',
+  37: 'PSU (Power Supply Unit) převádí střídavé napětí (230V AC) na stejnosměrné (12V, 5V, 3.3V DC) pro komponenty.',
+  38: 'M.2 je malý formátový faktor pro SSD a WiFi karty. Podporuje SATA i NVMe protokol. Délky: 2242, 2260, 2280 mm.',
+  39: 'Teplovodivá pasta vyplňuje mikroskopické nerovnosti mezi CPU a chladičem. Bez ní vzduch degraduje přenos tepla 10×.',
+  40: 'POST (Power-On Self Test) je diagnostika HW při startu: testuje RAM, CPU, GPU, disky. Chyby hlásí pípáním nebo kódy.',
+  41: 'Overclocking = provoz nad specifikací výrobce. Zvyšuje výkon, ale i spotřebu, teplo a může zkrátit životnost.',
+  42: 'Hot-swap umožňuje výměnu disku/PSU/NIC za provozu bez výpadku. Kritické pro RAID pole a serverové systémy.',
+  43: 'JBOD (Just a Bunch of Disks) = disky bez RAID, každý disk je samostatný svazek. Žádná redundance, žádný striping.',
+  44: 'Blade server = tenký serverový modul (blade) zasunutý do chassis. Sdílí napájení, chlazení a síťové prvky šasi.',
+  45: 'CMOS baterie (CR2032) napájí RTC čip a uchovává BIOS nastavení při vypnutém PC. Vydrží 5–10 let.',
+  // BEZPEČNOST
+  46: 'Phishing je podvod napodobující důvěryhodnou entitu (banka, IT helpdesk). Cílem je získat přihlašovací údaje nebo platby.',
+  47: 'DDoS (Distributed Denial of Service) = zahlcení cíle provozem z tisíců zdrojů (botnet). Legitimní uživatelé se nedostanou.',
+  48: 'SSL/TLS šifruje komunikaci pomocí asymetrického handshake (výměna klíčů) + symetrického šifrování (data). TLS 1.3 je aktuální.',
+  49: 'Brute force systematicky zkouší všechny kombinace hesel. Ochrana: dlouhá hesla, rate limiting, CAPTCHA, MFA.',
+  50: 'Zero-day = zranitelnost bez záplaty, o které výrobce (zatím) neví. Útočníci ji aktivně exploitují před vydáním patche.',
+  51: 'Ransomware šifruje soubory a požaduje výkupné (crypto). Ochrana: zálohy 3-2-1, aktuální SW, segmentace sítě.',
+  52: '2FA (Two-Factor Authentication) kombinuje "co víš" (heslo) + "co máš" (TOTP, SMS, hardwarový klíč).',
+  53: 'SQL injection vkládá škodlivý SQL kód přes vstupní pole (login, vyhledávání). Obrana: parametrizované dotazy, ORM.',
+  54: 'HTTPS = HTTP přes TLS. Šifruje komunikaci, ověřuje identitu serveru certifikátem a chrání před odposloucháváním.',
+  55: 'Malware = malicious software. Zahrnuje viry, trojany, ransomware, spyware, adware, rootkity a další škodlivý SW.',
+  56: 'Penetrační test = simulovaný útok s písemným souhlasem. Cílem je najít zranitelnosti dříve než útočník.',
+  57: 'Botnet = síť infikovaných PC (zombie) ovládaná C&C serverem. Používá se pro DDoS, spam, těžbu crypto, krádež dat.',
+  58: 'XSS (Cross-Site Scripting) vkládá JS kód do webové stránky jiného uživatele. Krade session cookies, přesměrovává.',
+  59: 'MITM (Man-In-The-Middle) = útočník se vloží mezi komunikaci. Dešifruje, čte nebo modifikuje provoz.',
+  60: 'AES (Advanced Encryption Standard) je symetrická bloková šifra (128/192/256 bitů). Standard vlády USA od 2001.',
+  61: 'RSA je asymetrický algoritmus (veřejný klíč šifruje, soukromý dešifruje). Jména: Rivest, Shamir, Adleman, MIT 1977.',
+  62: 'SHA-256 produkuje 256bitový hash. Používá se v HTTPS certifikátech, Bitcoinu, podpisech. SHA-1 je zastaralý.',
+  63: 'SIEM (Security Information and Event Management) sbírá, koreluje a analyzuje bezpečnostní události v reálném čase.',
+  64: 'WAF (Web Application Firewall) chrání webové aplikace filtrováním HTTP provoz. Blokuje SQL injection, XSS, CSRF.',
+  65: 'Zero trust = "never trust, always verify". Každý přístup se ověřuje bez ohledu na polohu (i uvnitř sítě).',
+  // OS
+  66: 'Kernel (jádro) je základ OS – řídí HW, procesy, paměť, soubory. Userspace aplikace komunikují přes systémová volání.',
+  67: 'NTFS (New Technology File System) je standardní FS Windows. Podporuje oprávnění, šifrování (EFS), žurnálování, soubory >4 GB.',
+  68: 'Swap je diskový prostor sloužící jako "náhradní RAM". Pomalý (100× pomalejší než RAM), ale lepší než OOM killer.',
+  69: 'Virtualizace spouští více OS na jednom HW. Hypervisor (VMware, KVM, Hyper-V) izoluje VM a sdílí fyzické zdroje.',
+  70: 'Hypervisor spravuje VM. Type 1 (bare-metal) běží přímo na HW. Type 2 (hosted) běží nad OS (VirtualBox, VMware Workstation).',
+  71: 'Root (UID 0) je superuživatel Linuxu s neomezenými právy. Doporučuje se používat sudo místo trvalého přihlášení jako root.',
+  72: 'Cron je plánovač úloh v Unixu. Formát: minuta hodina den měsíc den_týdne příkaz. Crontab -e edituje plán.',
+  73: 'Docker kontejnerizuje aplikace s jejich závislostmi. Lehčí než VM (sdílí kernel), přenositelné a rychle startují.',
+  74: 'GPT (GUID Partition Table) nahrazuje MBR. Podporuje disky >2 TB, až 128 oddílů, zálohu tabulky na konci disku.',
+  75: 'Zombie proces = ukončený proces, jehož rodič ještě nepřečetl exit kód (wait()). Zabírá místo v tabulce procesů.',
+  76: 'systemd je init systém (PID 1) v moderních Linuxech. Řídí bootování, spouštění/zastavení služeb a logování (journald).',
+  77: 'Memory leak = aplikace alokuje paměť, ale neuvolňuje ji. Postupně vyčerpá RAM a způsobí zpomalení nebo pád.',
+  78: 'Deadlock = cyklické čekání: proces A čeká na zdroj B, proces B čeká na zdroj A. Řeší se timeouty nebo prevencí.',
+  79: 'Context switch = uložení stavu procesu (registry, PC) a obnovení jiného. Umožňuje multitasking, ale stojí CPU čas.',
+  80: '/proc je virtuální (pseudo) filesystem poskytující informace o procesech a kernelu. /proc/cpuinfo, /proc/meminfo, atd.',
+  // DATABÁZE
+  81: 'SQL (Structured Query Language) je jazyk pro manipulaci s relačními databázemi. SELECT, INSERT, UPDATE, DELETE jsou základní příkazy.',
+  82: 'Primární klíč jednoznačně identifikuje každý řádek tabulky. Musí být unikátní a NOT NULL. Automaticky vytváří index.',
+  83: 'NoSQL DB nevyužívají relační model. Typy: dokumentové (MongoDB), key-value (Redis), sloupcové (Cassandra), grafové (Neo4j).',
+  84: 'ACID = Atomicity (vše nebo nic), Consistency (data splňují pravidla), Isolation (transakce se neovlivňují), Durability (přežije pád).',
+  85: 'Index je datová struktura (B-tree, hash) urychlující vyhledávání. Zrychluje SELECT, ale zpomaluje INSERT/UPDATE/DELETE.',
+  86: 'JOIN spojuje řádky ze dvou tabulek podle podmínky. INNER JOIN = průnik, LEFT JOIN = všechny z levé + shody z pravé.',
+  87: 'Transakce je atomická sekvence operací. BEGIN → operace → COMMIT (uloží) nebo ROLLBACK (vrátí zpět změny).',
+  88: 'MongoDB ukládá data jako JSON-like dokumenty (BSON). Flexibilní schéma, horizontální škálování, vhodné pro nestrukturovaná data.',
+  89: 'Redis je in-memory databáze (key-value). Extrémně rychlá (ns latence). Používá se pro cache, sessions, message queues.',
+  90: 'Sharding rozděluje data horizontálně mezi více DB serverů (shardů). Umožňuje škálování nad kapacitu jednoho serveru.',
+  // CLOUD
+  91: 'IaaS (Infrastructure as a Service) = virtuální HW v cloudu. Spravuješ OS a aplikace, provider spravuje fyzický HW (AWS EC2).',
+  92: 'SaaS (Software as a Service) = hotová aplikace přes internet. Nestaráš se o nic – jen používáš (Gmail, Office 365, Salesforce).',
+  93: 'PaaS (Platform as a Service) = platforma pro vývoj aplikací. Spravuješ kód, provider spravuje OS a runtime (Heroku, GAE).',
+  94: 'AWS má největší podíl na cloudovém trhu (~32 %). Azure je druhý (~22 %), Google Cloud třetí (~11 %). Stav 2024.',
+  95: 'CDN (Content Delivery Network) = síť serverů po světě cachující obsah blíže uživatelům. Snižuje latenci a zatížení originu.',
+  96: 'Serverless = spouštíš funkce bez správy serverů. Provider škáluje automaticky, platíš za spuštění (AWS Lambda, Azure Functions).',
+  97: 'Kubernetes (K8s) orchestruje kontejnery: nasazení, škálování, self-healing, load balancing. Open source od Google.',
+  98: 'Auto-scaling automaticky přidává/odebírá instance podle zatížení (CPU, paměť, počet požadavků). Šetří náklady i v špičkách.',
+  99: 'CI/CD: Continuous Integration = automatický build a testy při každém commitu. CD = automatické nasazení do produkce.',
+  100: 'Multi-cloud = využití více providerů (AWS + Azure + GCP). Výhody: vendor lock-in prevence, nejlepší služby od každého.',
+  // KONEKTORY
+  101: 'DisplayPort má 20 pinů. Podporuje vyšší rozlišení a refresh rate než HDMI. DisplayPort 2.1 = až 77.4 Gbit/s.',
+  102: 'HDMI Type A má 19 pinů. Přenáší video (až 8K) i audio. Type C je mini HDMI (10 pinů), Type D je micro.',
+  103: 'SATA konektor: datový (7 pin, L-tvar), napájecí (15 pin). SATA III = 6 Gbit/s (reálně ~550 MB/s).',
+  104: 'TOSLINK (Toshiba Link) je optický audio konektor. Přenáší digitální audio bez elektrického rušení. Dosah ~10 m.',
+  105: 'PCIe x16 má 82 pinů. Používá se výhradně pro GPU. x16 v Gen 4 = 32 GB/s obousměrně.',
+  106: 'VGA (D-Sub 15 pin) přenáší analogový RGB video signál. Dnes zastaralý, nahrazen HDMI a DisplayPort.',
+  107: 'PoE (Power over Ethernet, IEEE 802.3af/at/bt) napájí IP kamery, WiFi AP, VoIP telefony přes Cat5e/6 kabel.',
+  108: 'Cat6 podporuje 10 Gbit/s na vzdálenost do 55 m (Cat6A až 100 m). Cat5e zvládne Gigabit na 100 m.',
+  109: 'SFP (Small Form-factor Pluggable) je hot-pluggable transceiver pro optiku nebo měď. SFP+ = 10G, QSFP+ = 40G.',
+  110: 'DB-9 (DE-9) je 9pinový D-sub konektor pro RS-232 sériovou komunikaci. Používán u průmyslových zařízení a starých PC.',
+  // WIFI
+  111: 'WiFi 6 (802.11ax) přináší OFDMA, MU-MIMO, BSS Coloring pro lepší výkon v hustých sítích. Max rychlost ~9,6 Gbit/s.',
+  112: '802.11b pracuje na 2,4 GHz, max 11 Mbit/s. 2,4 GHz má větší dosah ale více rušení než 5 GHz.',
+  113: 'SSID (Service Set Identifier) je název WiFi sítě. Může být skrytý (hidden SSID), ale to neposkytuje reálnou bezpečnost.',
+  114: 'WPA3 (2018) nahrazuje WPA2. Přináší SAE (nahrazuje PSK), 192bit šifrování pro Enterprise a lepší ochranu open sítí.',
+  115: 'WPS (WiFi Protected Setup) umožňuje připojení stiskem tlačítka nebo PIN kódem. PIN metoda má bezpečnostní zranitelnosti.',
+  116: 'NFC (Near Field Communication) pracuje na 13,56 MHz, dosah <20 cm. Používá se pro platby (Apple Pay), párovačky a přístupové karty.',
+  117: 'MIMO (Multiple Input Multiple Output) používá více antén pro paralelní přenos dat. Zvyšuje rychlost i spolehlivost spojení.',
+  118: 'MU-MIMO (Multi-User MIMO) umožňuje AP komunikovat s více zařízeními zároveň místo postupně. WiFi 5 = 4×4 MU-MIMO.',
+  119: 'WiFi 6E rozšiřuje WiFi 6 na 6 GHz pásmo (1200 MHz šířky). Méně rušení, ale kratší dosah než 2,4/5 GHz.',
+  120: 'OFDMA (Orthogonal Frequency Division Multiple Access) rozděluje kanál na malé podkanály (RU) pro různá zařízení současně.',
+  // TEORIE
+  121: "Moore's Law (1965): počet tranzistorů na čipu se zdvojnásobí každé ~2 roky. Platilo cca do roku 2012, dnes se zpomaluje.",
+  122: 'Open source = volně dostupný zdrojový kód. Licence: MIT (permisivní), GPL (copyleft), Apache 2.0. Bezplatný ≠ open source.',
+  123: 'API (Application Programming Interface) = smlouva mezi systémy. Definuje, jak si aplikace předávají data a funkce.',
+  124: 'Latence = zpoždění (ms) od odeslání po přijetí. Bandwidth = objem dat za sekundu. Latence se nelepší šířkou pásma.',
+  125: 'Bandwidth (šířka pásma) = maximální přenosová kapacita. Throughput = skutečně dosažená rychlost (vždy ≤ bandwidth).',
+  126: 'DevOps = kultura spolupráce Dev (vývoj) + Ops (provoz). Cílem je rychlejší, spolehlivější dodávka SW přes CI/CD, automatizaci.',
+  127: 'Agile = iterativní vývoj v sprintech (1–4 týdny). Pravidelné dodávky hodnoty, zpětná vazba, přizpůsobivost změnám.',
+  128: 'TCP three-way handshake: 1) SYN (klient), 2) SYN-ACK (server), 3) ACK (klient). Poté je spojení navázáno.',
+  129: 'TTL v DNS = čas cachování záznamu. TTL v IP paketech = max. počet skoků (routerů). Každý router sníží o 1.',
+  130: 'Redundance = záložní komponenty (druhý PSU, RAID, failover server). Zvyšuje dostupnost a odolnost vůči selhání.',
+  // ÚLOŽIŠTĚ
+  131: 'RAID 0 = striping: data rozdělena mezi disky pro vyšší rychlost. Výpadek jednoho disku = ztráta všech dat!',
+  132: 'RAID 5 = striping s paritou. Min. 3 disky. Přežije výpadek 1 disku. Kapacita = (N-1) × velikost disku.',
+  133: 'NAS (Network Attached Storage) = úložiště připojené k síti (NFS, SMB/CIFS). Přístupné všem zařízením v síti.',
+  134: 'SAN (Storage Area Network) = dedikovaná síť pro storage (Fibre Channel, iSCSI). Vyšší výkon a škálovatelnost než NAS.',
+  135: 'LVM (Logical Volume Management) = virtualizace diskového prostoru. Umožňuje online resize, snapshoty, RAID-like funkce.',
+  136: 'iSCSI = SCSI příkazy přes IP síť. Levnější alternativa k Fibre Channel pro SAN. Vyžaduje dedikovanou síť pro výkon.',
+  137: 'Enterprise HDD mají 10 000–15 000 RPM (SAS). Desktopové mají 7 200 RPM (SATA). Vyšší RPM = nižší latence přístupu.',
+  138: 'Thin provisioning = alokace úložiště virtuálně. Disk "hlásí" 1 TB, ale fyzicky zabírá jen použitá data. Šetří místo.',
+  139: '3-2-1 backup: 3 kopie dat, na 2 různých médiích, 1 kopie off-site (cloud/jiná budova). Zlatý standard zálohování.',
+  140: 'Journaling zaznamenává plánované změny před jejich provedením. Po pádu obnoví konzistenci (ext4, NTFS, XFS, APFS).',
+  // SPRÁVA
+  141: 'SNMP (Simple Network Management Protocol) monitoruje síťová zařízení. Verze 3 přidává šifrování a autentizaci.',
+  142: 'Ansible = agentless konfigurační management (SSH + YAML playbooks). Idempotentní operace, velká komunita.',
+  143: 'Terraform = IaC nástroj od HashiCorp. Deklarativní HCL jazyk. Provider pro AWS, Azure, GCP a stovky dalších.',
+  144: 'SLA (Service Level Agreement) = smlouva o úrovni služby. Definuje dostupnost (99,9% = 8,7 h výpadku/rok), RTO, RPO.',
+  145: 'RTO (Recovery Time Objective) = maximální přijatelná doba výpadku. Čas od incidentu do obnovení provozu.',
+  146: 'RPO (Recovery Point Objective) = maximální přijatelná ztráta dat. Jak stará záloha je ještě akceptovatelná?',
+  147: 'Prometheus = open-source monitoring. Sbírá metriky přes HTTP (pull model), ukládá v time-series DB, má AlertManager.',
+  148: 'Grafana = vizualizační platforma. Připojuje se na Prometheus, InfluxDB, Elasticsearch a další. Dashboardy, alerty.',
+  149: 'Uptime = procento času, kdy systém funguje. 99,9% = 8,76 h výpadku/rok. 99,999% (five nines) = 5,26 min/rok.',
+  150: 'ITIL = sada best practices pro IT service management. Pokrývá incident, change, problem, configuration management.',
+  // PROTOKOLY
+  151: 'HTTP 404 = Not Found. Server nenašel požadovaný zdroj. 4xx jsou chyby klienta, 5xx jsou chyby serveru.',
+  152: 'HTTP 200 = OK. Požadavek byl úspěšně zpracován a server vrátil požadovaný obsah.',
+  153: 'HTTP 500 = Internal Server Error. Obecná chyba serveru – něco se pokazilo na straně serveru.',
+  154: 'HTTP 301 = Moved Permanently. Prohlížeč cachuje přesměrování. 302 = Found (dočasné přesměrování).',
+  155: 'HTTP 403 = Forbidden. Server pochopil požadavek, ale odmítá ho vykonat (nedostatečná oprávnění).',
+  156: 'REST API = architektura nad HTTP. Principy: stateless, resource-based URL, standardní HTTP metody (GET/POST/PUT/DELETE).',
+  157: 'WebSocket = full-duplex komunikace přes TCP. Navázání přes HTTP Upgrade, poté trvalé spojení. Vhodné pro real-time apps.',
+  158: 'SMTP (Simple Mail Transfer Protocol) odesílá poštu na portu 25 (server-server) nebo 587 (klient-server, STARTTLS).',
+  159: 'IMAP (Internet Message Access Protocol) synchronizuje poštu ze serveru. E-maily zůstávají na serveru (na rozdíl od POP3).',
+  160: 'JWT (JSON Web Token) = Base64-encoded header.payload.signature. Stateless autentizace – server nepotřebuje session store.',
+  // VIRTUALIZACE
+  161: 'VMware ESXi je Type-1 hypervisor (bare-metal). Běží přímo na HW bez host OS. Základ vSphere platformy.',
+  162: 'Kontejner sdílí kernel hostitele (isolace přes namespaces/cgroups). VM má vlastní OS. Kontejner startuje v ms, VM v minutách.',
+  163: 'VM snapshot zachytí stav (disk + RAM + konfigurace) v daném okamžiku. Umožňuje rychlý rollback. Není náhradou zálohy!',
+  164: 'Live migration (vMotion, KVM live migrate) přesune běžící VM mezi hostiteli bez výpadku. Sdílené úložiště nutné.',
+  165: 'Type-1 (bare-metal): ESXi, KVM, Hyper-V – běží přímo na HW. Type-2 (hosted): VirtualBox, VMware Workstation – nad OS.',
+  166: 'Docker Compose definuje multi-kontejnerové aplikace v YAML (docker-compose.yml). Jeden příkaz spustí celý stack.',
+  167: 'KVM (Kernel-based Virtual Machine) je Type-1 hypervisor v Linux kernelu (od 2007). Základ OpenStack a cloudů.',
+  168: 'Hyper-V je Microsoft hypervisor. Integrovaný ve Windows Server a Windows 10/11 Pro. Podporuje live migration.',
+  169: 'vMotion (VMware) migruje běžící VM mezi ESXi hostiteli bez výpadku. Vyžaduje sdílené úložiště a dobrou síť.',
+  170: 'LXC (Linux Containers) je lehká virtualizace na úrovni OS. Základ pro Docker. Sdílí kernel, izoluje procesy.',
+  // WINDOWS
+  171: 'Active Directory (AD) je LDAP/Kerberos adresářová služba. Spravuje uživatele, počítače, skupiny a politiky v doméně.',
+  172: 'Group Policy (GPO) centrálně konfiguruje Windows klienty a servery přes AD. Nastavení, skripty, software deployment.',
+  173: 'LDAP (Lightweight Directory Access Protocol) je protokol pro přístup k adresářovým službám (Active Directory, OpenLDAP).',
+  174: 'RDP (Remote Desktop Protocol, port 3389) umožňuje vzdálený grafický přístup k Windows. Šifrovaný od Windows Vista+.',
+  175: 'BitLocker šifruje celý disk pomocí AES-256. Využívá TPM čip pro uložení klíče. Chrání data při ztrátě zařízení.',
+  176: 'PowerShell je shell i skriptovací jazyk .NET. Pracuje s objekty místo textu. Klíčový pro správu Windows i Azure.',
+  177: 'DNS A záznam mapuje doménové jméno na IPv4 adresu. AAAA je pro IPv6, CNAME je alias, MX je pro mail.',
+  178: 'MX (Mail Exchanger) záznam definuje mailový server pro doménu. Má prioritu (nižší číslo = vyšší priorita).',
+  179: 'NTP (Network Time Protocol, port 123/UDP) synchronizuje čas. Kerberos autentizace vyžaduje odchylku max 5 minut.',
+  180: 'WSUS (Windows Server Update Services) centrálně spravuje Windows aktualizace v organizaci. Šetří bandwidth.',
+  // LINUX
+  181: 'chmod 755 = rwxr-xr-x. Vlastník: čtení+zápis+spuštění. Skupina a ostatní: čtení+spuštění. Typické pro skripty.',
+  182: 'grep (Global Regular Expression Print) hledá vzor v textu. grep -r rekurzivně, grep -i ignoruje velikost, grep -v invertuje.',
+  183: 'SSH klíče: privátní klíč (~/.ssh/id_rsa) zůstane u klienta, veřejný klíč (~/.ssh/authorized_keys) se nakopíruje na server.',
+  184: 'tar -czf archiv.tar.gz složka/ = vytvoří gzip komprimovaný archiv. -x rozbalí, -t vypíše obsah, -v zobrazí průběh.',
+  185: '/etc/fstab definuje diskové oddíly a síťové sdílení pro automatické připojení při startu. Formát: zařízení bod_připojení typ volby dump pass.',
+  186: 'df -h zobrazí využití diskového prostoru v čitelném formátu (K/M/G). df bez -h ukazuje bloky. du -sh zobrazí velikost adresáře.',
+  187: 'SELinux (Security Enhanced Linux) přidává povinné řízení přístupu (MAC) nad standardní Unix oprávnění. Mody: enforcing/permissive/disabled.',
+  188: 'Inode uchovává metadata souboru (vlastník, oprávnění, časy, ukazatele na datové bloky). Jméno souboru v inode není.',
+  189: 'iptables spravuje netfilter firewall v Linuxu. Tabulky: filter (INPUT/OUTPUT/FORWARD), nat (PREROUTING/POSTROUTING), mangle.',
+  190: 'cgroups (control groups) omezují a měří CPU, RAM, I/O a síť procesů. Základ pro Docker a Kubernetes resource limits.',
+  // EMAIL
+  191: 'SPF TXT záznam v DNS definuje, které servery smějí odesílat e-mail za doménu. Pomáhá filtrovat spam a spoofing.',
+  192: 'DKIM přidává kryptografický podpis do hlavičky e-mailu. Příjemce ověří podpis pomocí veřejného klíče v DNS (TXT záznamu).',
+  193: 'DMARC říká příjemci, co dělat s e-mailem, který selhal SPF/DKIM ověření: none (logovat), quarantine (spam), reject.',
+  194: 'IMAP SSL (IMAPS) běží na portu 993. Nezabezpečený IMAP je na 143. POP3 SSL je 995, POP3 nezabezpečený 110.',
+  195: 'Spam = nevyžádaná hromadná pošta. Filtry používají Bayesovu analýzu, blacklisty, SPF/DKIM/DMARC kontroly a ML.',
+  // ŠIFROVÁNÍ
+  196: 'Symetrické šifrování = stejný klíč pro šifrování i dešifrování (AES, 3DES). Rychlé, ale problém s distribucí klíče.',
+  197: 'Asymetrické šifrování = pár veřejný/soukromý klíč (RSA, ECC). Pomalé, ale řeší distribuce klíče. Základ HTTPS.',
+  198: 'Digitální certifikát = soubor s veřejným klíčem a identitou, podepsaný CA (Certificate Authority). X.509 je standard.',
+  199: 'Salt je náhodná hodnota přidaná k heslu před hashováním. Zabraňuje rainbow table útokům. Každé heslo má jiný salt.',
+  200: 'E2E (End-to-end) šifrování = šifruje odesílatel, dešifruje příjemce. Prostředníci (server) nevidí obsah (Signal, WhatsApp).',
+  // DATACENTER
+  201: 'PUE = celková spotřeba DC / spotřeba IT zařízení. Ideální PUE = 1,0. Průměr industriální ~1,5. Google DC ~1,1.',
+  202: 'Hot aisle/cold aisle = studená chodba před předními stěnami racků (nasávání), horká chodba za zadními stěnami (výfuk).',
+  203: 'IPMI (Intelligent Platform Management Interface) umožňuje vzdálenou správu serveru nezávisle na OS (power on/off, konzole, senzory).',
+  204: '1U = 1,75 palce = 44,45 mm. Standardní rack je 42U = 1866 mm. 1U server, 2U server, nebo high-density blade chassis.',
+  205: 'Colocation (colo) = pronájem fyzického prostoru, napájení a konektivity v DC. Zákazník přiveze vlastní servery.',
+  // IoT
+  206: 'MQTT (Message Queuing Telemetry Transport) je publish/subscribe protokol pro IoT. Lehký, funguje i na pomalých sítích.',
+  207: 'Raspberry Pi je jednodeskový počítač (ARM procesor, GPIO piny, USB, HDMI). Ideální pro IoT projekty a výuku.',
+  208: 'Edge computing zpracovává data blíže jejich zdroji (IoT zařízení, edge server) místo v centrálním cloudu. Snižuje latenci.',
+  209: 'Firmware = software uložený v ROM/flash čipu HW zařízení. Řídí základní funkce (router, kamera, senzor). Update = zápis do flash.',
+  210: 'LoRa (Long Range) = chirp spread spectrum modulace pro IoT. Dosah km při nízké spotřebě. LoRaWAN je síťový protokol.',
+  // AI/ML
+  211: 'GPU má tisíce malých jader pro paralelní výpočty ideální pro maticové operace v neuronových sítích. 10–100× rychlejší než CPU.',
+  212: 'TPU (Tensor Processing Unit) je Google ASIC navržený specificky pro TensorFlow operace. Daleko efektivnější než GPU pro ML.',
+  213: 'LLM (Large Language Model) = transformerový model trénovaný na obrovském textovém korpusu. Základ GPT, Claude, Gemini.',
+  214: 'CUDA (Compute Unified Device Architecture) = NVIDIA platforma pro GPU výpočty. PyTorch a TensorFlow ji využívají.',
+  215: 'Inference = použití natrénovaného modelu pro predikci na nových datech. Trénování = učení. Inference je mnohem levnější.',
+  // VÍCE SÍTĚ
+  216: 'OSPF (Open Shortest Path First) = link-state IGP protokol. Rychlá konvergence, hierarchie oblastí, metrika = cost (bandwidth).',
+  217: 'QoS (Quality of Service) prioritizuje síťový provoz. VoIP a videokonference mají přednost před stahováním souborů.',
+  218: '127.0.0.1 je loopback adresa (localhost). Pakety na tuto adresu nikdy neopustí hostitel. IPv6 ekvivalent: ::1.',
+  219: 'MTU (Maximum Transmission Unit) = největší paket přenositelný bez fragmentace. Ethernet standard: 1500 bytů. Jumbo frame: 9000 B.',
+  220: 'LACP (Link Aggregation Control Protocol, 802.3ad) dynamicky sdružuje fyzické linky do jednoho logického rozhraní (bonding).',
+  221: 'ICMP (Internet Control Message Protocol) přenáší řídící zprávy: echo (ping), time exceeded (traceroute), destination unreachable.',
+  222: 'Port forwarding přesměrovává příchozí spojení na externí portu na interní IP:port za NATem. Např. 80 → 192.168.1.100:8080.',
+  223: 'IPsec šifruje IP provoz. Mody: transport (šifruje payload) a tunnel (šifruje celý paket). Základ Site-to-site VPN.',
+  224: 'Trunk port (IEEE 802.1Q) přenáší provoz více VLAN. Každý rámec je otagován VLAN ID. Access port = jedno VLAN.',
+  225: 'ARP spoofing = útočník odpovídá na ARP požadavky falešnou MAC adresou. Umožňuje MITM útok v lokální síti.',
+  // TEORIE pokračování
+  226: 'Garbage collection automaticky uvolňuje paměť. Přístupy: mark-and-sweep, reference counting, generační GC (Java, Python, .NET).',
+  227: 'Middleware = software mezi aplikacemi: message queue (Kafka, RabbitMQ), API gateway, ESB. Odděluje a propojuje systémy.',
+  228: 'Message queue (Kafka, RabbitMQ, SQS) odděluje producenty a konzumenty zpráv. Asynchronní, odolné vůči výpadkům.',
+  229: 'Webhook = HTTP callback. Aplikace A zavolá URL aplikace B, když nastane událost. Alternativa k pollingu (efektivnější).',
+  230: 'Rate limiting omezuje počet požadavků (req/s, req/min) od klienta. Chrání před DDoS, brute force a přetížením API.',
+  231: 'Cache ukládá výsledky nákladných operací pro rychlejší opakovaný přístup. Strategie: LRU, LFU, TTL expiry.',
+  232: 'SaaS příklady: Gmail, Office 365, Salesforce, Slack, Jira, Zoom. Neinstaluje se – přistupuješ přes browser/API.',
+  233: 'Technical debt = zkratky a kompromisy v kódu/architektuře. Zrychlí vývoj teď, ale zpomalí (a zdraží) vývoj v budoucnu.',
+  234: 'Chaos engineering = záměrné vnášení selhání (Netflix Chaos Monkey). Cílem je odhalit slabiny dříve, než je najde produkce.',
+  235: 'Canary deployment = nová verze nasazena postupně (1% → 10% → 100% uživatelů). Při problémech rychlý rollback.',
+  // BEZPEČNOST pokračování
+  236: 'CVE (Common Vulnerabilities and Exposures) je databáze veřejně známých zranitelností s unikátním ID (CVE-2024-12345).',
+  237: 'OWASP Top 10 (2021): Broken Access Control, Cryptographic Failures, Injection, Insecure Design, Security Misconfiguration…',
+  238: 'Privilege escalation = získání vyšších práv, než je autorizováno. Horizontální = jiný user, vertikální = admin/root.',
+  239: 'APT (Advanced Persistent Threat) = sofistikovaný, dlouhodobý útok obvykle státním aktérem. Cíl: špionáž nebo sabotáž.',
+  240: 'MFA kombinuje 2+ faktorů: znalost (heslo), vlastnictví (TOTP, HW klíč), biometrika (otisk). TOTP: Google Authenticator, Authy.',
+  241: 'RBAC = přístup na základě rolí (admin, editor, viewer). Uživatel dostane roli, role má oprávnění. ABAC = na základě atributů.',
+  242: 'ISO 27001 = mezinárodní norma pro ISMS (Information Security Management System). Certifikace auditem třetí strany.',
+  243: 'Social engineering manipuluje lidi místo technologií: phishing, vishing (telefon), pretexting, baiting (USB drop).',
+  244: 'Nmap = síťový scanner. nmap -sV (verze služeb), -O (OS detekce), -A (agresivní), -p (porty), -sS (SYN scan).',
+  245: 'Wireshark = GUI packet analyzer. Zachytává provoz na síťovém rozhraní, dekóduje protokoly, filtruje (ip.addr==1.2.3.4).',
+  // DATABÁZE pokračování
+  246: 'CAP theorem: distribuovaný systém nemůže zároveň garantovat Consistency, Availability a Partition tolerance. Musíš si vybrat 2.',
+  247: 'OLTP (Online Transaction Processing) = real-time transakce (e-shop). OLAP (Online Analytical Processing) = analytika (BI, DW).',
+  248: 'Data warehouse = centrální repozitář historických dat pro analytiku a BI. ETL pipeline plní DW z OLTP systémů.',
+  249: 'ETL (Extract, Transform, Load) = extrakce dat ze zdrojů, transformace (čištění, agregace) a nahrání do cílové DB.',
+  250: 'Stored procedure = předzpracovaný SQL kód uložený v DB. Rychlejší, bezpečnější (méně SQL injection), znovupoužitelný.',
+  // SÍTĚ pokračování
+  251: 'SDN (Software Defined Networking) odděluje řídící rovinu (control plane) od datové roviny (data plane). Centralizované řízení.',
+  252: 'MPLS (Multi Protocol Label Switching) přidává štítky (labels) k paketům pro rychlé přesměrování. Základ VPN a TE (Traffic Engineering).',
+  253: 'GRE (Generic Routing Encapsulation) zapouzdřuje pakety libovolného protokolu do IP tunelu. Jednoduchý, bez šifrování.',
+  254: 'HSRP (Hot Standby Router Protocol) je Cisco proprietární protokol pro redundantní výchozí bránu. VRRP je otevřený standard.',
+  255: 'Jumbo frame = Ethernet frame s MTU >1500 bytů (typicky 9000 B). Snižuje CPU overhead při přenosu velkých dat (NFS, iSCSI).',
+  // CLOUD pokračování
+  256: 'AWS S3 (Simple Storage Service) = objektové úložiště. Nekonečná škálovatelnost, 99.999999999% trvanlivost, RESTful API.',
+  257: 'Microservices = architektura malých, nezávislých služeb komunikujících přes API. Každá service má svou DB a CI/CD pipeline.',
+  258: 'GitOps = infrastruktura definovaná v Git repozitáři. Pull requesty pro změny, automatická synchronizace (ArgoCD, Flux).',
+  259: 'Blue-green deployment: dvě identická prostředí (blue = produkce, green = nová verze). Přepnutí load balanceru = deploy.',
+  260: 'Observability = logy + metriky + traces (tři pilíře). Na rozdíl od monitoringu umožňuje pochopit příčinu, ne jen symptom.',
+  // SPRÁVA pokračování
+  261: 'MTBF (Mean Time Between Failures) = průměrná doba mezi poruchami. Vyšší = spolehlivější. Používá se pro prediktivní maintenance.',
+  262: 'MTTR (Mean Time To Repair/Recover) = průměrná doba opravy. Klíčová metrika pro incident response a SLA.',
+  263: 'HA (High Availability) = systém funguje s minimálním výpadkem. Dosahuje se redundancí, failoverem a load balancingem.',
+  264: 'CMDB (Configuration Management Database) = databáze IT aktiv a jejich vztahů (CI = Configuration Item). Základ ITIL.',
+  265: 'CAB (Change Advisory Board) = skupina, která schvaluje změny v IT prostředí. Snižuje riziko nedostatečně otestovaných změn.',
+  // PROTOKOLY pokračování
+  266: 'OAuth 2.0 = autorizační framework. Deleguje přístup třetím stranám bez sdílení hesla (GitHub login přes Google).',
+  267: 'SAML (Security Assertion Markup Language) = XML standard pro SSO mezi Identity Provider (IdP) a Service Provider (SP).',
+  268: 'OpenID Connect je identitní vrstva nad OAuth 2.0. Přidává ověření identity (ID token = JWT) k OAuth autorizaci.',
+  269: 'gRPC = Google RPC framework. Binární serializace (Protocol Buffers), HTTP/2, silné typování. Rychlejší než REST/JSON.',
+  270: 'SOAP = XML webové služby. Striktní standard (WSDL), stavové operace. Dnes převážně nahrazen REST/JSON.',
+  // TELCO
+  271: '5G přináší <1ms latenci, >10 Gbit/s peak, masivní IoT konektivitu. Frekvenční pásma: sub-6 GHz a mmWave (>24 GHz).',
+  272: 'LTE (Long Term Evolution) = 4G standard. Reálné rychlosti 10–100 Mbit/s. LTE-A (Advanced) dosahuje až 1 Gbit/s.',
+  273: 'VoIP (Voice over IP) přenáší hlas přes datovou síť (SIP, H.323). Protokoly: RTP pro audio, SIP pro signalizaci.',
+  274: 'SIM (Subscriber Identity Module) ukládá IMSI (identifikaci předplatitele) a autentizační klíče. eSIM je integrovaná varianta.',
+  275: 'SMS (Short Message Service) = textové zprávy přes GSM/signalizační kanál. Max 160 znaků (7bit ASCII) nebo 70 (Unicode).',
+  // ŠIFROVÁNÍ pokračování
+  276: 'Diffie-Hellman umožňuje dvěma stranám odvodit společný tajný klíč přes nezabezpečený kanál. Základ TLS key exchange.',
+  277: 'PGP (Pretty Good Privacy) kombinuje symetrické šifrování (zprávy) + asymetrické (výměna klíčů) + hash (podpis).',
+  278: 'PKI = infrastruktura pro správu digitálních certifikátů: CA, RA, CRL, OCSP. Základ HTTPS a podpisů dokumentů.',
+  279: 'HMAC = Hash + sdílený tajný klíč. Ověřuje integritu i autentičnost zprávy. Používá se v JWT a API autentizaci.',
+  280: 'Forward secrecy (PFS) = každá session má unikátní klíč. Kompromitace dlouhodobého klíče neodhalí historickou komunikaci.',
+  // PERIFERIE
+  281: 'DPI (Dots Per Inch) u myší = citlivost optického snímače. Herní myši: 400–16 000 DPI. Vyšší DPI = rychlejší pohyb kurzoru.',
+  282: 'LCD (Liquid Crystal Display) = displej s tekutými krystaly a podsvícením (CCFL nebo LED). IPS, TN, VA jsou typy panelů.',
+  283: 'OLED (Organic Light Emitting Diode) = každý pixel svítí sám. Perfektní černá, neomezený kontrast, ale risk burn-in.',
+  284: 'Refresh rate (Hz) = počet snímků zobrazených za sekundu. 60 Hz standard, 144/165/240 Hz pro gaming. Vyšší = plynulejší.',
+  285: 'UPS (Uninterruptible Power Supply) zásobuje zařízení z baterie při výpadku proudu. Dává čas na graceful shutdown.',
+  // ZÁLOHY
+  286: 'Inkrementální záloha = pouze změny od poslední zálohy (plné i inkrementální). Rychlá záloha, ale pomalá obnova.',
+  287: 'Diferenciální záloha = změny od poslední PLNÉ zálohy. Obnova: plná + 1 diferenciální. Kompromis rychlost/prostor.',
+  288: 'Disaster Recovery = plán a procesy pro obnovu IT po katastrofě (požár, povodeň, kyberútok). Klíčové metriky: RTO a RPO.',
+  289: 'Hot backup = záloha za provozu, systém je dostupný. Warm backup = částečně dostupný. Cold backup = systém odpojen.',
+  290: 'GFS (Grandfather-Father-Son) = hierarchická rotace: denní (son), týdenní (father), měsíční (grandfather) zálohy.',
+  // SÍTĚ pokračování 2
+  291: 'RADIUS (Remote Authentication Dial-In User Service) = centrální AAA pro síťový přístup. Port 1812 (autentizace), 1813 (accounting).',
+  292: 'TACACS+ (Cisco proprietary) = AAA protokol pro síťová zařízení. Na rozdíl od RADIUS šifruje celý paket.',
+  293: 'AAA = Authentication (kdo jsi?), Authorization (co smíš?), Accounting (co jsi dělal?). Základ přístupu k síťovým zařízením.',
+  294: 'NetFlow (Cisco) exportuje flow data z routerů pro síťovou analýzu. sFlow a IPFIX jsou otevřené alternativy.',
+  295: 'SNMP trap = nevyžádané upozornění z agenta na management stanici (event-driven). Na rozdíl od pollingu (pravidelné dotazy).',
+  // HARDWARE pokračování
+  296: 'Hyper-Threading (Intel SMT) = jeden fyzický core se chová jako dva logické. Zvyšuje IPC využitím paralel pipeline CPU.',
+  297: 'TurboBoost automaticky zvyšuje taktovací frekvenci CPU nad základní hodnotu, dokud tepelné a energetické limity dovolí.',
+  298: 'NUMA (Non-Uniform Memory Access) = paměť je blíže některým jádrům než jiným. NUMA-aware software je rychlejší.',
+  299: 'Dual channel = dvě identická RAM zapojena do příslušných slotů. Zdvojnásobí šířku pásma (64 bit → 128 bit bus).',
+  300: 'FLOPS (Floating-Point Operations Per Second) = výkon pro vědecké výpočty. TFLOPS = bilion. RTX 4090 = ~82 TFLOPS.',
+  // SPRÁVA pokračování
+  301: 'Puppet = deklarativní configuration management (Ruby/Puppet DSL). Agent-based, certifikáty. Vhodné pro velké enterprise.',
+  302: 'HashiCorp Vault bezpečně spravuje tajemství (API klíče, hesla, certifikáty). Dynamic secrets, audit log, šifrování jako služba.',
+  303: 'SRE (Site Reliability Engineering) aplikuje software engineering na provoz. Error budget, SLI/SLO/SLA, toil redukce.',
+  304: 'Incident management = detekce → klasifikace → eskalace → řešení → post-mortem. Cílem je minimalizace dopadu.',
+  305: 'Configuration drift = servery se postupně liší od požadovaného stavu (manuální změny). IaC a CM nástroje to zabraňují.',
+  // TEORIE pokračování
+  306: 'IaC (Infrastructure as Code) = infrastruktura definovaná v kódu (Terraform, Ansible, Pulumi). Verzovatelná, opakovatelná.',
+  307: 'Immutable deployment = nová verze = nová instance. Původní se nikdy nemění (patch). Zabraňuje configuration drift.',
+  308: 'SemVer: MAJOR.MINOR.PATCH. MAJOR = breaking changes, MINOR = nové funkce (zpětně kompatibilní), PATCH = bug fixy.',
+  309: 'Circuit breaker přeruší volání selhávající downstream služby. Stavy: closed (normál), open (přerušeno), half-open (test).',
+  310: 'Eventual consistency = CAP compromise. Data jsou dočasně nekonzistentní, ale nakonec se synchronizují. Vhodné pro NoSQL.',
+  // DC pokračování
+  311: 'N+1 redundance = o jednu komponentu více než minimum. 2N = plná redundance (zdvojení). 2N+1 = zdvojení + rezerva.',
+  312: 'Uptime Institute Tier: Tier 1 (99,671%), Tier 2 (99,741%), Tier 3 (99,982%), Tier 4 (99,995%). Každý tier přidává redundanci.',
+  313: 'Free cooling využívá venkovní vzduch nebo chladnou vodu (economizer). Účinné v chladném klimatu, výrazně snižuje PUE.',
+  314: 'Strukturovaná kabeláž (TIA-568, ISO 11801) = standardizované rozmístění kabelů. Kategorie Cat5e/6/6A/7/8 pro měď.',
+  315: 'Rack PDU (Power Distribution Unit) distribuuje napájení v racku. Měřené/přepínané PDU umožňují vzdálené řízení zásuvek.',
+  // BEZPEČNOST pokračování
+  316: 'GDPR (General Data Protection Regulation, 2018) = EU nařízení o ochraně osobních údajů. Pokuty až 4 % ročního obratu.',
+  317: 'Threat modeling = strukturovaná analýza hrozeb (STRIDE, PASTA). Výsledek: seznam hrozeb s prioritami pro mitigaci.',
+  318: 'IDS (Intrusion Detection System) detekuje a loguje. IPS (Intrusion Prevention System) aktivně blokuje škodlivý provoz.',
+  319: 'Metasploit Framework = open-source penetrační nástroj. Obsahuje exploity, payloady a auxiliary moduly. Kali Linux staple.',
+  320: 'Honeypot = falešný systém/data pro lákání útočníků. Detekuje aktivitu, shromažďuje info o TTP útočníka.',
+  // LINUX pokračování
+  321: '/etc/passwd obsahuje info o účtech: uživatelské jméno, UID, GID, domovský adresář, shell. Hesla jsou v /etc/shadow.',
+  322: 'Linux namespaces izolují: PID, síť, mount, UTS, IPC, user. Základ kontejnerů (Docker, LXC, podman).',
+  323: 'ss (socket statistics) nahrazuje netstat. ss -tuln = TCP/UDP listening porty. ss -s = souhrn. Rychlejší než netstat.',
+  324: 'AppArmor omezuje aplikace profily (povolené systémové volání, soubory). Jednodušší než SELinux, používá Ubuntu.',
+  325: '/dev/null je speciální soubor pohlcující veškerý zápis. cmd > /dev/null 2>&1 zahozí stdout i stderr.',
+  // SÍTĚ pokračování 3
+  326: 'EIGRP (Enhanced Interior Gateway Routing Protocol) = Cisco proprietární advanced distance-vector protokol. DUAL algoritmus.',
+  327: 'ECMP (Equal-Cost Multi-Path) = load balancing přes více cest stejné metriky. Zvyšuje bandwidth a redundanci.',
+  328: 'Spine-leaf: leaf switche připojeny ke všem spine switchem. Garantovaná 2-hop latence, jednoduché škálování v DC.',
+  329: 'Dual-stack = zařízení má obě IPv4 i IPv6 adresy. Přechodová strategie k IPv6. Alternativy: tunneling, NAT64.',
+  330: 'DWDM (Dense Wavelength Division Multiplexing) = přenos dat na stovkách vlnových délek po jednom vlákně. Terabitové rychlosti.',
+  // WINDOWS pokračování
+  331: 'Kerberos (RFC 4120) = ticket-based autentizační protokol. KDC vydává TGT a service tickets. Základ AD autentizace.',
+  332: 'WMI (Windows Management Instrumentation) = rozhraní pro správu Windows. PowerShell, SCCM, monitoring nástroje ho využívají.',
+  333: 'NTLM (NT LAN Manager) = starší autentizační protokol Windows (challenge-response). Zranitelný vůči pass-the-hash útokům.',
+  334: 'Task Scheduler spouští skripty a úlohy v definovaných časech nebo při událostech. Alternativa cron ve Windows.',
+  335: 'Event Viewer zobrazuje logy: Application, System, Security (přihlášení, auditní události). Klíčový pro troubleshooting.',
+  // CLOUD pokračování
+  336: 'Helm je package manager pro Kubernetes. Chart = balíček K8s manifestů. helm install, upgrade, rollback, repo.',
+  337: 'Service mesh (Istio, Linkerd) = infrastrukturní vrstva pro service-to-service komunikaci. mTLS, load balancing, observability.',
+  338: 'Cloud bursting = automatický přeliv workloadu z privátního na veřejný cloud při špičce. Hybridní cloud pattern.',
+  339: 'Hybrid cloud = privátní cloud + veřejný cloud. Citlivá data on-premise, elastické workloady v public cloudu.',
+  340: 'FinOps = praxe optimalizace cloudových nákladů. Viditelnost, accountability a optimalizace (right-sizing, reserved instances).',
+  // TEORIE pokračování
+  341: 'A/B testing = dva varianty (A=kontrolní, B=testovaná) pro náhodné části uživatelů. Statistická signifikance rozhoduje.',
+  342: 'Stress testing = zatěžování nad normální kapacitu. Cílem je najít bod selhání a chování pod extrémní zátěží.',
+  343: 'Smoke test = minimální sada testů ověřující základní funkčnost po nasazení. "Smoke" = zda SW nezačne hořet.',
+  344: 'Idempotence = operace aplikovaná vícekrát dá stejný výsledek jako jednou. PUT je idempotentní, POST není.',
+  345: 'Race condition = výsledek závisí na načasování vláken/procesů. Řeší se synchronizací (mutex, semaphore, atomic ops).',
+  // BEZPEČNOST pokračování
+  346: 'Spyware tajně monitoruje aktivitu uživatele (stisky kláves, snímky obrazovky, přihlašovací údaje) a odesílá útočníkovi.',
+  347: 'PKI (Public Key Infrastructure) = systém pro správu CA, certifikátů, klíčů. Základ HTTPS, e-mailových podpisů, VPN.',
+  348: 'CSRF (Cross-Site Request Forgery) = oběť klikne na odkaz, který nevědomě provede akci na jiném webu kde je přihlášena.',
+  349: 'Certificate pinning = aplikace přijímá pouze konkrétní certifikát/klíč. Zabraňuje MITM s podvrženým certifikátem.',
+  350: 'SOC (Security Operations Center) = tým a centrum pro 24/7 monitoring, detekci a reakci na bezpečnostní incidenty.',
+  // HARDWARE pokračování
+  351: 'TRIM informuje SSD o blocích, které již nejsou používány. Umožňuje garbage collection a udržuje výkon v čase.',
+  352: 'iGPU (integrated GPU) je grafická karta integrovaná přímo v procesoru (Intel UHD, AMD Radeon Graphics). Slabší než dGPU.',
+  353: 'KVM over IP (IPMI, iDRAC, iLO) = vzdálená KVM konzole přes síť. Přístup i při vypnutém OS, mountování ISO.',
+  354: 'iDRAC (Dell) a iLO (HPE) jsou management karty pro out-of-band správu serverů nezávisle na OS (power, BIOS, HW info).',
+  355: 'Bottleneck = komponenta omezující výkon celého systému. Identifikace: CPU 100% + GPU nízké = CPU bottleneck.',
+  // SÍTĚ pokračování 4
+  356: 'Hvězdicová topologie = centrální switch/hub. Výhoda: snadná správa, izolace poruch. Nevýhoda: SPOF (single point of failure).',
+  357: 'Mesh topologie: úplná (každý-s-každým) nebo částečná (redundantní cesty). Odolná, ale nákladná na implementaci.',
+  358: 'IS-IS (Intermediate System to Intermediate System) = link-state IGP protokol. Preferován ISP pro škálovatelnost.',
+  359: 'Anycast = jedna IP adresa sdílená více uzly. Provoz jde k nejbližšímu. Základ DNS (root servery) a CDN.',
+  360: 'IKE (Internet Key Exchange) je protokol pro vyjednání SA (Security Association) a výměnu klíčů pro IPsec VPN.',
+  // AI/ML pokračování
+  361: 'Neuronová síť = vrstvy propojenývh neuronů. Vstupní, skryté a výstupní vrstvy. Váhy se upravují backpropagací.',
+  362: 'Deep learning = neuronové sítě s mnoha skrytými vrstvami. Automaticky extrahuje features z raw dat (obraz, text, audio).',
+  363: 'NLP (Natural Language Processing) = porozumění a generování přirozeného jazyka. Tokenizace, embedding, transformer architektury.',
+  364: 'Computer vision = AI porozumění obrazu. CNN, detekce objektů (YOLO), segmentace, klasifikace obrázků.',
+  365: 'Inference latency = čas od vstupu po odpověď modelu. Kritické pro real-time aplikace. Optimalizace: quantization, pruning.',
+  // DATABÁZE pokračování
+  366: 'Materialized view = předpočítaný výsledek dotazu uložený fyzicky. Rychlejší čtení, ale vyžaduje pravidelný refresh.',
+  367: 'Cassandra = distribuovaná wide-column DB. Masterless (peer-to-peer), lineárně škálovatelná, AP v CAP. Základ Netflix.',
+  368: 'Replikace kopíruje data na více uzlů: master-slave (jeden zdroj pravdy), multi-master (více zapisujících uzlů).',
+  369: 'Cizí klíč (FK) referenčně integruje tabulky. FK v tabulce A odkazuje na PK tabulky B. Zabraňuje osiřelým záznamům.',
+  370: 'INSERT INTO tabulka (sloupce) VALUES (hodnoty) přidá nový záznam. UPDATE modifikuje existující, DELETE maže.',
+  // SPRÁVA pokračování
+  371: 'Change management (ITIL) = RFC → CAB schválení → implementace → review. Minimalizuje riziko nedostatečně otestovaných změn.',
+  372: 'Knowledge base = databáze Known Errors a workaroundů. Zkracuje MTTR při opakovaných incidentech. Základ Level 1 supportu.',
+  373: 'Problem management hledá root cause opakujících se incidentů. Known Error → workaround → permanent fix (change management).',
+  374: 'Kapacitní plánování = predikce budoucích potřeb HW/SW zdrojů na základě trendů. Zabraňuje nečekaným výpadkům.',
+  375: 'Ticketing systém (ServiceNow, Jira, Zendesk) sleduje IT požadavky od vzniku po uzavření. SLA tracking, eskalace, reporting.',
+  // TEORIE pokračování
+  376: "Conway's Law (1967): organizace navrhují systémy zrcadlící jejich komunikační strukturu. Micro-teams → microservices.",
+  377: "DRY (Don't Repeat Yourself) = každý kus znalosti má jedno autoritativní místo. Duplicita vede k nekonzistenci a bugům.",
+  378: 'KISS (Keep It Simple, Stupid) = jednoduchost jako cíl návrhu. Komplexita je nepřítel udržovatelnosti a spolehlivosti.',
+  379: 'ORM (Object Relational Mapping) mapuje objekty na DB tabulky. Abstrahuje SQL, ale může generovat neefektivní dotazy (N+1).',
+  380: 'Graceful degradation = systém funguje s omezenou funkcionalitou při selhání části. Lepší než úplný výpadek.',
+  // OS pokračování
+  381: '/boot obsahuje kernel (vmlinuz), initrd/initramfs (dočasný root FS při startu) a GRUB konfiguraci.',
+  382: 'MBR (první 512 bytů disku): 446 B bootloader + 64 B tabulka oddílů (4 záznamy, max 2 TB) + 2 B podpis 0xAA55.',
+  383: 'chroot = izoluje proces do podstromu souborového systému. Jednoduchá "jail". Containers jsou bezpečnější alternativou.',
+  384: 'Preemptive scheduling = OS může přerušit proces před dokončením a přidělit CPU jinému. Standard moderních OS.',
+  385: 'Semaphore = synchronizační primitivum (Dijkstra). Binární (mutex) nebo počítací. P()/wait() dekrementuje, V()/signal() inkrementuje.',
+  // KONEKTORY pokračování
+  386: 'IEC 60320 C13 = "Mickey Mouse" konektor. C14 je zástrčka na přístroji. Standardní pro PC, monitory, síťové prvky.',
+  387: 'DVI-D = pouze digitální signal. DVI-I = digitální + analogový (VGA kompatibilita). DVI-A = pouze analogový (vzácný).',
+  388: 'QSFP+ (Quad SFP+) = 4× 10G lane = 40G celkem. QSFP28 = 4×25G = 100G. Používá LC duplex nebo MPO konektory.',
+  389: 'LC (Lucent Connector) = 1,25mm ferrule, kompaktní. SC (Subscriber Connector) = 2,5mm ferrule, větší. LC preferován v DC.',
+  390: 'Mini DisplayPort (mDP) má 20 pinů. Apple ho přejmenoval na Thunderbolt (stejný konektor, jiný protokol).',
+  // WIFI pokračování
+  391: 'BSS Coloring (802.11ax) = AP označuje rámce "barvou" (BSS Color). Klienti ignorují rámce s jinou barvou → méně kolizí.',
+  392: 'Channel bonding spojuje 2+ kanály (20 MHz + 20 MHz = 40 MHz). Více bandwidth, ale méně dostupných kanálů.',
+  393: 'Bluetooth 5.0 vs 4.2: 2× rychlost (2 Mbit/s), 4× dosah (200 m), 8× broadcasting kapacita. Zpětně kompatibilní.',
+  394: 'Zigbee (IEEE 802.15.4) = mesh síť pro IoT. 2,4 GHz, nízká spotřeba, dosah 10–100 m. Základ Philips Hue, Amazon Alexa.',
+  395: 'WiFi 5 (802.11ac) Wave 2: max 3,5 Gbit/s (4 streamy × 867 Mbit/s). Reálně 300–600 Mbit/s. Pouze 5 GHz.',
+  // ŠIFROVÁNÍ pokračování
+  396: 'Blockchain = distribuovaný, neměnný řetěz bloků dat. Každý blok obsahuje hash předchozího. Proof-of-Work/Stake konsensus.',
+  397: 'MD5 produkuje 128bitový hash. Kryptograficky prolomený (kolize 2004). Stále používán pro checksum souborů, ne pro hesla.',
+  398: 'KDF (Key Derivation Function) = PBKDF2, bcrypt, Argon2. Záměrně pomalé pro hašování hesel. Odolné vůči brute force.',
+  399: 'CA (Certificate Authority) vydává digitální certifikáty a ověřuje identitu. Root CA → Intermediate CA → End-entity cert.',
+  400: 'CSRF token = unikátní token vložený do formuláře. Server ověří token při odeslání. Zabraňuje CSRF útokům.',
+  // TEORIE pokračování
+  401: 'TCO (Total Cost of Ownership) = pořizovací cena + provozní náklady + maintenance + ukončení. Reálná cena vlastnictví.',
+  402: 'CAPEX = kapitálové výdaje (jednorázové, aktivum). OPEX = provozní výdaje (průběžné). Cloud mění CAPEX na OPEX.',
+  403: 'Polling = pravidelné dotazování serveru na nové události. Neefektivní (zbytečná zátěž). Alternativa: webhooky, WebSocket.',
+  404: 'Hot standby = ihned připraven (aktivní replika). Warm standby = částečně připraven (minuty). Cold standby = minuty až hodiny.',
+  405: 'Checkpoint = uložení stavu systému pro možnost obnovy od tohoto bodu. Základ fault tolerance v DB a distribuovaných systémech.',
+  // SÍTĚ pokračování 5
+  406: 'SSL VPN tuneluje přes HTTPS (port 443). Snadno prochází firewally. Clientless (webový prohlížeč) nebo full-tunnel klient.',
+  407: 'VRRP (Virtual Router Redundancy Protocol, RFC 5798) = otevřený standard pro redundantní gateway. Cisco HSRP je proprietární.',
+  408: 'Multicast = efektivní přenos jedné kopie dat skupině příjemců. IGMP (IPv4), MLD (IPv6) spravují skupiny.',
+  409: 'Broadcast = přenos všem v broadcast doméně (255.255.255.255 nebo MAC ff:ff:ff:ff:ff:ff). ARP, DHCP Discovery ho využívají.',
+  410: 'WiMAX (802.16) = širokopásmová bezdrátová technologie. Dosah desítky km. Dnes převážně nahrazen LTE/5G.',
+  // HARDWARE pokračování
+  411: 'SPD (Serial Presence Detect) = EEPROM čip na RAM obsahující parametry (frekvence, latence, napětí). BIOS ho čte pro autoconfig.',
+  412: 'XMP (Extreme Memory Profile) = Intel standard pro OC profily RAM uložené v SPD. AMD používá EXPO pro DDR5.',
+  413: 'TDP (Thermal Design Power) = maximální teplo generované CPU za normálního provozu. Základ pro dimenzování chlazení.',
+  414: 'PWM (Pulse Width Modulation) = rychlé zapínání/vypínání napájení pro plynulou regulaci. Ventilátor 4pin PWM = přesné řízení.',
+  415: '24-pinový ATX konektor napájí základní desku. Je to rozšíření původního 20-pin ATX konektoru (přidány 4 piny pro PCI-E).',
+  // OS pokračování
+  416: 'seccomp (secure computing mode) omezuje systémová volání dostupná procesu. Základ Docker bezpečnosti (seccomp profily).',
+  417: '/etc (et cetera) = adresář pro konfigurační soubory celého systému. /etc/hosts, /etc/passwd, /etc/ssh/sshd_config atd.',
+  418: 'Swap space = diskový prostor pro stránkování (paging). Jádro přesune méně používané stránky RAM na disk při nedostatku paměti.',
+  419: 'Init proces (PID 1) = první proces spuštěný kernelem. Spouští všechny ostatní procesy. systemd, SysV init, OpenRC.',
+  420: 'Runlevel (SysV) = 0 (vypnutí), 1 (single user), 3 (multi-user, bez GUI), 5 (multi-user, GUI), 6 (restart). systemd používá targets.',
+  // DATABÁZE pokračování
+  421: 'Trigger = procedura automaticky spuštěná BEFORE/AFTER INSERT/UPDATE/DELETE. Validace, audit log, kaskádové operace.',
+  422: 'View = virtuální tabulka definovaná SELECT dotazem. Zjednodušuje komplexní dotazy, skrývá implementaci, bezpečnost.',
+  423: 'Normalizace (1NF, 2NF, 3NF, BCNF) eliminuje redundanci a update anomálie. Denormalizace = kompromis pro výkon.',
+  424: 'Deadlock v DB = dvě transakce čekají na zámky navzájem. DB detekuje deadlock a rollbackuje jednu transakci.',
+  425: 'Connection pooling = pool předpřipravených DB spojení. Eliminuje overhead vytváření nového spojení pro každý dotaz.',
+  // CLOUD pokračování
+  426: 'Immutable infrastructure = servery se nikdy nemění – při updatu se vytvoří nová instance. Zabraňuje configuration drift.',
+  427: 'Feature flag = runtime přepínač funkcionality bez deploymentu. A/B testing, postupné rollout, kill switch pro problémy.',
+  428: 'Distributed tracing sleduje request přes mikroslužby (Jaeger, Zipkin, OpenTelemetry). Trace ID propagováno v hlavičkách.',
+  429: 'Elasticsearch = distribuovaný full-text vyhledávač (Apache Lucene). REST API, JSON dokumenty, horizontálně škálovatelný.',
+  430: 'Azure AD (Entra ID) = cloudová IAM pro Microsoft ekosystém. SSO, MFA, conditional access, device management.',
+  // BEZPEČNOST pokračování
+  431: 'Threat intelligence = informace o aktérech, TTP (Tactics/Techniques/Procedures), IoC (Indicators of Compromise). MITRE ATT&CK framework.',
+  432: 'DAC (Discretionary Access Control) = vlastník zdroje určuje kdo má přístup (Unix chmod, Windows ACL). Flexibilní, ale méně bezpečné.',
+  433: 'MAC (Mandatory Access Control) = systém (admin) určuje politiku, ne vlastník. SELinux, AppArmor. Bezpečnější než DAC.',
+  434: 'NIST CSF (Cybersecurity Framework) = Identify, Protect, Detect, Respond, Recover. Dobrovolný framework pro řízení cyber rizik.',
+  435: 'Burp Suite = platforma pro testování bezpečnosti web aplikací. Proxy, scanner, intruder, repeater. Community i Pro verze.',
+  // LINUX pokračování
+  436: 'systemd unit file = INI-style konfigurační soubor. Sekce [Unit], [Service/Timer/Mount], [Install]. Definuje chování služby.',
+  437: 'journald = systemd komponent pro strukturované logování do binárního formátu. journalctl -u nginx, journalctl -f, journalctl --since.',
+  438: '/var/log = adresář systémových logů. /var/log/syslog, auth.log, kern.log, nginx/, atd. Logrotate spravuje rotaci.',
+  439: 'top zobrazuje procesy seřazené dle CPU. htop = vylepšená verze s barevným UI a stromovým zobrazením. q pro ukončení.',
+  440: 'Package manager: apt (Debian/Ubuntu), yum/dnf (RHEL/Fedora), pacman (Arch), zypper (SUSE). Instalace: apt install nginx.',
+  // DC pokračování
+  441: 'Managed hosting = provider spravuje HW, OS, zálohy, monitoring. Zákazník jen aplikace. Vyšší cena, nižší zodpovědnost.',
+  442: 'Out-of-band management = správa přes dedikovaný management port (IPMI, iDRAC, iLO) oddělený od produkční sítě.',
+  443: 'DCIM (Data Center Infrastructure Management) = software pro správu napájení, chlazení, kapacity a aktiv v DC.',
+  444: 'UPS (Uninterruptible Power Supply) v DC: online double-conversion (nejlepší) nebo line-interactive. Runtime: minuty → hodiny.',
+  445: 'Network backbone = páteřní infrastruktura propojující různé sítě nebo části sítě. Vysoká bandwidth, nízká latence.',
+  // PROTOKOLY pokračování
+  446: "YAML = \"YAML Ain't Markup Language\". Human-readable serializace dat. Základ Kubernetes manifestů, Ansible playbooků.",
+  447: 'JSON (JavaScript Object Notation) = lehký formát pro výměnu dat. Klíč-hodnota páry, pole, vnořené objekty. Čitelný.',
+  448: 'XML (Extensible Markup Language) = značkovací jazyk. Verbose ale validovatelný (XSD). Základ SOAP, SVG, RSS.',
+  449: 'Protocol Buffers (protobuf) = binární serializace od Google. Schéma v .proto souboru. 3–10× menší a rychlejší než JSON.',
+  450: 'GraphQL (Facebook 2015) = query language pro API. Klient specifikuje přesně co chce. Eliminuje over/under-fetching.',
+  // SÍTĚ pokračování 6
+  451: '802.1Q = IEEE standard pro VLAN tagování. Přidává 4bytovou tag do Ethernet rámce obsahující VLAN ID (0–4094).',
+  452: 'LLDP (Link Layer Discovery Protocol, IEEE 802.1AB) = otevřená alternativa CDP. Sdílí informace o zařízení a rozhraní.',
+  453: 'Síťová smyčka = paket obíhá nekonečně (broadcast storm). STP/RSTP zabraňuje smyčkám blokováním redundantních portů.',
+  454: 'CDP (Cisco Discovery Protocol) = Cisco proprietární L2 protokol. Sdílí hostname, IP, model, IOS verzi se sousedy.',
+  455: 'Proxy server = zprostředkovatel mezi klientem a serverem. Forward proxy (klient → internet), reverse proxy (internet → servery).',
+  // HARDWARE pokračování
+  456: 'ATX (Advanced Technology Extended, Intel 1995) = standardní formát základní desky. Rozměry: 305×244 mm. microATX, Mini-ITX jsou menší.',
+  457: 'Thunderbolt 4 (Intel) = USB-C konektor, min 40 Gbit/s, 2x DisplayPort 4K, USB4, PD 100W. Zpětně kompatibilní s USB-C.',
+  458: 'Latency = zpoždění jedné operace (ms, µs). Throughput = objem operací/dat za sekundu. Lze optimalizovat nezávisle.',
+  459: 'PCIe Gen 5 (32 GT/s/lane) = 2× rychlost Gen 4 (16 GT/s). x4 Gen 5 NVMe SSD: až ~14 GB/s sekvenční čtení.',
+  460: 'DIMM (288 pinů) = desktoopový formát DDR4/5. SO-DIMM (260 pinů DDR4, 262 pinů DDR5) = laptop/compact PC formát.',
+  // TEORIE pokračování
+  461: 'Docs as code = dokumentace v Markdownu/RST v Git repozitáři. Review přes pull requesty, CI testy, automatické publikování.',
+  462: 'GitFlow: main (produkce), develop (vývoj), feature/*, release/*, hotfix/*. Strukturovaný workflow pro větší týmy.',
+  463: 'SOLID: Single responsibility, Open/closed, Liskov substitution, Interface segregation, Dependency inversion. OOP principy.',
+  464: 'Event-driven = komponenty reagují na události (events). Loose coupling, asynchronní komunikace. Kafka, RabbitMQ, SNS.',
+  465: 'Idempotent API = opakování stejného requestu = stejný výsledek. GET, PUT, DELETE jsou idempotentní. POST není.',
+  // BEZPEČNOST pokračování
+  466: 'Supply chain útok kompromituje software/HW v dodavatelském řetězci (SolarWinds 2020, npm balíčky). Těžko detekovatelný.',
+  467: 'Obfuskace kódu záměrně znesnadňuje čtení (minifikace, renaming, virtualizace). Používá malware i komerční software.',
+  468: 'Fuzzing = automatické testování náhodnými/mutovanými vstupy. AFL, libFuzzer. Nalézá buffer overflow, crash bugs.',
+  469: 'Security by design = bezpečnost od začátku (threat modeling v design fázi), ne přidaná dodatečně. OWASP SAMM, SDL.',
+  470: 'Patch management = inventář SW, detekce zranitelností, testování, nasazení záplat v definovaném okně. WSUS, Ansible.',
+  // CLOUD pokračování
+  471: 'Serverless funkce: AWS Lambda, Azure Functions, GCP Cloud Functions. Event-triggered, platíš za invokaci a CPU/ms.',
+  472: 'Cloud-native = navrženo pro cloud od základu. 12-factor app, kontejnery, microservices, managed services, CI/CD.',
+  473: 'Infrastructure drift = skutečný stav infrastruktury se liší od IaC definice. Terraform plan detekuje drift.',
+  474: 'Zero-downtime deployment = blue-green, canary, rolling update. Load balancer postupně přeposílá provoz na novou verzi.',
+  475: 'Kubernetes pod = nejmenší K8s jednotka. 1+ kontejnerů sdílí network namespace a storage volumes. Ephemeral by design.',
+  // IoT pokračování
+  476: 'Z-Wave = 868/908 MHz mesh protokol pro domácí automatizaci. Max 232 zařízení, dosah 30 m. Méně rušení než Zigbee.',
+  477: 'Digital twin = virtuální replika fyzického objektu nebo procesu. Real-time synchronizace dat pro monitoring a simulace.',
+  478: 'OTA (Over-The-Air) update = vzdálená aktualizace firmware zařízení. Kritické pro IoT fleet management a bezpečnostní záplaty.',
+  479: 'IoT gateway = překladač protokolů (MQTT/Zigbee → HTTPS/AMQP). Lokální preprocessing, buffering při výpadku cloudu.',
+  480: 'Matter (2022) = otevřený standard pro smart home (Apple, Google, Amazon, Samsung). IPv6 over Thread nebo WiFi.',
+  // SPRÁVA pokračování
+  481: 'Runbook = krok-za-krokem instrukce pro rutinní operace (restart služby, disaster recovery). Základ pro automatizaci.',
+  482: 'Post-mortem = blameless analýza incidentu. Co se stalo, timeline, root cause, action items. Kultura učení, ne trestání.',
+  483: 'On-call rotace = inženýři se střídají v primární/sekundární pohotovosti. PagerDuty, OpsGenie spravují eskalace a alerty.',
+  484: 'Error budget = 100% - SLO (99,9% dostupnost = 0,1% error budget = 43,8 min/měsíc). Pokud vyčerpán, stop feature vývoje.',
+  485: 'Toil = manuální, opakující se, automatizovatelná práce (SRE). Redukce toil → více času na engineering a inovace.',
+  // DATABÁZE pokračování
+  486: 'Table partitioning rozděluje velkou tabulku na fyzické části (range, list, hash). Výkon dotazů, správa dat, archivace.',
+  487: 'Full-text search (Elasticsearch, PostgreSQL FTS) prohledává text nad rámec LIKE. Tokenizace, stemming, relevance ranking.',
+  488: 'BASE = Basically Available (systém funguje), Soft state (data mohou být dočasně nekonzistentní), Eventual consistency.',
+  489: 'Time-series DB (InfluxDB, TimescaleDB, Prometheus) optimalizovaná pro timestampovaná data. Efektivní komprimace a agregace.',
+  490: 'Graf DB (Neo4j, Amazon Neptune) ukládá uzly (entity) a hrany (vztahy). Efektivní pro traversal vztahů (sociální sítě, doporučování).',
+  // TEORIE pokračování
+  491: "Conway's Law: Tim → microservices, velký monolitický tým → monolith. Změna architektury vyžaduje změnu organizace.",
+  492: 'SLO (Service Level Objective) = cílová hodnota SLI (např. 99,9% dostupnost). Vnitřní cíl, základem pro error budget.',
+  493: 'SLI (Service Level Indicator) = metrika spolehlivosti (dostupnost, latence, error rate, saturace). Základ SLO/SLA.',
+  494: 'Twelve-Factor App: codebase, dependencies, config, backing services, build/run, processes, port binding, concurrency…',
+  495: 'Shift-left testing = testování dříve v pipeline (dev → CI → staging → prod). Levnější oprava bugů v rané fázi.',
+  // BEZPEČNOST pokračování
+  496: 'Zero-knowledge proof = prover dokáže znalost bez odhalení samotné informace. Základ zk-SNARK (Zcash, zkRollups).',
+  497: 'Air gap = fyzická izolace od internetu. Přenos dat: USB (Stuxnet), akustika, elektromagnetické emise (TEMPEST).',
+  498: 'OSINT = Intelligence ze svobodně dostupných zdrojů: Shodan, WHOIS, LinkedIn, GitHub, Google dorking, Maltego.',
+  499: 'Typosquatting = registrace domén s překlepy (gooogle.com). Phishing, malware distribuce, credential harvesting.',
+  500: 'LotL (Living off the Land) = útočník využívá legitimní SW (PowerShell, WMI, certutil) pro škodlivé účely. Těžce detekovatelný.',
+};
 
 // ─── HELPERS ─────────────────────────────────────────
 function getTodayKey() { return new Date().toISOString().slice(0,10); }
+// Přidá cache-busting aby prohlížeč vždy načetl aktuální verzi avataru
+function avatarSrc(url) {
+  if (!url) return null;
+  const base = url.split('?')[0];
+  // Používáme hodinu jako cache-klíč — stačí, mění se max 1× za hodinu
+  const hour = Math.floor(Date.now() / 3600000);
+  return `${base}?v=${hour}`;
+}
+function getYesterdayKey() {
+  const d = new Date(); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10);
+}
+function getCurrentMonthKey() {
+  const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+function getPrevMonthKey() {
+  const d = new Date(); d.setDate(1); d.setMonth(d.getMonth()-1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+function monthLabel(key) {
+  if (!key) return '';
+  const [y,m] = key.split('-');
+  const names=['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec'];
+  return `${names[parseInt(m)-1]} ${y}`;
+}
+
+// Bonus čas: kolik sekund dostane hráč zítra za každou ušetřenou sekundu
+const TIME_BONUS_RATIO = 1;  // 1 ušetřená sekunda = 1 bonusová sekunda
+const MAX_TIME_BONUS   = 30; // max 30 sekund navíc
 
 function seededShuffle(arr, seed) {
   const a=[...arr]; let s=seed;
@@ -74,23 +813,27 @@ function seededShuffle(arr, seed) {
 function getDailyQuestions(dateKey) {
   const seed=dateKey.split('-').reduce((a,b)=>a*31+parseInt(b),0);
   const selectedQs = seededShuffle(ALL_QUESTIONS,seed).slice(0,QUESTIONS_PER_QUIZ);
-  
-  // DYNAMICKÉ PROMÍCHÁNÍ ODPOVĚDÍ (Aby B nebylo pořád správně)
-  // Používáme seed + index otázky, aby mixování bylo pro daný den u všech hráčů stejné
-  return selectedQs.map((q, idx) => {
-    const optSeed = seed + idx; 
+
+  const questions = selectedQs.map((q, idx) => {
+    const optSeed = seed + idx;
     const mappedOpts = q.opts.map((opt, originalIndex) => ({ opt, originalIndex }));
     const shuffledOpts = seededShuffle(mappedOpts, optSeed);
-    
-    // Najdeme, kam se přesunula správná odpověď
     const newA = shuffledOpts.findIndex(o => o.originalIndex === q.a);
-    
-    return {
-      ...q,
-      opts: shuffledOpts.map(o => o.opt),
-      a: newA
-    };
+    return { ...q, opts: shuffledOpts.map(o => o.opt), a: newA };
   });
+
+  // 16. slot — Lucky Box (stejné rozložení pro všechny hráče daný den)
+  const prizeSeed = seed * 7 + 42;
+  const shuffledPrizes = seededShuffle([...LUCKY_PRIZES], prizeSeed).slice(0, 4);
+  questions.push({
+    id: 'lucky',
+    type: 'lucky',
+    cat: '🎲 Lucky Box',
+    q: 'Zkus štěstí! Vyber jednu ze 4 skrytých truhliček.',
+    prizes: shuffledPrizes, // 4 hodnoty, hráč nevidí obsah
+  });
+
+  return questions;
 }
 
 function calcPoints(tl) { return Math.round(MIN_PTS+(MAX_PTS-MIN_PTS)*(tl/QUIZ_DURATION)); }
@@ -608,15 +1351,23 @@ function App() {
   const [scores, setScores] = useState([]);
   const [loading, setLoading] = useState(false);
   const [currentQuiz, setCurrentQuiz] = useState(null);
-  const [insult, setInsult] = useState('');
-  const [showInsult, setShowInsult] = useState(false);
+  const [wrongData, setWrongData] = useState(null);
+  const [comboPopup, setComboPopup] = useState(null);
   const [dbOk, setDbOk] = useState(true);
+  const [timeBonusToday, setTimeBonusToday] = useState(0);
+  const [monthlyChampions, setMonthlyChampions] = useState([]); // historičtí vítězové měsíce
 
   const todayKey = getTodayKey();
+  const yesterdayKey = getYesterdayKey();
   const todayQuestions = getDailyQuestions(todayKey);
   const hasPlayedToday = user && scores.some(s => s.user_id === user.id && s.date === todayKey);
 
-  useEffect(() => { loadScores(); }, []);
+  useEffect(() => { loadScores(); loadMonthlyChampions(); }, []);
+
+  // Načti time bonus z předchozího dne jakmile je user přihlášen
+  useEffect(() => {
+    if (user) loadTimeBonus();
+  }, [user?.id]);
 
   async function loadScores() {
     try {
@@ -626,59 +1377,149 @@ function App() {
     } catch { setDbOk(false); }
   }
 
-  async function registerUser(name, password) {
+  async function loadMonthlyChampions() {
+    try {
+      const { data } = await db.from('monthly_champions')
+        .select('*').order('month', { ascending: false }).limit(12);
+      setMonthlyChampions(data || []);
+    } catch { /* tabulka nemusí existovat */ }
+  }
+
+  async function loadTimeBonus() {
+    try {
+      // Hledáme včerejší výsledek tohoto hráče a jeho time_saved
+      const { data } = await db.from('scores')
+        .select('time_saved')
+        .eq('user_id', user.id)
+        .eq('date', yesterdayKey)
+        .maybeSingle();
+      if (data?.time_saved > 0) {
+        const bonus = Math.min(Math.round(data.time_saved * TIME_BONUS_RATIO), MAX_TIME_BONUS);
+        setTimeBonusToday(bonus);
+      } else {
+        setTimeBonusToday(0);
+      }
+    } catch { setTimeBonusToday(0); }
+  }
+
+  async function registerUser(name, password, profile) {
     setLoading(true);
     try {
       const username = name.trim();
       const pwd = password.trim();
-
       const { data: ex } = await db.from('users').select('*').ilike('name', username).maybeSingle();
-
       let u = ex;
-
       if (u) {
-        if (u.password !== pwd) {
-          alert('Špatné heslo!');
-          setLoading(false);
-          return;
+        if (u.password !== pwd) { alert('Špatné heslo!'); setLoading(false); return; }
+        if (profile) {
+          const { data: upd } = await db.from('users').update(profile).eq('id', u.id).select().single();
+          if (upd) u = upd;
         }
       } else {
         const { data, error } = await db.from('users').insert({
-          id: Date.now().toString(),
-          name: username,
-          password: pwd
+          id: Date.now().toString(), name: username, password: pwd, ...(profile||{})
         }).select().single();
-
-        if (error) {
-          alert('Chyba: ' + error.message);
-          setLoading(false);
-          return;
-        }
+        if (error) { alert('Chyba: ' + error.message); setLoading(false); return; }
         u = data;
       }
-
-      setUser(u);
-      lss('itq_user', u);
+      setUser(u); lss('itq_user', u);
       setScreen(SCREENS.HOME);
-
-    } catch(e) {
-      alert('Chyba připojení k databázi');
-    }
-
+    } catch(e) { alert('Chyba připojení k databázi'); }
     setLoading(false);
   }
 
+  async function saveProfile(profileData) {
+    setLoading(true);
+    try {
+      const { data, error } = await db.from('users')
+        .update(profileData)
+        .eq('id', user.id)
+        .select()
+        .single();
+
+      if (data) {
+        // Supabase vrátil aktualizovaný záznam
+        setUser(data);
+        lss('itq_user', data);
+      } else {
+        // Supabase nevrátil data (RLS nebo jiný důvod) — aktualizujeme lokálně
+        const updated = { ...user, ...profileData };
+        setUser(updated);
+        lss('itq_user', updated);
+      }
+    } catch(e) {
+      // I při chybě aktualizujeme lokálně alespoň avatar
+      const updated = { ...user, ...profileData };
+      setUser(updated);
+      lss('itq_user', updated);
+    }
+    setLoading(false);
+    setScreen(SCREENS.HOME);
+  }
+
   async function finishQuiz(quiz) {
+    // Perfect = všechny normální otázky správně (lucky box se nepočítá)
+    const normalAnswers = quiz.answers.filter(a => a.q !== 'lucky');
+    const allCorrect = normalAnswers.length > 0 && normalAnswers.every(a => a.correct);
+    const perfectBonus = allCorrect ? PERFECT_BONUS : 0;
+    // Skóre nesmí klesnout pod 0
+    const finalScore = Math.max(quiz.totalScore + perfectBonus, 0);
+    const timeSaved = quiz.timeLeft > 0 ? quiz.timeLeft : 0;
+    const monthKey = getCurrentMonthKey();
+
     const entry = {
       id: Date.now().toString(), user_id: user.id, user_name: user.name,
-      date: todayKey, score: quiz.totalScore,
+      date: todayKey, score: finalScore,
       correct: quiz.answers.filter(a => a.correct).length,
       total: quiz.questions.length, timestamp: Date.now(),
+      time_saved: timeSaved,
+      perfect: allCorrect,
     };
     await db.from('scores').upsert(entry, { onConflict: 'user_id,date' });
+
+    // Zkusíme korunovat měsíčního vítěze (spustí se jen pokud ještě nikdo není korunován)
+    await tryCoronateMonthlyChampion(monthKey);
+
     await loadScores();
-    setCurrentQuiz(quiz);
+    setCurrentQuiz({...quiz, totalScore: finalScore, perfectBonus, timeSaved, allCorrect});
     setScreen(SCREENS.RESULT);
+  }
+
+  // Zkontroluje jestli je konec měsíce a korunuje vítěze předchozího měsíce
+  async function tryCoronateMonthlyChampion(currentMonthKey) {
+    try {
+      const prevMonth = getPrevMonthKey();
+      // Jestli už existuje champion za minulý měsíc, nic neděláme
+      const { data: existing } = await db.from('monthly_champions')
+        .select('id').eq('month', prevMonth).maybeSingle();
+      if (existing) return;
+
+      // Spočítáme top hráče za minulý měsíc
+      const { data: prevScores } = await db.from('scores')
+        .select('user_id, user_name, score')
+        .like('date', `${prevMonth}-%`);
+      if (!prevScores || prevScores.length === 0) return;
+
+      // Agregujeme score per user
+      const agg = {};
+      prevScores.forEach(s => {
+        if (!agg[s.user_id]) agg[s.user_id] = { user_id: s.user_id, user_name: s.user_name, total: 0, days: 0 };
+        agg[s.user_id].total += s.score;
+        agg[s.user_id].days += 1;
+      });
+      const sorted = Object.values(agg).sort((a,b) => b.total - a.total);
+      if (sorted.length === 0) return;
+
+      const winner = sorted[0];
+      await db.from('monthly_champions').insert({
+        id: `${prevMonth}-${winner.user_id}`,
+        month: prevMonth,
+        user_id: winner.user_id,
+        user_name: winner.user_name,
+        total_score: winner.total,
+        days_played: winner.days,
+      });
+    } catch(e) { /* silent — tabulka nemusí existovat */ }
   }
 
   const S = {
@@ -702,8 +1543,45 @@ function App() {
         .slide-in{animation:slideIn 0.4s ease}
         @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-12px)}75%{transform:translateX(12px)}}
         .shake{animation:shake 0.5s}
+        @keyframes comboPop{
+          0%{transform:scale(0.2) translateY(60px) rotate(-5deg);opacity:0}
+          50%{transform:scale(1.25) translateY(-12px) rotate(2deg);opacity:1}
+          70%{transform:scale(0.92) translateY(4px) rotate(-1deg)}
+          85%{transform:scale(1.06) translateY(-2px)}
+          100%{transform:scale(1) translateY(0) rotate(0);opacity:1}
+        }
+        @keyframes comboFade{
+          0%{opacity:1;transform:scale(1) translateY(0)}
+          80%{opacity:0.8;transform:scale(1.08) translateY(-10px)}
+          100%{opacity:0;transform:scale(0.7) translateY(-40px)}
+        }        @keyframes edgeFlash{
+          0%{opacity:0}10%{opacity:1}50%{opacity:0.5}100%{opacity:0}
+        }
+        @keyframes particleFly{
+          0%{transform:translateY(0) translateX(0) scale(1);opacity:1}
+          100%{transform:translateY(-100px) translateX(var(--dx,0px)) scale(0.2);opacity:0}
+        }
+        @keyframes sparkle{0%,100%{opacity:0;transform:scale(0) rotate(0deg)}50%{opacity:1;transform:scale(1) rotate(180deg)}}
+        @keyframes counterBump{0%{transform:scale(1)}30%{transform:scale(1.5)}60%{transform:scale(0.85)}100%{transform:scale(1)}}
+        @keyframes comboStreakIn{0%{transform:scaleX(0);opacity:0}100%{transform:scaleX(1);opacity:1}}
+        @keyframes perfectPulse{0%,100%{box-shadow:0 0 20px #ffd70066}50%{box-shadow:0 0 60px #ffd700cc,0 0 100px #ffd70044}}
+        @keyframes perfectStarSpin{0%{transform:rotate(0deg) scale(1)}50%{transform:rotate(180deg) scale(1.3)}100%{transform:rotate(360deg) scale(1)}}
+        @keyframes perfectRain{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(720deg);opacity:0}}
+        @keyframes chestShake{0%,100%{transform:rotate(0deg) scale(1)}20%{transform:rotate(-8deg) scale(1.1)}40%{transform:rotate(8deg) scale(1.1)}60%{transform:rotate(-5deg) scale(1.05)}80%{transform:rotate(5deg) scale(1.05)}}
+        @keyframes chestOpen{0%{transform:scale(1) translateY(0)}30%{transform:scale(1.3) translateY(-10px)}60%{transform:scale(0.95) translateY(5px)}100%{transform:scale(1.1) translateY(-5px)}}
+        @keyframes prizePop{0%{transform:scale(0) translateY(20px);opacity:0}60%{transform:scale(1.2) translateY(-5px);opacity:1}100%{transform:scale(1) translateY(0);opacity:1}}
+        @keyframes chestGlow{0%,100%{box-shadow:0 0 10px #ffd70044}50%{box-shadow:0 0 30px #ffd700aa,0 0 60px #ffd70044}}
+        .chest-btn{cursor:pointer;border:none;background:transparent;transition:transform 0.2s}
+        .chest-btn:hover:not(:disabled){transform:translateY(-4px) scale(1.05)}
+        .avatar-upload-wrap{position:relative;display:inline-block;cursor:pointer}
+        .avatar-upload-wrap:hover .avatar-overlay{opacity:1}
+        .avatar-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.55);border-radius:50%;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s;font-size:22px}
         .tab-btn{background:transparent;border:1px solid #2a3a6a;color:#8899bb;padding:8px 20px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;letter-spacing:1px;transition:all 0.2s}
         .tab-btn.active{background:#1a2a5a;border-color:#4488ff;color:#88aaff}
+        input,select,textarea{background:#0d1428;border:1px solid #2a3a6a;color:#e0e8ff;padding:12px 16px;border-radius:8px;font-family:inherit;font-size:15px;width:100%;outline:none;transition:border-color 0.2s}
+        input:focus,select:focus,textarea:focus{border-color:#4488ff;box-shadow:0 0 0 3px rgba(68,136,255,0.15)}
+        select option{background:#0d1428}
+        .field-label{font-size:11px;color:#4a5a7a;letter-spacing:1px;margin-bottom:5px;text-transform:uppercase}
       `}</style>
       <div style={S.grid}/>
       <div style={S.scan}/>
@@ -712,29 +1590,165 @@ function App() {
           ⚠️ Databáze není připojena — vyplň SUPABASE_URL a SUPABASE_KEY v HTML souboru
         </div>
       )}
-      {showInsult && (
-        <div onClick={()=>setShowInsult(false)} style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.9)',zIndex:100,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>
-          <div className="shake" style={{textAlign:'center',padding:40,maxWidth:480}}>
-            <div style={{fontSize:80,marginBottom:20}}>💀</div>
-            <div style={{fontSize:22,color:'#ff4444',fontWeight:700,lineHeight:1.5}}>{insult}</div>
-            <div style={{marginTop:20,color:'#6677aa',fontSize:12,letterSpacing:2}}>KLIKNI PRO POKRAČOVÁNÍ</div>
+      {/* KOMBO POPUP — efektní s edge flashem a particles */}
+      {comboPopup && (() => {
+        const cfg = {
+          3:{emoji:'🔥',label:'SUPER KOMBO', subLabel:'3× rychlá odpověď!', c1:'#ff9900',c2:'#ffdd44',bg:'rgba(255,140,0,0.15)',border:'#ff9900', particles:['🔥','⚡','✨','💫']},
+          4:{emoji:'⚡',label:'MEGA KOMBO',  subLabel:'4× blesková rychlost!',c1:'#bb44ff',c2:'#dd88ff',bg:'rgba(160,50,255,0.15)',border:'#bb44ff', particles:['⚡','💜','✨','⭐','🌟']},
+          5:{emoji:'💥',label:'ULTRA KOMBO', subLabel:'5× ABSOLUTNÍ DOMINANCE!',c1:'#ff2255',c2:'#ff8899',bg:'rgba(255,30,70,0.15)', border:'#ff2255', particles:['💥','🔥','⚡','💫','🌟','❤️‍🔥']},
+        }[comboPopup.level] || {emoji:'🔥',label:'KOMBO',subLabel:'Rychlá odpověď!',c1:'#ff9900',c2:'#ffdd44',bg:'rgba(255,140,0,0.15)',border:'#ff9900',particles:['🔥','✨']};
+
+        const numParticles = comboPopup.level === 5 ? 14 : comboPopup.level === 4 ? 10 : 7;
+
+        return (
+          <div key={comboPopup.key} style={{position:'fixed',top:0,left:0,right:0,bottom:0,pointerEvents:'none',zIndex:150}}>
+            {/* Screen edge glow flash */}
+            <div style={{
+              position:'absolute',inset:0,
+              boxShadow:`inset 0 0 80px 30px ${cfg.border}66, inset 0 0 160px 60px ${cfg.border}22`,
+              animation:'edgeFlash 1s ease forwards',
+              borderRadius:0,
+            }}/>
+
+            {/* Particle emojis */}
+            {Array.from({length:numParticles}).map((_,i) => {
+              const dx = (Math.random()-0.5)*300;
+              const emoji = cfg.particles[i % cfg.particles.length];
+              const size = 18 + Math.random()*22;
+              const delay = Math.random()*0.4;
+              const left = 25 + Math.random()*50;
+              return (
+                <div key={i} style={{
+                  position:'absolute',
+                  bottom:'42%',
+                  left:`${left}%`,
+                  fontSize:size,
+                  animation:`particleFly 0.8s ease ${delay}s both`,
+                  '--dx': `${dx}px`,
+                  filter:'drop-shadow(0 0 8px currentColor)',
+                }}>{emoji}</div>
+              );
+            })}
+
+            {/* Central card */}
+            <div style={{
+              position:'absolute',top:'50%',left:'50%',
+              transform:'translate(-50%,-50%)',
+              animation:`comboPop 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards, comboFade 0.45s ease 0.7s forwards`,
+              background:cfg.bg,
+              border:`2px solid ${cfg.border}`,
+              borderRadius:24,
+              padding:'26px 52px',
+              textAlign:'center',
+              boxShadow:`0 0 60px ${cfg.border}66, 0 0 120px ${cfg.border}22, inset 0 1px 0 rgba(255,255,255,0.1)`,
+              backdropFilter:'blur(12px)',
+            }}>
+              <div style={{fontSize:60,lineHeight:1,marginBottom:6,filter:`drop-shadow(0 0 16px ${cfg.c1})`}}>
+                {cfg.emoji}
+              </div>
+              <div style={{
+                fontFamily:"'Orbitron',sans-serif",
+                fontSize:'clamp(20px,4vw,28px)',
+                fontWeight:900,letterSpacing:3,
+                background:`linear-gradient(135deg,${cfg.c1},${cfg.c2})`,
+                WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',
+                backgroundClip:'text',
+                textShadow:'none',
+                marginBottom:4,
+              }}>{cfg.label}</div>
+              <div style={{fontSize:13,color:cfg.c2,opacity:0.85,marginBottom:10,letterSpacing:0.5}}>
+                {cfg.subLabel}
+              </div>
+              <div style={{
+                fontSize:20,fontWeight:900,
+                color:cfg.c1,
+                fontFamily:"'Orbitron',sans-serif",
+                letterSpacing:2,
+                textShadow:`0 0 20px ${cfg.c1}`,
+              }}>
+                +{comboPopup.bonus.toLocaleString()} ✦
+              </div>
+              {/* Combo level dots */}
+              <div style={{display:'flex',gap:8,justifyContent:'center',marginTop:12}}>
+                {Array.from({length:comboPopup.level}).map((_,i)=>(
+                  <div key={i} style={{
+                    width:12,height:12,borderRadius:'50%',
+                    background:`linear-gradient(135deg,${cfg.c1},${cfg.c2})`,
+                    animation:`sparkle 0.5s ease ${i*0.08}s both`,
+                    boxShadow:`0 0 10px ${cfg.c1}`,
+                  }}/>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {wrongData && (
+        <div onClick={()=>{
+          if(window._quizResumeCallback) window._quizResumeCallback();
+          setWrongData(null);
+        }} style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.93)',zIndex:100,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',padding:'20px',overflowY:'auto'}}>
+          <div className="shake" style={{textAlign:'center',maxWidth:540,width:'100%',paddingBottom:10}}>
+            <div style={{fontSize:64,marginBottom:10}}>💀</div>
+            <div style={{fontSize:'clamp(15px,2.8vw,21px)',color:'#ff4444',fontWeight:700,lineHeight:1.45,marginBottom:22,padding:'0 8px'}}>
+              {wrongData.insult}
+            </div>
+            <div style={{background:'rgba(0,80,0,0.4)',border:'1px solid #22aa44',borderRadius:12,padding:'14px 18px',marginBottom:12,textAlign:'left'}}>
+              <div style={{fontSize:10,color:'#22aa44',letterSpacing:2,marginBottom:6,fontFamily:"'Orbitron',sans-serif"}}>✅ SPRÁVNÁ ODPOVĚĎ</div>
+              <div style={{fontSize:16,fontWeight:700,color:'#88ff88'}}>{wrongData.correctAnswer}</div>
+            </div>
+            <div style={{background:'rgba(10,20,60,0.8)',border:'1px solid #2a3a6a',borderRadius:12,padding:'14px 18px',marginBottom:14,textAlign:'left'}}>
+              <div style={{fontSize:10,color:'#4488ff',letterSpacing:2,marginBottom:8,fontFamily:"'Orbitron',sans-serif"}}>💡 PROČ JE TO TAK</div>
+              <div style={{fontSize:14,color:'#b0c4e8',lineHeight:1.65}}>{wrongData.explanation}</div>
+            </div>
+            <div style={{fontSize:13,color:'#445566',fontStyle:'italic',marginBottom:18,padding:'0 8px'}}>{wrongData.ending}</div>
+            <div style={{fontSize:11,color:'#2a3a5a',letterSpacing:2}}>— KLIKNI KAMKOLIV PRO POKRAČOVÁNÍ —</div>
           </div>
         </div>
       )}
+
       <div style={S.content}>
-        {screen===SCREENS.HOME && <HomeScreen user={user} hasPlayedToday={hasPlayedToday} todayKey={todayKey} todayQuestions={todayQuestions} onRegister={()=>setScreen(SCREENS.REGISTER)} onStart={()=>{setCurrentQuiz({questions:todayQuestions,answers:[],current:0,timeLeft:QUIZ_DURATION,totalScore:0});setScreen(SCREENS.QUIZ);}} onBoard={()=>setScreen(SCREENS.BOARD)} onLogout={()=>{setUser(null);lss('itq_user',null);}} loading={loading}/>}
+        {screen===SCREENS.HOME && <HomeScreen user={user} hasPlayedToday={hasPlayedToday} todayKey={todayKey} todayQuestions={todayQuestions}
+          timeBonusToday={timeBonusToday}
+          onRegister={()=>setScreen(SCREENS.REGISTER)}
+          onProfile={()=>setScreen(SCREENS.PROFILE)}
+          onStart={()=>{
+            const totalTime = QUIZ_DURATION + timeBonusToday;
+            setCurrentQuiz({questions:todayQuestions,answers:[],current:0,timeLeft:totalTime,totalDuration:totalTime,totalScore:0,timeBonusUsed:timeBonusToday});
+            setScreen(SCREENS.QUIZ);
+          }}
+          onBoard={()=>setScreen(SCREENS.BOARD)}
+          onLogout={()=>{setUser(null);lss('itq_user',null);}}
+          loading={loading}/>}
         {screen===SCREENS.REGISTER && <RegisterScreen onRegister={registerUser} onBack={()=>setScreen(SCREENS.HOME)} loading={loading}/>}
-        {screen===SCREENS.QUIZ && currentQuiz && <QuizScreen quiz={currentQuiz} onFinish={finishQuiz} onWrong={()=>{setInsult(INSULTS[Math.floor(Math.random()*INSULTS.length)]);setShowInsult(true);}}/>}
-        {screen===SCREENS.RESULT && currentQuiz && <ResultScreen quiz={currentQuiz} onHome={()=>setScreen(SCREENS.HOME)} onBoard={()=>setScreen(SCREENS.BOARD)}/>}
-        {screen===SCREENS.BOARD && <BoardScreen scores={scores} user={user} todayKey={todayKey} onBack={()=>setScreen(SCREENS.HOME)}/>}
+        {screen===SCREENS.PROFILE && user && <ProfileScreen user={user} onSave={saveProfile} onBack={()=>setScreen(SCREENS.HOME)} loading={loading}/>}
+        {screen===SCREENS.QUIZ && currentQuiz && <QuizScreen quiz={currentQuiz} onFinish={finishQuiz}
+          onWrong={(q)=>{
+            if(!q) return;
+            const insult=INSULTS[Math.floor(Math.random()*INSULTS.length)];
+            const ending=INSULT_ENDINGS[Math.floor(Math.random()*INSULTS.length%INSULT_ENDINGS.length)];
+            const correctAnswer=q.opts[q.a];
+            const explanation=EXPLANATIONS[q.id]||`Správná odpověď je: "${correctAnswer}".`;
+            setWrongData({insult,ending,correctAnswer,explanation});
+          }}
+          onCombo={(level,bonus)=>{
+            setComboPopup({level,bonus,key:Date.now()});
+            setTimeout(()=>setComboPopup(null),1200);
+          }}
+        />}
+        {screen===SCREENS.RESULT && currentQuiz && <ResultScreen quiz={currentQuiz} timeSaved={currentQuiz.timeSaved||0} onHome={()=>setScreen(SCREENS.HOME)} onBoard={()=>setScreen(SCREENS.BOARD)}/>}
+        {screen===SCREENS.BOARD && <BoardScreen scores={scores} user={user} todayKey={todayKey} monthlyChampions={monthlyChampions} onBack={()=>setScreen(SCREENS.HOME)}/>}
       </div>
     </div>
   );
 }
 
 // ─── HOME ─────────────────────────────────────────────
-function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, onRegister, onStart, onBoard, onLogout, loading }) {
+function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusToday, onRegister, onStart, onBoard, onLogout, onProfile, loading }) {
   const cats = [...new Set(todayQuestions.map(q=>q.cat))];
+  const OS_LABELS = {linux:'🐧 Linux', windows:'🪟 Windows', macos:' macOS', bsd:'👹 BSD', arch:'💀 Arch (btw)'};
+  const totalTime = QUIZ_DURATION + (timeBonusToday||0);
   return (
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:20}}>
       <div className="slide-in" style={{width:'100%',maxWidth:640,textAlign:'center'}}>
@@ -742,21 +1756,59 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, onRegister
         <h1 className="glow" style={{fontFamily:"'Orbitron', sans-serif",fontSize:'clamp(40px,9vw,80px)',fontWeight:900,letterSpacing:4,color:'#fff',lineHeight:1}}>
           IT<span style={{color:'#4488ff'}}>QUIZ</span>
         </h1>
-        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:11,letterSpacing:3,color:'#4a5a7a',marginTop:4,marginBottom:36}}>500 OTÁZEK • KAŽDÝ DEN NOVÝ KVÍZ</div>
+        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:11,letterSpacing:3,color:'#4a5a7a',marginTop:4,marginBottom:36}}>KAŽDÝ DEN NOVÉ OTÁZKY</div>
 
-        <div style={{background:'rgba(20,35,80,0.55)',border:'1px solid #2a3a6a',borderRadius:14,padding:'20px 28px',marginBottom:28,backdropFilter:'blur(8px)'}}>
+        <div style={{background:'rgba(20,35,80,0.55)',border:'1px solid #2a3a6a',borderRadius:14,padding:'20px 28px',marginBottom:timeBonusToday>0?12:28,backdropFilter:'blur(8px)'}}>
           <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:10,color:'#4488ff',letterSpacing:3,marginBottom:10}}>DNEŠNÍ KVÍZ — {todayKey}</div>
           <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'center',marginBottom:14}}>
             {cats.map(c=><span key={c} style={{background:'rgba(68,136,255,0.12)',border:'1px solid rgba(68,136,255,0.25)',borderRadius:20,padding:'3px 12px',fontSize:11,color:'#88aaff',letterSpacing:0.5}}>{c}</span>)}
           </div>
-          <div style={{color:'#6677aa',fontSize:12}}>⏱ {QUIZ_DURATION}s &nbsp;•&nbsp; {QUESTIONS_PER_QUIZ} otázek &nbsp;•&nbsp; max {MAX_PTS} bodů/otázka</div>
+          <div style={{color:'#6677aa',fontSize:12}}>
+            ⏱ {totalTime}s
+            {timeBonusToday > 0 && <span style={{color:'#22cc88'}}> ({QUIZ_DURATION}s + {timeBonusToday}s bonus)</span>}
+            &nbsp;•&nbsp; {QUESTIONS_PER_QUIZ} otázek &nbsp;•&nbsp; max {MAX_PTS} bodů/otázka
+          </div>
+          <div style={{color:'#445566',fontSize:11,marginTop:5}}>🔥 3× rychle = SUPER KOMBO &nbsp;⚡ 4× = MEGA &nbsp;💥 5× = ULTRA</div>
+          <div style={{color:'#cc9900',fontSize:11,marginTop:4}}>💎 Bez jediné chyby = PERFECT RUN +{PERFECT_BONUS.toLocaleString()} prémiových bodů</div>
+          <div style={{color:'#4a6a44',fontSize:11,marginTop:4}}>🎲 Poslední otázka = Lucky Box — bedny s skrytými body (+1000 až -500)</div>
         </div>
+
+        {/* Time bonus banner */}
+        {timeBonusToday > 0 && !hasPlayedToday && (
+          <div style={{background:'rgba(0,80,50,0.4)',border:'1px solid #22cc88',borderRadius:10,padding:'12px 18px',marginBottom:24,display:'flex',alignItems:'center',gap:12,justifyContent:'center'}}>
+            <span style={{fontSize:22}}>⏰</span>
+            <div style={{textAlign:'left'}}>
+              <div style={{fontSize:13,fontWeight:700,color:'#44ffaa',letterSpacing:0.5}}>Máš {timeBonusToday}s bonusový čas!</div>
+              <div style={{fontSize:11,color:'#338866'}}>Ušetřils ho včera dokončením kvízu dřív. Dnes ho využij.</div>
+            </div>
+          </div>
+        )}
 
         {user ? (
           <div style={{marginBottom:24}}>
-            <div style={{fontSize:12,color:'#4a5a7a',marginBottom:4}}>Přihlášen jako</div>
-            <div style={{fontSize:24,color:'#88aaff',fontWeight:700,letterSpacing:2}}>{user.name}</div>
-            <button onClick={onLogout} style={{marginTop:6,background:'transparent',border:'none',color:'#334455',fontSize:11,cursor:'pointer',letterSpacing:1}}>ODHLÁSIT SE</button>
+            <div style={{fontSize:12,color:'#4a5a7a',marginBottom:8}}>Přihlášen jako</div>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12,marginBottom:6}}>
+              {/* Avatar */}
+              <div style={{width:48,height:48,borderRadius:'50%',border:'2px solid #2a3a6a',overflow:'hidden',background:'#0d1428',flexShrink:0}}>
+                {user.avatar_url
+                  ? <img src={avatarSrc(user.avatar_url)} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                  : <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,color:'#2a3a6a'}}>👤</div>
+                }
+              </div>
+              <div style={{textAlign:'left'}}>
+                <div style={{fontSize:20,color:'#88aaff',fontWeight:700,letterSpacing:1}}>{user.name}</div>
+                {(user.company||user.position) && (
+                  <div style={{fontSize:12,color:'#4a5a7a',marginTop:1}}>
+                    {user.company && `🏢 ${user.company}`}{user.company&&user.position?' · ':''}{user.position&&`💼 ${user.position}`}
+                  </div>
+                )}
+                {user.os_religion && <div style={{fontSize:11,color:'#334455',marginTop:1}}>{OS_LABELS[user.os_religion]||user.os_religion}</div>}
+              </div>
+            </div>
+            <div style={{display:'flex',gap:14,justifyContent:'center',marginTop:4}}>
+              <button onClick={onProfile} style={{background:'transparent',border:'none',color:'#4488ff',fontSize:11,cursor:'pointer',letterSpacing:1,textDecoration:'underline'}}>✏️ UPRAVIT PROFIL</button>
+              <button onClick={onLogout} style={{background:'transparent',border:'none',color:'#334455',fontSize:11,cursor:'pointer',letterSpacing:1}}>ODHLÁSIT SE</button>
+            </div>
           </div>
         ) : (
           <div style={{marginBottom:24,color:'#ff9944',fontSize:13}}>⚠ Nejsi přihlášen</div>
@@ -777,66 +1829,372 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, onRegister
   );
 }
 
-// ─── REGISTER ────────────────────────────────────────
-function RegisterScreen({ onRegister, onBack, loading }) {
-  const [name, setName] = useState('');
-  const [password, setPassword] = useState('');
-  const [err, setErr] = useState('');
-
-  function submit() {
-    const n = name.trim();
-    const p = password.trim();
-
-    if (!n || n.length < 2) { setErr('Aspoň 2 znaky pro jméno!'); return; }
-    if (n.length > 20) { setErr('Max 20 znaků!'); return; }
-    if (!p || p.length < 4) { setErr('Heslo musí mít alespoň 4 znaky!'); return; }
-
-    onRegister(n, p);
-  }
-
+// ─── SDÍLENÉ POLE PROFILU ─────────────────────────────
+function ProfileFields({ profile, setProfile }) {
+  const p = (k,v) => setProfile(prev=>({...prev,[k]:v}));
   return (
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-      <div className="slide-in" style={{width:'100%',maxWidth:380,textAlign:'center'}}>
-        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:11,letterSpacing:4,color:'#4488ff',marginBottom:10}}>REGISTRACE</div>
-        <h2 style={{fontFamily:"'Orbitron', sans-serif",fontSize:30,fontWeight:900,color:'#fff',marginBottom:32}}>Kdo jsi?</h2>
-        <div style={{background:'rgba(20,35,80,0.6)',border:'1px solid #2a3a6a',borderRadius:12,padding:28}}>
-          <input value={name} onChange={e=>{setName(e.target.value);setErr('');}} placeholder="Tvá přezdívka..." maxLength={20} autoFocus/>
-
-          <input
-            type="password"
-            value={password}
-            onChange={e=>{setPassword(e.target.value);setErr('');}}
-            onKeyDown={e=>e.key==='Enter'&&submit()}
-            placeholder="Heslo..."
-            maxLength={50}
-            style={{marginTop:12}}
-          />
-          {err && <div style={{color:'#ff4444',fontSize:12,marginTop:8}}>{err}</div>}
-          <button className="btn" onClick={submit} disabled={loading} style={{marginTop:18,width:'100%',background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'13px',borderRadius:8,fontSize:14,color:'#fff',letterSpacing:3}}>
-            {loading ? 'UKLÁDÁM...' : 'POTVRDIT'}
-          </button>
+    <div style={{textAlign:'left',marginTop:14}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+        <div>
+          <div className="field-label">🏢 Firma</div>
+          <input value={profile.company||''} onChange={e=>p('company',e.target.value)} placeholder="ACME Corp..." maxLength={40}/>
         </div>
-        <button onClick={onBack} style={{marginTop:16,background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1}}>← ZPĚT</button>
+        <div>
+          <div className="field-label">💼 Pozice</div>
+          <input value={profile.position||''} onChange={e=>p('position',e.target.value)} placeholder="Senior Click Engineer..." maxLength={40}/>
+        </div>
+      </div>
+      <div style={{marginTop:10}}>
+        <div className="field-label">💻 Oblíbený HW</div>
+        <input value={profile.fav_hw||''} onChange={e=>p('fav_hw',e.target.value)} placeholder="ThinkPad X1, Cisco ASA, Raspberry Pi..." maxLength={60}/>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginTop:10}}>
+        <div>
+          <div className="field-label">🐧 OS náboženství</div>
+          <select value={profile.os_religion||''} onChange={e=>p('os_religion',e.target.value)}>
+            <option value="">— nevyplněno —</option>
+            <option value="linux">Linux (vím co dělám)</option>
+            <option value="windows">Windows (klikací šaman)</option>
+            <option value="macos"> macOS (prémiový)</option>
+            <option value="bsd">BSD (hardcore nerd)</option>
+            <option value="arch">Arch (btw)</option>
+          </select>
+        </div>
+        <div>
+          <div className="field-label">☕ Kávy za den</div>
+          <select value={profile.coffee_cups||''} onChange={e=>p('coffee_cups',e.target.value)}>
+            <option value="">— nevyplněno —</option>
+            <option value="0">0 – jsem robot</option>
+            <option value="1">1 – ranní rituál</option>
+            <option value="2">2 – normální</option>
+            <option value="3">3 – závislák</option>
+            <option value="5">5+ – cévy z kávy</option>
+            <option value="iv">IV infuze rovnou</option>
+          </select>
+        </div>
+      </div>
+      <div style={{marginTop:10}}>
+        <div className="field-label">🐛 Styl debugování</div>
+        <select value={profile.debug_style||''} onChange={e=>p('debug_style',e.target.value)}>
+          <option value="">— nevyplněno —</option>
+          <option value="printstatements">Print statements – klasika</option>
+          <option value="debugger">Debugger – profesionál</option>
+          <option value="stackoverflow">Stack Overflow + modlitba</option>
+          <option value="rubber">Gumová kachnička</option>
+          <option value="restart">Restart a doufám</option>
+          <option value="ai">Ptám se AI a nedůvěřuji</option>
+          <option value="blame">Blame git, ať to opraví kolega</option>
+        </select>
+      </div>
+      <div style={{marginTop:10}}>
+        <div className="field-label">🦸 Moje IT superschopnost</div>
+        <input value={profile.superpower||''} onChange={e=>p('superpower',e.target.value)} placeholder="Vidím smysl v chybové hlášce 0x80070005..." maxLength={80}/>
       </div>
     </div>
   );
 }
 
+// ─── PROFIL SCREEN ────────────────────────────────────
+function ProfileScreen({ user, onSave, onBack, loading }) {
+  const [profile, setProfile] = useState({
+    company: user.company||'', position: user.position||'',
+    fav_hw: user.fav_hw||'', os_religion: user.os_religion||'',
+    coffee_cups: user.coffee_cups||'', debug_style: user.debug_style||'',
+    superpower: user.superpower||'',
+  });
+  const [avatarPreview, setAvatarPreview] = useState(user.avatar_url ? avatarSrc(user.avatar_url) : null);
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState('');
+  const fileRef = useRef(null);
+
+  function pickFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { setAvatarError('Max 2 MB'); return; }
+    if (!file.type.startsWith('image/')) { setAvatarError('Pouze obrázky'); return; }
+    setAvatarError('');
+    setAvatarFile(file);
+    const reader = new FileReader();
+    reader.onload = ev => setAvatarPreview(ev.target.result);
+    reader.readAsDataURL(file);
+  }
+
+  async function handleSave() {
+    let avatarUrl = user.avatar_url
+      ? user.avatar_url.split('?')[0]  // odstraň starý cache-bust
+      : null;
+
+    if (avatarFile) {
+      setAvatarUploading(true);
+      try {
+        // Vždy stejná cesta → upsert přepíše soubor
+        const path = `${user.id}/avatar`;
+        const { error: upErr } = await db.storage
+          .from('avatars')
+          .upload(path, avatarFile, { upsert: true, contentType: avatarFile.type });
+        if (upErr) { setAvatarError('Upload selhal: ' + upErr.message); setAvatarUploading(false); return; }
+        const { data: urlData } = db.storage.from('avatars').getPublicUrl(path);
+        avatarUrl = urlData.publicUrl; // čistá URL bez timestamp
+      } catch(e) { setAvatarError('Upload selhal'); setAvatarUploading(false); return; }
+      setAvatarUploading(false);
+    }
+    onSave({ ...profile, avatar_url: avatarUrl });
+  }
+
+  const isWorking = loading || avatarUploading;
+
+  return (
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'20px',overflowY:'auto'}}>
+      <div className="slide-in" style={{width:'100%',maxWidth:480,textAlign:'center',paddingTop:30,paddingBottom:30}}>
+        <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:11,letterSpacing:4,color:'#4488ff',marginBottom:16}}>PROFIL HRÁČE</div>
+
+        {/* AVATAR PICKER */}
+        <div style={{marginBottom:20,display:'flex',flexDirection:'column',alignItems:'center',gap:10}}>
+          <div className="avatar-upload-wrap" onClick={()=>fileRef.current?.click()}
+            style={{width:96,height:96,borderRadius:'50%',border:`2px solid ${avatarPreview?'#4488ff':'#2a3a6a'}`,overflow:'hidden',flexShrink:0,background:'#0d1428'}}>
+            {avatarPreview
+              ? <img src={avatarPreview} alt="avatar" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+              : <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:36,color:'#2a3a6a'}}>👤</div>
+            }
+            <div className="avatar-overlay">📷</div>
+          </div>
+          <input ref={fileRef} type="file" accept="image/*" style={{display:'none'}} onChange={pickFile}/>
+          <button onClick={()=>fileRef.current?.click()} style={{background:'transparent',border:'1px solid #2a3a6a',color:'#4488ff',fontSize:11,padding:'5px 16px',borderRadius:20,cursor:'pointer',fontFamily:'inherit',letterSpacing:1}}>
+            {avatarPreview ? '📷 ZMĚNIT FOTKU' : '📷 PŘIDAT FOTKU'}
+          </button>
+          {avatarError && <div style={{color:'#ff4444',fontSize:11}}>{avatarError}</div>}
+          <div style={{fontSize:10,color:'#334455'}}>Max 2 MB · JPG, PNG, WebP</div>
+        </div>
+
+        <div style={{fontSize:20,fontWeight:700,color:'#fff',marginBottom:4}}>{user.name}</div>
+        {user.company && <div style={{fontSize:13,color:'#556688',marginBottom:16}}>{user.company}{user.position?` · ${user.position}`:''}</div>}
+
+        <div style={{background:'rgba(20,35,80,0.6)',border:'1px solid #2a3a6a',borderRadius:12,padding:24,textAlign:'left'}}>
+          <ProfileFields profile={profile} setProfile={setProfile}/>
+          <button className="btn" onClick={handleSave} disabled={isWorking}
+            style={{marginTop:20,width:'100%',background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'13px',borderRadius:8,fontSize:14,color:'#fff',letterSpacing:3}}>
+            {avatarUploading ? '📤 NAHRÁVÁM FOTKU...' : loading ? 'UKLÁDÁM...' : '💾 ULOŽIT PROFIL'}
+          </button>
+        </div>
+        <button onClick={onBack} style={{marginTop:14,background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1}}>← ZPĚT</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── REGISTER ─────────────────────────────────────────
+function RegisterScreen({ onRegister, onBack, loading }) {
+  const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
+  const [showProfile, setShowProfile] = useState(false);
+  const [profile, setProfile] = useState({company:'',position:'',fav_hw:'',os_religion:'',coffee_cups:'',debug_style:'',superpower:''});
+  const [err, setErr] = useState('');
+
+  function submit() {
+    const n = name.trim(), p = password.trim();
+    if (!n || n.length < 2) { setErr('Aspoň 2 znaky pro jméno!'); return; }
+    if (n.length > 20) { setErr('Max 20 znaků!'); return; }
+    if (!p || p.length < 4) { setErr('Heslo musí mít alespoň 4 znaky!'); return; }
+    onRegister(n, p, profile);
+  }
+
+  return (
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'flex-start',justifyContent:'center',padding:20,overflowY:'auto'}}>
+      <div className="slide-in" style={{width:'100%',maxWidth:440,textAlign:'center',paddingTop:40,paddingBottom:30}}>
+        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:11,letterSpacing:4,color:'#4488ff',marginBottom:10}}>REGISTRACE / PŘIHLÁŠENÍ</div>
+        <h2 style={{fontFamily:"'Orbitron', sans-serif",fontSize:26,fontWeight:900,color:'#fff',marginBottom:28}}>Kdo jsi?</h2>
+        <div style={{background:'rgba(20,35,80,0.6)',border:'1px solid #2a3a6a',borderRadius:12,padding:24}}>
+          <div className="field-label">Přezdívka</div>
+          <input value={name} onChange={e=>{setName(e.target.value);setErr('');}} placeholder="Tvá přezdívka..." maxLength={20} autoFocus/>
+          <div className="field-label" style={{marginTop:12}}>Heslo</div>
+          <input type="password" value={password} onChange={e=>{setPassword(e.target.value);setErr('');}} onKeyDown={e=>e.key==='Enter'&&submit()} placeholder="Heslo..." maxLength={50}/>
+
+          <button onClick={()=>setShowProfile(!showProfile)} style={{marginTop:14,background:'transparent',border:'1px dashed #2a3a6a',color:'#4488ff',padding:'8px 16px',borderRadius:8,cursor:'pointer',fontSize:12,width:'100%',letterSpacing:1}}>
+            {showProfile?'▲ SKRÝT PROFIL':'▼ VYPLNIT PROFIL (nepovinné)'}
+          </button>
+          {showProfile && <ProfileFields profile={profile} setProfile={setProfile}/>}
+
+          {err && <div style={{color:'#ff4444',fontSize:12,marginTop:8}}>{err}</div>}
+          <button className="btn" onClick={submit} disabled={loading}
+            style={{marginTop:16,width:'100%',background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'13px',borderRadius:8,fontSize:14,color:'#fff',letterSpacing:3}}>
+            {loading?'UKLÁDÁM...':'POTVRDIT'}
+          </button>
+        </div>
+        <button onClick={onBack} style={{marginTop:14,background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1}}>← ZPĚT</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── LUCKY BOX SLOT (renderuje se místo klasických odpovědí) ─
+function LuckyBoxSlot({ prizes, onPick, locked }) {
+  const [opened, setOpened] = useState(null); // index otevřené truhličky
+  const [revealed, setRevealed] = useState(false);
+
+  const CHEST_EMOJIS_CLOSED = ['📦','📦','📦','📦'];
+  const prizeColor = (pts) => pts >= 500 ? '#ffd700' : pts >= 100 ? '#44ff88' : pts === 0 ? '#8899bb' : '#ff4444';
+  const prizeLabel = (pts) => pts > 0 ? `+${pts}` : String(pts);
+
+  function pick(i) {
+    if (locked || opened !== null) return;
+    setOpened(i);
+    setTimeout(() => {
+      setRevealed(true);
+      onPick(prizes[i]);
+    }, 900);
+  }
+
+  return (
+    <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:20,paddingBottom:20}}>
+      {/* Instrukce */}
+      {opened === null && (
+        <div style={{textAlign:'center',color:'#556688',fontSize:13,animation:'slideIn 0.4s ease'}}>
+          Jedna bedna skrývá jackpot. Jedna zkázu. Vyber moudře... nebo vůbec ne.
+        </div>
+      )}
+
+      {/* Truhličky */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,width:'100%',maxWidth:380}}>
+        {prizes.map((pts, i) => {
+          const isThis = opened === i;
+          const col = prizeColor(pts);
+          const isPositive = pts > 0;
+          const isJackpot = pts === 1000;
+          const isBomb = pts === -500;
+
+          return (
+            <button key={i} className="chest-btn" onClick={() => pick(i)}
+              disabled={locked || opened !== null}
+              style={{
+                padding:'22px 12px',
+                borderRadius:16,
+                border: isThis
+                  ? `2px solid ${col}`
+                  : '2px solid #2a3a6a',
+                background: isThis
+                  ? `rgba(${isPositive?'0,80,40':'80,0,0'},0.4)`
+                  : 'rgba(15,25,60,0.85)',
+                display:'flex',flexDirection:'column',alignItems:'center',gap:10,
+                animation: isThis ? 'chestOpen 0.5s ease forwards' : 'none',
+                boxShadow: isThis && isJackpot ? '0 0 40px #ffd700aa' : 'none',
+                transition:'border-color 0.3s, background 0.3s',
+              }}>
+              {/* Emoji */}
+              <div style={{
+                fontSize:52,lineHeight:1,
+                animation: isThis ? 'chestShake 0.4s ease' : 'none',
+                filter: isThis ? `drop-shadow(0 0 12px ${col})` : 'none',
+              }}>
+                {isThis ? (isJackpot ? '🏆' : isBomb ? '💣' : isPositive ? '💰' : '🪦') : '📦'}
+              </div>
+
+              {/* Label — ukáže se až po otevření */}
+              {isThis && revealed && (
+                <div style={{
+                  fontSize:22,fontWeight:900,color:col,
+                  fontFamily:"'Orbitron',sans-serif",letterSpacing:1,
+                  animation:'prizePop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards',
+                }}>
+                  {prizeLabel(pts)}
+                </div>
+              )}
+              {isThis && !revealed && (
+                <div style={{fontSize:20,color:col}}>...</div>
+              )}
+              {/* Ostatní truhličky po výběru — odkryj obsah */}
+              {opened !== null && !isThis && (
+                <div style={{fontSize:15,color:'#334466',fontWeight:700}}>
+                  {prizeLabel(pts)}
+                </div>
+              )}
+
+              {/* Číslo truhličky */}
+              {opened === null && (
+                <div style={{fontSize:11,color:'#445566',letterSpacing:2}}>
+                  #{i+1}
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Reakce po výběru */}
+      {opened !== null && revealed && (
+        <div className="slide-in" style={{
+          textAlign:'center',padding:'14px 20px',maxWidth:380,
+          background:'rgba(20,30,70,0.6)',border:'1px solid #2a3a6a',borderRadius:12,
+        }}>
+          <div style={{fontSize:14,color:prizeColor(prizes[opened]),fontWeight:600,lineHeight:1.5}}>
+            {getLuckyReaction(prizes[opened])}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── QUIZ ─────────────────────────────────────────────
-function QuizScreen({ quiz: initQuiz, onFinish, onWrong }) {
+function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
   const [quiz, setQuiz] = useState({...initQuiz});
   const [selected, setSelected] = useState(null);
   const [locked, setLocked] = useState(false);
   const [flash, setFlash] = useState(null);
+  const [paused, setPaused] = useState(false);
+  const [comboCount, setComboCount] = useState(0);
   const timer = useRef(null);
+  const pausedRef = useRef(false);
+  const pendingRef = useRef(null);
+  // Používáme refy pro věci, kde nechceme stale closure:
+  const timeLeftRef = useRef(initQuiz.timeLeft);   // aktuální timeLeft (sync s timerem)
+  const questionStartTimeRef = useRef(initQuiz.timeLeft); // timeLeft když otázka začala
+  const comboCountRef = useRef(0);                 // kombo čítač (sync se state)
 
   const q = quiz.questions[quiz.current];
 
+  // Globální resume callback pro App overlay
+  useEffect(() => {
+    window._quizResumeCallback = () => {
+      if (!pausedRef.current) return;
+      pausedRef.current = false;
+      setPaused(false);
+      if (pendingRef.current) {
+        const { idx, qSnap, answers, totalScore, current, questionsLen, allQuestions } = pendingRef.current;
+        pendingRef.current = null;
+        const newAns = [...answers, {q: qSnap.id, chosen: idx, correct: false, pts: 0, comboBonus: 0}];
+        const next = current + 1;
+        if (next >= questionsLen) {
+          clearInterval(timer.current);
+          onFinish({ questions: allQuestions, answers: newAns, totalScore, current: next, timeLeft: 0 });
+        } else {
+          setFlash(null);
+          // Reset komba a start time pro novou otázku
+          comboCountRef.current = 0;
+          setComboCount(0);
+          questionStartTimeRef.current = timeLeftRef.current;
+          setQuiz(p => ({...p, answers: newAns, current: next}));
+          setSelected(null);
+          setLocked(false);
+        }
+      }
+    };
+    return () => { window._quizResumeCallback = null; };
+  }, []); // prázdné deps — používáme jen refy
+
+  // Hlavní timer — tick každou sekundu
   useEffect(() => {
     timer.current = setInterval(() => {
+      if (pausedRef.current) return;
       setQuiz(prev => {
-        if (prev.timeLeft <= 1) { clearInterval(timer.current); onFinish({...prev,timeLeft:0}); return {...prev,timeLeft:0}; }
-        return {...prev,timeLeft:prev.timeLeft-1};
+        const newTime = prev.timeLeft - 1;
+        timeLeftRef.current = newTime; // sync ref
+        if (newTime <= 0) {
+          clearInterval(timer.current);
+          onFinish({...prev, timeLeft: 0});
+          return {...prev, timeLeft: 0};
+        }
+        return {...prev, timeLeft: newTime};
       });
     }, 1000);
     return () => clearInterval(timer.current);
@@ -844,88 +2202,252 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong }) {
 
   function answer(idx) {
     if (locked) return;
-    setLocked(true); setSelected(idx);
+    setLocked(true);
+    setSelected(idx);
     const ok = idx === q.a;
-    const pts = ok ? calcPoints(quiz.timeLeft) : 0;
     setFlash(ok ? 'ok' : 'no');
-    if (!ok) onWrong();
-    setTimeout(() => {
-      setFlash(null);
-      const newAns = [...quiz.answers, {q:q.id,chosen:idx,correct:ok,pts}];
-      const newScore = quiz.totalScore + pts;
-      const next = quiz.current + 1;
-      if (next >= quiz.questions.length) { clearInterval(timer.current); onFinish({...quiz,answers:newAns,totalScore:newScore,current:next}); }
-      else { setQuiz(p=>({...p,answers:newAns,totalScore:newScore,current:next})); setSelected(null); setLocked(false); }
-    }, 1100);
+
+    // Kombo: čas strávený na otázce = čas při začátku - čas při odpovědi
+    const timeSpent = questionStartTimeRef.current - timeLeftRef.current;
+    const isQuick = ok && timeSpent <= COMBO_TIME_LIMIT;
+
+    if (!ok) {
+      // Špatná odpověď — reset komba, zastavit timer, zobrazit overlay
+      comboCountRef.current = 0;
+      setComboCount(0);
+      pausedRef.current = true;
+      setPaused(true);
+      pendingRef.current = {
+        idx, qSnap: q,
+        answers: quiz.answers, totalScore: quiz.totalScore,
+        current: quiz.current, questionsLen: quiz.questions.length, allQuestions: quiz.questions,
+      };
+      onWrong(q);
+    } else {
+      // Správná odpověď
+      const newCombo = isQuick ? comboCountRef.current + 1 : 1;
+      comboCountRef.current = newCombo;
+      setComboCount(newCombo);
+
+      let bonus = 0;
+      if (newCombo === 3) bonus = COMBO3_BONUS;
+      else if (newCombo === 4) bonus = COMBO4_BONUS;
+      else if (newCombo >= 5) bonus = COMBO5_BONUS;
+
+      if (bonus > 0) onCombo(Math.min(newCombo, 5), bonus);
+
+      const pts = calcPoints(timeLeftRef.current) + bonus;
+
+      setTimeout(() => {
+        setFlash(null);
+        const newAns = [...quiz.answers, {q: q.id, chosen: idx, correct: true, pts, comboBonus: bonus}];
+        const newScore = quiz.totalScore + pts;
+        const next = quiz.current + 1;
+        if (next >= quiz.questions.length) {
+          clearInterval(timer.current);
+          onFinish({...quiz, answers: newAns, totalScore: newScore, current: next});
+        } else {
+          // Reset start time pro novou otázku
+          questionStartTimeRef.current = timeLeftRef.current;
+          setQuiz(p => ({...p, answers: newAns, totalScore: newScore, current: next}));
+          setSelected(null);
+          setLocked(false);
+        }
+      }, 600);
+    }
   }
 
+  const isLucky = q && q.type === 'lucky';
+
+  // Speciální handler pro Lucky Box
+  function answerLucky(pts) {
+    if (locked) return;
+    setLocked(true);
+    setFlash(pts > 0 ? 'ok' : pts < 0 ? 'no' : null);
+    // Lucky box resetuje kombo
+    comboCountRef.current = 0;
+    setComboCount(0);
+    setTimeout(() => {
+      setFlash(null);
+      const newAns = [...quiz.answers, {q: 'lucky', chosen: pts, correct: pts > 0, pts: Math.max(pts, 0), luckyPts: pts, comboBonus: 0}];
+      const newScore = quiz.totalScore + pts;
+      const next = quiz.current + 1;
+      clearInterval(timer.current);
+      onFinish({...quiz, answers: newAns, totalScore: Math.max(newScore, 0), current: next});
+    }, 2200);
+  }
+
+  const totalDuration = initQuiz.totalDuration || QUIZ_DURATION;
   const tc = quiz.timeLeft > 30 ? '#4488ff' : quiz.timeLeft > 10 ? '#ffaa22' : '#ff3333';
   const labels = ['A','B','C','D'];
+  const COMBO_CFG = {3:{c:'#ff9900',e:'🔥×3'},4:{c:'#aa44ff',e:'⚡×4'},5:{c:'#ff2255',e:'💥×5+'}};
+  const comboCfg = comboCount >= 3 ? (COMBO_CFG[Math.min(comboCount,5)] || COMBO_CFG[5]) : null;
 
   return (
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',padding:20,maxWidth:660,margin:'0 auto'}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',paddingTop:20,marginBottom:16}}>
-        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:11,letterSpacing:2,color:'#556688'}}>OTÁZKA {quiz.current+1}/{quiz.questions.length}</div>
-        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:30,fontWeight:900,color:tc,letterSpacing:2,textShadow:`0 0 15px ${tc}`}}>{quiz.timeLeft}s</div>
-        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:13,color:'#88aaff',letterSpacing:1}}>{quiz.totalScore.toLocaleString()} b</div>
+        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:11,letterSpacing:2,color: isLucky?'#ffd700':'#556688'}}>
+          {isLucky ? '🎲 LUCKY BOX' : `OTÁZKA ${quiz.current+1}/${quiz.questions.length}`}
+        </div>
+        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:30,fontWeight:900,color:paused?'#556688':tc,letterSpacing:2,textShadow:paused?'none':`0 0 15px ${tc}`,transition:'color 0.3s'}}>
+          {paused ? <span style={{fontSize:20}}>⏸ {quiz.timeLeft}s</span> : `${quiz.timeLeft}s`}
+        </div>
+        <div style={{textAlign:'right'}}>
+          <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:13,color:'#88aaff',letterSpacing:1}}>{quiz.totalScore.toLocaleString()} b</div>
+          {comboCfg && (
+            <div style={{fontSize:12,fontWeight:700,color:comboCfg.c,animation:'counterBump 0.3s ease',letterSpacing:1}}>
+              {comboCfg.e}
+            </div>
+          )}
+          {!comboCfg && comboCount >= 2 && (
+            <div style={{fontSize:11,color:'#445566'}}>🔥×{comboCount}</div>
+          )}
+        </div>
       </div>
       <div style={{background:'#1a2040',borderRadius:4,height:4,marginBottom:6,overflow:'hidden'}}>
         <div style={{height:'100%',width:`${(quiz.current/quiz.questions.length)*100}%`,background:'linear-gradient(90deg,#2255cc,#4488ff)',transition:'width 0.3s'}}/>
       </div>
       <div style={{background:'#1a2040',borderRadius:4,height:4,marginBottom:22,overflow:'hidden'}}>
-        <div style={{height:'100%',width:`${(quiz.timeLeft/QUIZ_DURATION)*100}%`,background:tc,transition:'width 1s linear',boxShadow:`0 0 6px ${tc}`}}/>
+        <div style={{height:'100%',width:`${(quiz.timeLeft/totalDuration)*100}%`,background:paused?'#556688':tc,transition:paused?'none':'width 1s linear',boxShadow:paused?'none':`0 0 6px ${tc}`}}/>
       </div>
-      <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:10,letterSpacing:3,color:'#4488ff',marginBottom:10,textAlign:'center'}}>{q.cat}</div>
-      <div className="slide-in" style={{background:flash==='ok'?'rgba(0,70,0,0.35)':flash==='no'?'rgba(70,0,0,0.35)':'rgba(15,28,70,0.65)',border:`1px solid ${flash==='ok'?'#22aa22':flash==='no'?'#aa2222':'#2a3a6a'}`,borderRadius:16,padding:'28px 22px',marginBottom:18,transition:'all 0.3s'}}>
-        {q.img && <div style={{textAlign:'center',fontSize:44,marginBottom:14}}>{q.img}</div>}
+      <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:10,letterSpacing:3,color: isLucky?'#ffd700':'#4488ff',marginBottom:10,textAlign:'center'}}>{q.cat}</div>
+      <div className="slide-in" style={{background: isLucky ? 'linear-gradient(135deg,rgba(255,215,0,0.1),rgba(255,140,0,0.06))' : flash==='ok'?'rgba(0,70,0,0.35)':flash==='no'?'rgba(70,0,0,0.35)':'rgba(15,28,70,0.65)',border:`1px solid ${isLucky?'#ffd70066':flash==='ok'?'#22aa22':flash==='no'?'#aa2222':'#2a3a6a'}`,borderRadius:16,padding:'22px 22px 18px',marginBottom:18,transition:'all 0.3s'}}>
+        {isLucky && <div style={{textAlign:'center',fontSize:36,marginBottom:10}}>🎲</div>}
+        {q.img && !isLucky && <div style={{textAlign:'center',fontSize:44,marginBottom:14}}>{q.img}</div>}
         {q.hint && <div style={{fontSize:11,color:'#556688',marginBottom:10,textAlign:'center'}}>{q.hint}</div>}
-        <div style={{fontSize:'clamp(16px,2.4vw,20px)',fontWeight:500,lineHeight:1.55,textAlign:'center',color:'#ddeeff'}}>{q.q}</div>
+        <div style={{fontSize:'clamp(15px,2.4vw,19px)',fontWeight: isLucky?700:500,lineHeight:1.55,textAlign:'center',color: isLucky?'#ffd700':'#ddeeff'}}>{q.q}</div>
+        {isLucky && <div style={{textAlign:'center',fontSize:11,color:'#cc9900',marginTop:8,letterSpacing:0.5}}>Ceny: od -500 až +1000 bodů</div>}
       </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:9,flex:1}}>
-        {q.opts.map((opt,i)=>{
-          let bg='rgba(12,20,52,0.85)',br='#2a3a6a',col='#bbc8ee';
-          if(selected!==null){ if(i===q.a){bg='rgba(0,70,0,0.55)';br='#22aa22';col='#88ff88';} else if(i===selected&&selected!==q.a){bg='rgba(70,0,0,0.55)';br='#aa2222';col='#ff8888';} }
-          return (
-            <button key={i} onClick={()=>answer(i)} disabled={locked} style={{background:bg,border:`1px solid ${br}`,borderRadius:10,padding:'13px 11px',cursor:locked?'default':'pointer',color:col,fontFamily:'inherit',textAlign:'left',transition:'all 0.2s',fontSize:'clamp(12px,1.7vw,14px)',fontWeight:500,letterSpacing:0.3,lineHeight:1.45,display:'flex',alignItems:'center',gap:9}}
-              onMouseEnter={e=>{if(!locked)e.currentTarget.style.borderColor='#4488ff';}}
-              onMouseLeave={e=>{if(!locked)e.currentTarget.style.borderColor=br;}}>
-              <span style={{minWidth:22,height:22,background:'rgba(68,136,255,0.18)',borderRadius:5,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'#4488ff',flexShrink:0}}>{labels[i]}</span>
-              {opt}
-            </button>
-          );
-        })}
-      </div>
+
+      {/* Lucky Box nebo klasické odpovědi */}
+      {isLucky
+        ? <LuckyBoxSlot prizes={q.prizes} onPick={answerLucky} locked={locked}/>
+        : <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:9,flex:1}}>
+            {q.opts.map((opt,i)=>{
+              let bg='rgba(12,20,52,0.85)',br='#2a3a6a',col='#bbc8ee';
+              if(selected!==null){ if(i===q.a){bg='rgba(0,70,0,0.55)';br='#22aa22';col='#88ff88';} else if(i===selected&&selected!==q.a){bg='rgba(70,0,0,0.55)';br='#aa2222';col='#ff8888';} }
+              return (
+                <button key={i} onClick={()=>answer(i)} disabled={locked} style={{background:bg,border:`1px solid ${br}`,borderRadius:10,padding:'13px 11px',cursor:locked?'default':'pointer',color:col,fontFamily:'inherit',textAlign:'left',transition:'all 0.2s',fontSize:'clamp(12px,1.7vw,14px)',fontWeight:500,letterSpacing:0.3,lineHeight:1.45,display:'flex',alignItems:'center',gap:9}}
+                  onMouseEnter={e=>{if(!locked)e.currentTarget.style.borderColor='#4488ff';}}
+                  onMouseLeave={e=>{if(!locked)e.currentTarget.style.borderColor=br;}}>
+                  <span style={{minWidth:22,height:22,background:'rgba(68,136,255,0.18)',borderRadius:5,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'#4488ff',flexShrink:0}}>{labels[i]}</span>
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
+      }
     </div>
   );
 }
 
 // ─── RESULT ───────────────────────────────────────────
-function ResultScreen({ quiz, onHome, onBoard }) {
+function ResultScreen({ quiz, timeSaved, onHome, onBoard }) {
   const correct = quiz.answers.filter(a=>a.correct).length;
   const pct = Math.round((correct/quiz.questions.length)*100);
-  const g = pct>=90?{e:'🏆',l:'LEGENDA',c:'#ffdd00'}:pct>=70?{e:'🥇',l:'EXPERT',c:'#4488ff'}:pct>=50?{e:'🥈',l:'POKROČILÝ',c:'#88aaff'}:pct>=30?{e:'🥉',l:'ZAČÁTEČNÍK',c:'#ff8844'}:{e:'💀',l:'IT GHOST',c:'#ff4444'};
+  const isPerfect = quiz.allCorrect || correct === quiz.questions.length;
+  const perfectBonus = quiz.perfectBonus || 0;
+  // Perfect přebije normální grading — zlatá legenda
+  const g = isPerfect
+    ? {e:'💎',l:'PERFEKTNÍ JÍZDA',c:'#ffd700'}
+    : pct>=90?{e:'🏆',l:'LEGENDA',c:'#ffdd00'}
+    : pct>=70?{e:'🥇',l:'EXPERT',c:'#4488ff'}
+    : pct>=50?{e:'🥈',l:'POKROČILÝ',c:'#88aaff'}
+    : pct>=30?{e:'🥉',l:'ZAČÁTEČNÍK',c:'#ff8844'}
+    : {e:'💀',l:'IT GHOST',c:'#ff4444'};
+  const totalComboBonus = quiz.answers.reduce((s,a)=>s+(a.comboBonus||0),0);
+  const bonusNextDay = timeSaved > 0 ? Math.min(Math.round(timeSaved * TIME_BONUS_RATIO), MAX_TIME_BONUS) : 0;
+
+  // Hvězdičky pro perfect animaci
+  const STARS = ['⭐','🌟','✨','💫','⭐','🌟','✨','💫','⭐','🌟','✨','💫'];
+
   return (
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-      <div className="slide-in" style={{width:'100%',maxWidth:480,textAlign:'center'}}>
-        <div style={{fontSize:72,marginBottom:10}}>{g.e}</div>
-        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:13,letterSpacing:4,color:g.c,marginBottom:6}}>{g.l}</div>
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',padding:20,position:'relative',overflow:'hidden'}}>
+
+      {/* Perfect rain animace */}
+      {isPerfect && STARS.map((s,i) => (
+        <div key={i} style={{
+          position:'fixed',
+          top:'-30px',
+          left:`${5 + i * 8}%`,
+          fontSize: 16 + (i%3)*8,
+          animation:`perfectRain ${2.5 + (i%4)*0.4}s linear ${i*0.15}s infinite`,
+          pointerEvents:'none',
+          zIndex:0,
+          opacity:0.7,
+        }}>{s}</div>
+      ))}
+
+      <div className="slide-in" style={{width:'100%',maxWidth:480,textAlign:'center',position:'relative',zIndex:1}}>
+
+        {/* Perfect banner nad výsledky */}
+        {isPerfect && (
+          <div style={{
+            background:'linear-gradient(135deg,rgba(255,215,0,0.15),rgba(255,170,0,0.1))',
+            border:'2px solid #ffd700',borderRadius:16,padding:'18px 24px',marginBottom:20,
+            animation:'perfectPulse 2s ease infinite',
+          }}>
+            <div style={{fontSize:11,letterSpacing:4,color:'#ffd700',fontFamily:"'Orbitron',sans-serif",marginBottom:6}}>
+              ✦ ACHIEVEMENT ODEMČEN ✦
+            </div>
+            <div style={{fontSize:22,fontWeight:900,color:'#ffd700',fontFamily:"'Orbitron',sans-serif",letterSpacing:2,marginBottom:4}}>
+              PERFECT RUN 💎
+            </div>
+            <div style={{fontSize:13,color:'#cc9900'}}>
+              Všech {quiz.questions.length} otázek správně! Bonus <strong style={{color:'#ffd700'}}>+{PERFECT_BONUS.toLocaleString()} bodů</strong>
+            </div>
+          </div>
+        )}
+
+        <div style={{fontSize:isPerfect?80:72,marginBottom:10,animation:isPerfect?'perfectStarSpin 3s linear infinite':undefined}}>{g.e}</div>
+        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:isPerfect?16:13,letterSpacing:4,color:g.c,marginBottom:6}}>{g.l}</div>
         <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:52,fontWeight:900,color:'#fff',marginBottom:2}}>{quiz.totalScore.toLocaleString()}</div>
-        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:11,color:'#4a5a7a',letterSpacing:2,marginBottom:28}}>BODŮ</div>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:24}}>
-          {[{l:'Správně',v:`${correct}/${quiz.questions.length}`,c:'#22aa22'},{l:'Přesnost',v:`${pct}%`,c:g.c},{l:'Body',v:quiz.totalScore.toLocaleString(),c:'#4488ff'}].map(s=>(
-            <div key={s.l} style={{background:'rgba(20,35,80,0.6)',border:'1px solid #2a3a6a',borderRadius:10,padding:'14px 6px'}}>
+        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:11,color:'#4a5a7a',letterSpacing:2,marginBottom:(totalComboBonus>0||perfectBonus>0)?6:16}}>BODŮ</div>
+
+        {/* Bonus breakdown */}
+        {(totalComboBonus > 0 || perfectBonus > 0) && (
+          <div style={{fontSize:12,color:'#8899bb',marginBottom:16,lineHeight:1.7}}>
+            {perfectBonus > 0 && <div>💎 Perfect bonus: <strong style={{color:'#ffd700'}}>+{perfectBonus.toLocaleString()}</strong></div>}
+            {totalComboBonus > 0 && <div>🔥 Kombo bonus: <strong style={{color:'#ff9900'}}>+{totalComboBonus.toLocaleString()}</strong></div>}
+          </div>
+        )}
+
+        {/* Ušetřený čas */}
+        {timeSaved > 0 && (
+          <div style={{
+            background:'linear-gradient(135deg,rgba(0,80,50,0.5),rgba(0,60,40,0.3))',
+            border:'1px solid #22cc88',borderRadius:12,padding:'14px 18px',marginBottom:16,
+            display:'flex',alignItems:'center',gap:14
+          }}>
+            <div style={{fontSize:32,flexShrink:0}}>⏰</div>
+            <div style={{textAlign:'left',flex:1}}>
+              <div style={{fontSize:13,fontWeight:700,color:'#44ffaa',marginBottom:3}}>
+                Dokončil jsi kvíz s {timeSaved}s předstihem!
+              </div>
+              <div style={{fontSize:11,color:'#338866',lineHeight:1.5}}>
+                Zítra dostaneš <strong style={{color:'#44ffaa'}}>+{bonusNextDay}s bonusový čas</strong> (celkem {QUIZ_DURATION+bonusNextDay}s).
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:16}}>
+          {[{l:'Správně',v:`${correct}/${quiz.questions.length}`,c: isPerfect?'#ffd700':'#22aa22'},{l:'Přesnost',v:`${pct}%`,c:g.c},{l:'Body',v:quiz.totalScore.toLocaleString(),c:'#4488ff'}].map(s=>(
+            <div key={s.l} style={{background: isPerfect&&s.l==='Správně'?'rgba(255,215,0,0.1)':'rgba(20,35,80,0.6)',border:`1px solid ${isPerfect&&s.l==='Správně'?'#ffd700':'#2a3a6a'}`,borderRadius:10,padding:'14px 6px'}}>
               <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:18,fontWeight:900,color:s.c}}>{s.v}</div>
               <div style={{fontSize:10,color:'#556688',letterSpacing:1,marginTop:3}}>{s.l}</div>
             </div>
           ))}
         </div>
-        <div style={{background:'rgba(8,12,35,0.85)',border:'1px solid #1a2a5a',borderRadius:12,padding:14,marginBottom:22,maxHeight:190,overflowY:'auto',textAlign:'left'}}>
+        <div style={{background:'rgba(8,12,35,0.85)',border:'1px solid #1a2a5a',borderRadius:12,padding:14,marginBottom:20,maxHeight:200,overflowY:'auto',textAlign:'left'}}>
           {quiz.answers.map((a,i)=>{
             const q2=quiz.questions[i];
             return <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:'1px solid #121830',fontSize:11}}>
               <span>{a.correct?'✅':'❌'}</span>
-              <span style={{color:'#7788aa',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{q2.q.slice(0,48)}{q2.q.length>48?'…':''}</span>
-              <span style={{color:a.correct?'#44ff44':'#ff4444',fontWeight:700,minWidth:45,textAlign:'right'}}>{a.correct?`+${a.pts}`:'0'}</span>
+              <span style={{color:'#7788aa',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{q2.q.slice(0,46)}{q2.q.length>46?'…':''}</span>
+              <span style={{color:a.correct?'#44ff44':'#ff4444',fontWeight:700,minWidth:60,textAlign:'right'}}>
+                {a.correct ? `+${a.pts}${a.comboBonus>0?' 🔥':''}` : '0'}
+              </span>
             </div>;
           })}
         </div>
@@ -938,58 +2460,263 @@ function ResultScreen({ quiz, onHome, onBoard }) {
   );
 }
 
-// ─── SCOREBOARD ───────────────────────────────────────
-function BoardScreen({ scores, user, todayKey, onBack }) {
+function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
   const [tab, setTab] = useState('today');
+  const [profileView, setProfileView] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [avatarCache, setAvatarCache] = useState({}); // userId → avatar_url|null
+
+  const currentMonth = getCurrentMonthKey();
   const todayList = scores.filter(s=>s.date===todayKey).sort((a,b)=>b.score-a.score);
+
+  // Celkové skóre (all-time)
   const allMap = {};
   scores.forEach(s=>{
-    if(!allMap[s.user_id]) allMap[s.user_id]={id:s.user_id,name:s.user_name,total:0,played:0,best:0};
-    allMap[s.user_id].total+=s.score; allMap[s.user_id].played+=1; allMap[s.user_id].best=Math.max(allMap[s.user_id].best,s.score);
+    if(!allMap[s.user_id]) allMap[s.user_id]={id:s.user_id,user_id:s.user_id,name:s.user_name,total:0,played:0,best:0,perfects:0};
+    allMap[s.user_id].total+=s.score; allMap[s.user_id].played+=1;
+    allMap[s.user_id].best=Math.max(allMap[s.user_id].best,s.score);
+    if(s.perfect) allMap[s.user_id].perfects+=1;
   });
   const allList = Object.values(allMap).sort((a,b)=>b.total-a.total);
-  const list = tab==='today' ? todayList : allList;
+
+  // Měsíční skóre (aktuální měsíc)
+  const monthMap = {};
+  scores.filter(s=>s.date.startsWith(currentMonth)).forEach(s=>{
+    if(!monthMap[s.user_id]) monthMap[s.user_id]={id:s.user_id,user_id:s.user_id,name:s.user_name,total:0,played:0,best:0,perfects:0};
+    monthMap[s.user_id].total+=s.score; monthMap[s.user_id].played+=1;
+    monthMap[s.user_id].best=Math.max(monthMap[s.user_id].best,s.score);
+    if(s.perfect) monthMap[s.user_id].perfects+=1;
+  });
+  const monthList = Object.values(monthMap).sort((a,b)=>b.total-a.total);
+
+  const list = tab==='today' ? todayList : tab==='month' ? monthList : tab==='all' ? allList : [];
   const rc = ['#ffdd00','#cccccc','#cd7f32'];
+
+  // Prefetch avatarů pro viditelné hráče (dávkově)
+  useEffect(() => {
+    const visible = (tab==='today' ? todayList : tab==='month' ? monthList : allList);
+    const missing = visible.map(e=>e.user_id||e.id).filter(id => id && !(id in avatarCache));
+    if (missing.length === 0) return;
+    // Označ jako "načítá se" aby se netriggeroval znovu
+    setAvatarCache(prev => {
+      const next = {...prev};
+      missing.forEach(id => { next[id] = null; }); // null = načítá se / nenalezeno
+      return next;
+    });
+    // Batch fetch
+    db.from('users').select('id,avatar_url').in('id', missing)
+      .then(({data}) => {
+        if (!data) return;
+        setAvatarCache(prev => {
+          const next = {...prev};
+          data.forEach(u => { next[u.id] = u.avatar_url||null; });
+          return next;
+        });
+      }).catch(()=>{});
+  }, [tab, scores]);
+
+  async function openProfile(userId) {
+    setProfileLoading(true);
+    try {
+      const { data } = await db.from('users').select('*').eq('id', userId).single();
+      if (data) {
+        setAvatarCache(prev => ({...prev, [userId]: data.avatar_url||null}));
+        setProfileView(data);
+      } else { setProfileView({name:'?'}); }
+    } catch(e) { setProfileView({name:'?'}); }
+    setProfileLoading(false);
+  }
+
+  const OS_LABELS = {linux:'🐧 Linux', windows:'🪟 Windows', macos:' macOS', bsd:'👹 BSD', arch:'💀 Arch (btw)'};
+  const DEBUG_LABELS = {printstatements:'Print statements',debugger:'Debugger – profesionál',stackoverflow:'Stack Overflow + modlitba',rubber:'Gumová kachnička',restart:'Restart a doufám',ai:'Ptám se AI a nedůvěřuji',blame:'Blame git'};
+  const COFFEE_LABELS = {'0':'0 – robot','1':'1☕','2':'2☕','3':'3☕','5':'5+☕ závislák',iv:'IV infuze rovnou do žíly'};
+
   return (
-    <div style={{minHeight:'100vh',padding:20,maxWidth:640,margin:'0 auto'}}>
+    <div style={{minHeight:'100vh',padding:20,maxWidth:660,margin:'0 auto'}}>
+
+      {/* PROFILE MODAL */}
+      {profileView && (
+        <div onClick={()=>setProfileView(null)} style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.88)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:20,cursor:'pointer'}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:'#0d1428',border:'1px solid #2a3a6a',borderRadius:16,padding:28,maxWidth:420,width:'100%',cursor:'default'}}>
+            <div style={{textAlign:'center',marginBottom:20}}>
+              {/* Avatar v modalu */}
+              <div style={{width:80,height:80,borderRadius:'50%',border:'2px solid #2a3a6a',overflow:'hidden',background:'#0a0a1f',margin:'0 auto 10px'}}>
+                {profileView.avatar_url
+                  ? <img src={avatarSrc(profileView.avatar_url)} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                  : <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:32,color:'#2a3a6a'}}>👤</div>
+                }
+              </div>
+              <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:20,fontWeight:900,color:'#fff'}}>{profileView.name}</div>
+            </div>
+            {[
+              profileView.company && ['🏢 Firma', profileView.company],
+              profileView.position && ['💼 Pozice', profileView.position],
+              profileView.fav_hw && ['💻 Oblíbený HW', profileView.fav_hw],
+              profileView.os_religion && ['OS', OS_LABELS[profileView.os_religion]||profileView.os_religion],
+              profileView.coffee_cups && ['☕ Káva', COFFEE_LABELS[profileView.coffee_cups]||profileView.coffee_cups+'☕'],
+              profileView.debug_style && ['🐛 Debug styl', DEBUG_LABELS[profileView.debug_style]||profileView.debug_style],
+              profileView.superpower && ['🦸 Superschopnost', profileView.superpower],
+            ].filter(Boolean).map(([label,val])=>(
+              <div key={label} style={{display:'flex',gap:12,padding:'8px 0',borderBottom:'1px solid #1a2040',alignItems:'flex-start'}}>
+                <div style={{fontSize:12,color:'#445566',minWidth:115,flexShrink:0}}>{label}</div>
+                <div style={{fontSize:13,color:'#c0ccee',flex:1}}>{val}</div>
+              </div>
+            ))}
+            {!profileView.company && !profileView.position && !profileView.fav_hw && (
+              <div style={{textAlign:'center',color:'#334455',fontSize:13,padding:'16px 0'}}>Záhadná osobnost. Profil nevyplněn.</div>
+            )}
+            <button onClick={()=>setProfileView(null)} style={{marginTop:18,width:'100%',background:'transparent',border:'1px solid #2a3a6a',color:'#88aaff',padding:'10px',borderRadius:8,cursor:'pointer',fontFamily:'inherit',fontSize:12,letterSpacing:2}}>ZAVŘÍT</button>
+          </div>
+        </div>
+      )}
+
       <div className="slide-in">
-        <div style={{textAlign:'center',paddingTop:28,marginBottom:28}}>
+        <div style={{textAlign:'center',paddingTop:28,marginBottom:20}}>
           <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:10,letterSpacing:4,color:'#4488ff',marginBottom:6}}>HALL OF FAME</div>
           <h2 className="glow" style={{fontFamily:"'Orbitron', sans-serif",fontSize:32,fontWeight:900,color:'#fff'}}>ŽEBŘÍČEK</h2>
         </div>
-        <div style={{display:'flex',gap:8,marginBottom:22,justifyContent:'center'}}>
-          {[{k:'today',l:'Dnes'},{k:'all',l:'Celkově'}].map(t=>(
+
+        {/* Tabs */}
+        <div style={{display:'flex',gap:6,marginBottom:20,justifyContent:'center',flexWrap:'wrap'}}>
+          {[{k:'today',l:'Dnes'},{k:'month',l:`${monthLabel(currentMonth)}`},{k:'all',l:'Celkově'},{k:'champions',l:'🏅 Šampioni'}].map(t=>(
             <button key={t.k} className={`tab-btn${tab===t.k?' active':''}`} onClick={()=>setTab(t.k)}>{t.l}</button>
           ))}
         </div>
-        {list.length===0 ? (
-          <div style={{textAlign:'center',color:'#334455',padding:50,fontSize:13}}>{tab==='today'?'Dnes ještě nikdo nehrál':'Žádná data'}</div>
-        ) : (
-          <div style={{display:'flex',flexDirection:'column',gap:7}}>
-            {list.map((e,i)=>{
-              const me = e.user_id===user?.id || e.id===user?.id;
-              const sc = tab==='today' ? e.score : e.total;
-              return (
-                <div key={e.user_id||e.id} style={{background:me?'rgba(68,136,255,0.13)':'rgba(12,20,52,0.75)',border:`1px solid ${me?'#4488ff':'#2a3a6a'}`,borderRadius:10,padding:'13px 18px',display:'flex',alignItems:'center',gap:14}}>
-                  <div style={{width:34,height:34,borderRadius:7,display:'flex',alignItems:'center',justifyContent:'center',background:i<3?'rgba(255,220,0,0.1)':'rgba(25,38,80,0.6)',fontSize:i<3?16:13,fontWeight:900,color:rc[i]||'#334466',flexShrink:0}}>
-                    {i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}
-                  </div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:14,fontWeight:700,color:me?'#88aaff':'#ccdaff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                      {e.user_name||e.name} {me&&'(ty)'}
+
+        {/* ŠAMPIONI TAB */}
+        {tab==='champions' && (
+          <div>
+            <div style={{textAlign:'center',marginBottom:20}}>
+              <div style={{fontSize:11,color:'#4a5a7a',letterSpacing:1}}>Vítězové měsíčního žebříčku</div>
+            </div>
+            {monthlyChampions.length === 0 ? (
+              <div style={{textAlign:'center',padding:'40px 0'}}>
+                <div style={{fontSize:40,marginBottom:12}}>🏅</div>
+                <div style={{color:'#334455',fontSize:13}}>Zatím žádní korunovaní šampioni.</div>
+                <div style={{color:'#2a3a5a',fontSize:11,marginTop:6}}>První šampion se korunuje automaticky na začátku nového měsíce.</div>
+              </div>
+            ) : (
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                {monthlyChampions.map((c,i)=>(
+                  <div key={c.id} style={{
+                    background: i===0 ? 'linear-gradient(135deg,rgba(255,215,0,0.12),rgba(255,150,0,0.08))' : 'rgba(12,20,52,0.75)',
+                    border: `1px solid ${i===0?'#ffd700':'#2a3a6a'}`,
+                    borderRadius:12, padding:'16px 20px',
+                  }}>
+                    <div style={{display:'flex',alignItems:'center',gap:14}}>
+                      <div style={{fontSize:28,flexShrink:0}}>{i===0?'👑':'🏅'}</div>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:3}}>
+                          <span style={{fontFamily:"'Orbitron',sans-serif",fontSize:13,fontWeight:900,color:i===0?'#ffd700':'#88aaff'}}>
+                            {c.user_name}
+                          </span>
+                          <span style={{fontSize:10,color:'#556688',letterSpacing:2,background:'rgba(255,215,0,0.1)',padding:'2px 8px',borderRadius:20,border:`1px solid ${i===0?'#ffd70044':'#2a3a6a'}`}}>
+                            {monthLabel(c.month)}
+                          </span>
+                        </div>
+                        <div style={{fontSize:11,color:'#445566'}}>
+                          {c.days_played} {c.days_played===1?'den':'dní'} hraní
+                        </div>
+                      </div>
+                      <div style={{textAlign:'right',flexShrink:0}}>
+                        <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:18,fontWeight:900,color:i===0?'#ffd700':'#4488ff'}}>{c.total_score.toLocaleString()}</div>
+                        <div style={{fontSize:10,color:'#334466',letterSpacing:1}}>BODŮ</div>
+                      </div>
                     </div>
-                    {tab==='all' && <div style={{fontSize:11,color:'#445566',marginTop:1}}>{e.played} {e.played===1?'kvíz':'kvízy'} • nejlepší: {e.best.toLocaleString()} b</div>}
-                    {tab==='today' && <div style={{fontSize:11,color:'#445566',marginTop:1}}>{e.correct}/{e.total} správně</div>}
                   </div>
-                  <div style={{textAlign:'right',flexShrink:0}}>
-                    <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:19,fontWeight:900,color:i===0?'#ffdd00':'#4488ff'}}>{sc.toLocaleString()}</div>
-                    <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:10,color:'#334466',letterSpacing:1}}>BODŮ</div>
-                  </div>
-                </div>
-              );
-            })}
+                ))}
+              </div>
+            )}
           </div>
         )}
+
+        {/* STANDARDNÍ TABY */}
+        {tab !== 'champions' && (
+          <>
+            {tab === 'month' && (
+              <div style={{textAlign:'center',marginBottom:14,fontSize:11,color:'#4a5a7a'}}>
+                Aktuální měsíc — nejlepší se korunuje 1. dne příštího měsíce
+              </div>
+            )}
+            {list.length===0 ? (
+              <div style={{textAlign:'center',color:'#334455',padding:50,fontSize:13}}>
+                {tab==='today'?'Dnes ještě nikdo nehrál':tab==='month'?'Tento měsíc ještě nikdo nehrál':'Žádná data'}
+              </div>
+            ) : (
+              <div style={{display:'flex',flexDirection:'column',gap:7}}>
+                {list.map((e,i)=>{
+                  const me = e.user_id===user?.id || e.id===user?.id;
+                  const sc = tab==='today' ? e.score : e.total;
+                  const uid = e.user_id || e.id;
+                  const isPerfectToday = tab==='today' && e.perfect;
+                  const perfects = e.perfects || 0;
+
+                  return (
+                    <div key={uid} style={{
+                      background: isPerfectToday
+                        ? 'linear-gradient(135deg,rgba(255,215,0,0.12),rgba(255,140,0,0.06))'
+                        : me ? 'rgba(68,136,255,0.13)' : 'rgba(12,20,52,0.75)',
+                      border: `1px solid ${isPerfectToday?'#ffd700':me?'#4488ff':'#2a3a6a'}`,
+                      borderRadius:10, padding:'13px 18px',
+                      display:'flex', alignItems:'center', gap:14,
+                      boxShadow: isPerfectToday ? '0 0 20px rgba(255,215,0,0.15)' : 'none',
+                    }}>
+                    {/* Rank + mini avatar */}
+                    <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,flexShrink:0}}>
+                      <div style={{width:32,height:32,borderRadius:'50%',overflow:'hidden',border:`1px solid ${isPerfectToday?'#ffd70066':me?'#4488ff44':'#1a2a5a'}`,background:'#0d1428',flexShrink:0}}>
+                        {avatarCache[uid]
+                          ? <img src={avatarSrc(avatarCache[uid])} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                          : <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,color:'#2a3a5a'}}>
+                              {i===0?'🥇':i===1?'🥈':i===2?'🥉':<span style={{fontSize:11,color:'#334466',fontWeight:700}}>{i+1}</span>}
+                            </div>
+                        }
+                      </div>
+                      {avatarCache[uid] && (
+                        <div style={{fontSize:10,color:rc[i]||'#334466',fontWeight:700}}>
+                          {i===0?'🥇':i===1?'🥈':i===2?'🥉':i+1}
+                        </div>
+                      )}
+                    </div>
+
+                      {/* Info */}
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                          <span style={{fontSize:14,fontWeight:700,color:isPerfectToday?'#ffd700':me?'#88aaff':'#ccdaff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                            {e.user_name||e.name} {me&&'(ty)'}
+                          </span>
+                          {/* Perfect badge dnes */}
+                          {isPerfectToday && (
+                            <span style={{fontSize:10,background:'rgba(255,215,0,0.2)',color:'#ffd700',border:'1px solid #ffd70066',borderRadius:20,padding:'1px 8px',letterSpacing:0.5,flexShrink:0}}>
+                              💎 PERFECT
+                            </span>
+                          )}
+                          {/* Perfect count v all/month */}
+                          {tab!=='today' && perfects > 0 && (
+                            <span style={{fontSize:10,background:'rgba(255,215,0,0.1)',color:'#cc9900',border:'1px solid #ffd70033',borderRadius:20,padding:'1px 7px',flexShrink:0}}>
+                              💎 ×{perfects}
+                            </span>
+                          )}
+                          <button onClick={()=>openProfile(uid)} title="Zobrazit profil"
+                            style={{background:'transparent',border:'none',cursor:'pointer',color:'#334466',fontSize:13,padding:'0 2px',lineHeight:1,flexShrink:0}}>👤</button>
+                        </div>
+                        {tab==='all' && <div style={{fontSize:11,color:'#445566',marginTop:1}}>{e.played} {e.played===1?'kvíz':'kvízy'} • nejlepší: {e.best.toLocaleString()} b</div>}
+                        {tab==='month' && <div style={{fontSize:11,color:'#445566',marginTop:1}}>{e.played} {e.played===1?'den':'dní'} • nejlepší: {e.best.toLocaleString()} b</div>}
+                        {tab==='today' && <div style={{fontSize:11,color:'#445566',marginTop:1}}>{e.correct}/{e.total} správně</div>}
+                      </div>
+
+                      {/* Score */}
+                      <div style={{textAlign:'right',flexShrink:0}}>
+                        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:19,fontWeight:900,color:isPerfectToday?'#ffd700':i===0?'#ffdd00':'#4488ff'}}>{sc.toLocaleString()}</div>
+                        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:10,color:'#334466',letterSpacing:1}}>BODŮ</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
         <div style={{textAlign:'center',marginTop:28}}>
           <button className="btn" onClick={onBack} style={{background:'transparent',border:'1px solid #2a3a6a',padding:'11px 30px',borderRadius:8,fontSize:12,color:'#88aaff',letterSpacing:2}}>← ZPĚT</button>
         </div>

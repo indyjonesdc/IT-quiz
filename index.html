@@ -2088,6 +2088,7 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusT
             <div style={{display:'flex',gap:14,justifyContent:'center',marginTop:4}}>
               <button onClick={onProfile} style={{background:'transparent',border:'none',color:'#4488ff',fontSize:11,cursor:'pointer',letterSpacing:1,textDecoration:'underline'}}>✏️ UPRAVIT PROFIL</button>
               <button onClick={onLogout} style={{background:'transparent',border:'none',color:'#334455',fontSize:11,cursor:'pointer',letterSpacing:1}}>ODHLÁSIT SE</button>
+              {installed && <button onClick={()=>window.close()} style={{background:'transparent',border:'none',color:'#2a3a4a',fontSize:11,cursor:'pointer',letterSpacing:1}}>✕ ZAVŘÍT</button>}
             </div>
           </div>
         ) : (

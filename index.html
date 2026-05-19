@@ -1554,6 +1554,14 @@ function App() {
           0%{opacity:1;transform:scale(1) translateY(0)}
           80%{opacity:0.8;transform:scale(1.08) translateY(-10px)}
           100%{opacity:0;transform:scale(0.7) translateY(-40px)}
+        }
+        @keyframes comboToast{
+          0%{transform:translateX(120px) scale(0.8);opacity:0}
+          100%{transform:translateX(0) scale(1);opacity:1}
+        }
+        @keyframes comboToastOut{
+          0%{transform:translateX(0);opacity:1}
+          100%{transform:translateX(120px);opacity:0}
         }        @keyframes edgeFlash{
           0%{opacity:0}10%{opacity:1}50%{opacity:0.5}100%{opacity:0}
         }
@@ -1593,91 +1601,29 @@ function App() {
       {/* KOMBO POPUP — efektní s edge flashem a particles */}
       {comboPopup && (() => {
         const cfg = {
-          3:{emoji:'🔥',label:'SUPER KOMBO', subLabel:'3× rychlá odpověď!', c1:'#ff9900',c2:'#ffdd44',bg:'rgba(255,140,0,0.15)',border:'#ff9900', particles:['🔥','⚡','✨','💫']},
-          4:{emoji:'⚡',label:'MEGA KOMBO',  subLabel:'4× blesková rychlost!',c1:'#bb44ff',c2:'#dd88ff',bg:'rgba(160,50,255,0.15)',border:'#bb44ff', particles:['⚡','💜','✨','⭐','🌟']},
-          5:{emoji:'💥',label:'ULTRA KOMBO', subLabel:'5× ABSOLUTNÍ DOMINANCE!',c1:'#ff2255',c2:'#ff8899',bg:'rgba(255,30,70,0.15)', border:'#ff2255', particles:['💥','🔥','⚡','💫','🌟','❤️‍🔥']},
-        }[comboPopup.level] || {emoji:'🔥',label:'KOMBO',subLabel:'Rychlá odpověď!',c1:'#ff9900',c2:'#ffdd44',bg:'rgba(255,140,0,0.15)',border:'#ff9900',particles:['🔥','✨']};
-
-        const numParticles = comboPopup.level === 5 ? 14 : comboPopup.level === 4 ? 10 : 7;
-
+          3:{emoji:'🔥',label:'SUPER KOMBO', c1:'#ff9900', border:'#ff9900'},
+          4:{emoji:'⚡',label:'MEGA KOMBO',  c1:'#bb44ff', border:'#bb44ff'},
+          5:{emoji:'💥',label:'ULTRA KOMBO', c1:'#ff2255', border:'#ff2255'},
+        }[comboPopup.level] || {emoji:'🔥',label:'KOMBO',c1:'#ff9900',border:'#ff9900'};
         return (
-          <div key={comboPopup.key} style={{position:'fixed',top:0,left:0,right:0,bottom:0,pointerEvents:'none',zIndex:150}}>
-            {/* Screen edge glow flash */}
+          <div key={comboPopup.key} style={{
+            position:'fixed', bottom:24, right:20, zIndex:150,
+            pointerEvents:'none',
+            animation:'comboToast 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards, comboToastOut 0.3s ease 0.85s forwards',
+          }}>
             <div style={{
-              position:'absolute',inset:0,
-              boxShadow:`inset 0 0 80px 30px ${cfg.border}66, inset 0 0 160px 60px ${cfg.border}22`,
-              animation:'edgeFlash 1s ease forwards',
-              borderRadius:0,
-            }}/>
-
-            {/* Particle emojis */}
-            {Array.from({length:numParticles}).map((_,i) => {
-              const dx = (Math.random()-0.5)*300;
-              const emoji = cfg.particles[i % cfg.particles.length];
-              const size = 18 + Math.random()*22;
-              const delay = Math.random()*0.4;
-              const left = 25 + Math.random()*50;
-              return (
-                <div key={i} style={{
-                  position:'absolute',
-                  bottom:'42%',
-                  left:`${left}%`,
-                  fontSize:size,
-                  animation:`particleFly 0.8s ease ${delay}s both`,
-                  '--dx': `${dx}px`,
-                  filter:'drop-shadow(0 0 8px currentColor)',
-                }}>{emoji}</div>
-              );
-            })}
-
-            {/* Central card */}
-            <div style={{
-              position:'absolute',top:'50%',left:'50%',
-              transform:'translate(-50%,-50%)',
-              animation:`comboPop 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards, comboFade 0.45s ease 0.7s forwards`,
-              background:cfg.bg,
-              border:`2px solid ${cfg.border}`,
-              borderRadius:24,
-              padding:'26px 52px',
-              textAlign:'center',
-              boxShadow:`0 0 60px ${cfg.border}66, 0 0 120px ${cfg.border}22, inset 0 1px 0 rgba(255,255,255,0.1)`,
-              backdropFilter:'blur(12px)',
+              display:'flex',alignItems:'center',gap:10,
+              background:'rgba(10,14,35,0.92)',
+              border:`1px solid ${cfg.border}88`,
+              borderRadius:12,
+              padding:'10px 16px',
+              boxShadow:`0 0 20px ${cfg.border}44`,
+              backdropFilter:'blur(8px)',
             }}>
-              <div style={{fontSize:60,lineHeight:1,marginBottom:6,filter:`drop-shadow(0 0 16px ${cfg.c1})`}}>
-                {cfg.emoji}
-              </div>
-              <div style={{
-                fontFamily:"'Orbitron',sans-serif",
-                fontSize:'clamp(20px,4vw,28px)',
-                fontWeight:900,letterSpacing:3,
-                background:`linear-gradient(135deg,${cfg.c1},${cfg.c2})`,
-                WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent',
-                backgroundClip:'text',
-                textShadow:'none',
-                marginBottom:4,
-              }}>{cfg.label}</div>
-              <div style={{fontSize:13,color:cfg.c2,opacity:0.85,marginBottom:10,letterSpacing:0.5}}>
-                {cfg.subLabel}
-              </div>
-              <div style={{
-                fontSize:20,fontWeight:900,
-                color:cfg.c1,
-                fontFamily:"'Orbitron',sans-serif",
-                letterSpacing:2,
-                textShadow:`0 0 20px ${cfg.c1}`,
-              }}>
-                +{comboPopup.bonus.toLocaleString()} ✦
-              </div>
-              {/* Combo level dots */}
-              <div style={{display:'flex',gap:8,justifyContent:'center',marginTop:12}}>
-                {Array.from({length:comboPopup.level}).map((_,i)=>(
-                  <div key={i} style={{
-                    width:12,height:12,borderRadius:'50%',
-                    background:`linear-gradient(135deg,${cfg.c1},${cfg.c2})`,
-                    animation:`sparkle 0.5s ease ${i*0.08}s both`,
-                    boxShadow:`0 0 10px ${cfg.c1}`,
-                  }}/>
-                ))}
+              <span style={{fontSize:22,lineHeight:1}}>{cfg.emoji}</span>
+              <div>
+                <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:11,fontWeight:900,color:cfg.c1,letterSpacing:2}}>{cfg.label}</div>
+                <div style={{fontSize:12,color:cfg.c1,fontWeight:700,letterSpacing:1}}>+{comboPopup.bonus.toLocaleString()} bodů</div>
               </div>
             </div>
           </div>
@@ -2681,23 +2627,22 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
                       {/* Info */}
                       <div style={{flex:1,minWidth:0}}>
                         <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
-                          <span style={{fontSize:14,fontWeight:700,color:isPerfectToday?'#ffd700':me?'#88aaff':'#ccdaff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                            {e.user_name||e.name} {me&&'(ty)'}
-                          </span>
-                          {/* Perfect badge dnes */}
+                          <button onClick={()=>openProfile(uid)}
+                            style={{background:'transparent',border:'none',cursor:'pointer',padding:0,textAlign:'left'}}>
+                            <span style={{fontSize:14,fontWeight:700,color:isPerfectToday?'#ffd700':me?'#88aaff':'#ccdaff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',textDecoration:'underline',textDecorationColor:'#2a3a6a',textUnderlineOffset:3}}>
+                              {e.user_name||e.name} {me&&'(ty)'}
+                            </span>
+                          </button>
                           {isPerfectToday && (
                             <span style={{fontSize:10,background:'rgba(255,215,0,0.2)',color:'#ffd700',border:'1px solid #ffd70066',borderRadius:20,padding:'1px 8px',letterSpacing:0.5,flexShrink:0}}>
                               💎 PERFECT
                             </span>
                           )}
-                          {/* Perfect count v all/month */}
                           {tab!=='today' && perfects > 0 && (
                             <span style={{fontSize:10,background:'rgba(255,215,0,0.1)',color:'#cc9900',border:'1px solid #ffd70033',borderRadius:20,padding:'1px 7px',flexShrink:0}}>
                               💎 ×{perfects}
                             </span>
                           )}
-                          <button onClick={()=>openProfile(uid)} title="Zobrazit profil"
-                            style={{background:'transparent',border:'none',cursor:'pointer',color:'#334466',fontSize:13,padding:'0 2px',lineHeight:1,flexShrink:0}}>👤</button>
                         </div>
                         {tab==='all' && <div style={{fontSize:11,color:'#445566',marginTop:1}}>{e.played} {e.played===1?'kvíz':'kvízy'} • nejlepší: {e.best.toLocaleString()} b</div>}
                         {tab==='month' && <div style={{fontSize:11,color:'#445566',marginTop:1}}>{e.played} {e.played===1?'den':'dní'} • nejlepší: {e.best.toLocaleString()} b</div>}

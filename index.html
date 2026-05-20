@@ -1209,7 +1209,10 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusT
         <div style={{display:'flex',flexDirection:'column',gap:10,maxWidth:340,margin:'0 auto'}}>
           {user ? (
             hasPlayedToday
-              ? <div style={{background:'rgba(20,60,20,0.5)',border:'1px solid #334433',borderRadius:10,padding:16,color:'#66aa66',fontSize:12,letterSpacing:1}}>✓ DNES JSI UŽ HRÁL</div>
+              ? <div style={{background:'rgba(20,60,20,0.5)',border:'1px solid #334433',borderRadius:10,padding:16,textAlign:'center'}}>
+                  <div style={{color:'#66aa66',fontSize:12,letterSpacing:1,marginBottom:6}}>✓ DNES JSI UŽ HRÁL</div>
+                  <div style={{color:'#445566',fontSize:11}}>🕛 Další kvíz přijde zítra</div>
+                </div>
               : resumableQuiz
                 ? null  // pokud je rozehraný kvíz, tlačítko "spustit" se nezobrazuje — jen banner POKRAČOVAT nahoře
                 : <button className="btn" onClick={onStart} style={{background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'18px 40px',borderRadius:10,fontSize:17,color:'#fff',letterSpacing:3,boxShadow:'0 0 30px rgba(68,136,255,0.35)'}}>▶ SPUSTIT KVÍZ</button>

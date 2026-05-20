@@ -1099,19 +1099,19 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusT
             <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
               {[`15 otázek`, `Celkový limit ${totalTime}s${timeBonusToday>0?' (+'+timeBonusToday+'s)':''}`].map(t=>(
                 <span key={t} style={{
-                  fontSize:11,padding:'3px 9px',borderRadius:20,whiteSpace:'nowrap',
-                  background:'rgba(255,255,255,0.05)',
-                  color:'#8899bb',
-                  border:'1px solid #1e2a4a',
+                  fontSize:12,fontWeight:700,padding:'4px 11px',borderRadius:20,whiteSpace:'nowrap',
+                  background:isGeneral?'rgba(0,120,60,0.3)':'rgba(50,100,220,0.3)',
+                  color:isGeneral?'#44ffaa':'#88ccff',
+                  border:`1px solid ${isGeneral?'#226644':'#2a4a9a'}`,
                 }}>{t}</span>
               ))}
             </div>
           </div>
 
-          {/* Témata — výraznější */}
-          <div style={{padding:'12px 14px',borderBottom:'1px solid #1a2040'}}>
-            <div style={{fontSize:11,color:'#556688',marginBottom:7,letterSpacing:1}}>TÉMATA</div>
-            <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
+          {/* Témata — vycentrovaná */}
+          <div style={{padding:'14px',borderBottom:'1px solid #1a2040',textAlign:'center'}}>
+            <div style={{fontSize:11,color:'#556688',marginBottom:8,letterSpacing:1}}>TÉMATA</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:5,justifyContent:'center'}}>
               {cats.map(c=>(
                 <span key={c} style={{
                   fontSize:12,padding:'4px 11px',borderRadius:20,fontWeight:600,

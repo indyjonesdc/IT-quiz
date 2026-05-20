@@ -2927,14 +2927,23 @@ function ResultScreen({ quiz, timeSaved, onHome, onBoard }) {
 }
 
 // ─── ARCHIVE ROW ─────────────────────────────────────────
-function ArchiveRow({ s, pct, col }) {
+function ArchiveRow({ s }) {
   const [open, setOpen] = useState(false);
   const isPerfect = s.perfect;
   const hasLog = s.play_log && s.play_log.length > 0;
 
+  // Lucky Box se nepočítá do otázek — odfiltruj ho
+  const normalLog   = hasLog ? s.play_log.filter(e => e.qId !== 'lucky') : [];
+  const luckyLog    = hasLog ? s.play_log.filter(e => e.qId === 'lucky')  : [];
+  const totalNormal = hasLog ? normalLog.length : (s.total > 0 ? s.total - 1 : 0);
+  const correctN    = hasLog ? normalLog.filter(e => e.correct).length : s.correct;
+  const pct         = totalNormal > 0 ? Math.round((correctN / totalNormal) * 100) : 0;
+  const col         = pct >= 80 ? '#44ffaa' : pct >= 60 ? '#ffd700' : '#ff8844';
+  const luckyPts    = luckyLog.length > 0 ? (luckyLog[0].chosen || 0) : null;
+
   return (
     <div style={{marginBottom:6}}>
-      {/* Hlavička řádku — klikatelná */}
+      {/* Hlavička */}
       <div onClick={()=>setOpen(o=>!o)} style={{
         display:'flex',alignItems:'center',gap:10,
         padding:'10px 14px',cursor:'pointer',
@@ -2943,57 +2952,43 @@ function ArchiveRow({ s, pct, col }) {
         borderRadius: open ? '8px 8px 0 0' : 8,
         transition:'all 0.15s',
       }}>
-        {/* Datum */}
         <div style={{fontSize:11,color:'#445566',minWidth:72,flexShrink:0}}>{s.date}</div>
-        {/* Výsledek */}
         <div style={{flex:1,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-          <span style={{fontSize:11,fontWeight:700,color:col}}>{s.correct}/{s.total} správně ({pct}%)</span>
+          <span style={{fontSize:11,fontWeight:700,color:col}}>{correctN}/{totalNormal} správně ({pct}%)</span>
           {isPerfect && <span style={{fontSize:9,color:'#ffd700',background:'rgba(255,215,0,0.1)',border:'1px solid #ffd70044',borderRadius:10,padding:'1px 7px'}}>💎 PERFECT</span>}
+          {luckyPts !== null && <span style={{fontSize:9,color: luckyPts>0?'#ffd700':luckyPts<0?'#ff4444':'#8899bb',background:'rgba(100,50,200,0.1)',border:'1px solid #bb44ff44',borderRadius:10,padding:'1px 7px'}}>🎲 {luckyPts>0?'+':''}{luckyPts}</span>}
           {s.time_saved>0 && <span style={{fontSize:9,color:'#44ffaa',background:'rgba(0,80,50,0.2)',border:'1px solid #44ffaa33',borderRadius:10,padding:'1px 7px'}}>⏰ +{s.time_saved}s</span>}
         </div>
-        {/* Skóre */}
-        <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:13,fontWeight:900,color:'#4488ff',flexShrink:0}}>
-          {s.score.toLocaleString()}
-        </div>
-        {/* Rozbalovací šipka */}
+        <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:13,fontWeight:900,color:'#4488ff',flexShrink:0}}>{s.score.toLocaleString()}</div>
         <div style={{fontSize:10,color:'#445566',transition:'transform 0.2s',transform:open?'rotate(180deg)':'none',flexShrink:0}}>▼</div>
       </div>
 
-      {/* Detail — odpovědi */}
+      {/* Detail */}
       {open && (
-        <div style={{
-          background:'rgba(8,12,35,0.95)',
-          border:'1px solid #4488ff',borderTop:'none',
-          borderRadius:'0 0 8px 8px',
-          padding:'10px 14px',
-        }}>
+        <div style={{background:'rgba(8,12,35,0.95)',border:'1px solid #4488ff',borderTop:'none',borderRadius:'0 0 8px 8px',padding:'10px 14px'}}>
           {hasLog ? (
             <div>
-              {s.play_log.map((entry, idx) => {
+              {/* Normální otázky */}
+              {normalLog.map((entry, idx) => {
                 const q = ALL_QUESTIONS.find(q=>String(q.id)===String(entry.qId));
-                const isLucky = entry.qId === 'lucky';
+                const chosenOpt = q && entry.chosen !== undefined ? q.opts[entry.chosen] : null;
+                const correctOpt = q ? q.opts[q.a] : null;
                 return (
-                  <div key={idx} style={{
-                    display:'flex',alignItems:'flex-start',gap:8,
-                    padding:'5px 0',
-                    borderBottom:'1px solid #121830',
-                    fontSize:11,
-                  }}>
-                    {/* Ikona */}
-                    <span style={{flexShrink:0,fontSize:13}}>{isLucky?'🎲':entry.correct?'✅':'❌'}</span>
-                    {/* Otázka + kategorie */}
+                  <div key={idx} style={{display:'flex',alignItems:'flex-start',gap:8,padding:'6px 0',borderBottom:'1px solid #121830',fontSize:11}}>
+                    <span style={{flexShrink:0,fontSize:13}}>{entry.correct?'✅':'❌'}</span>
                     <div style={{flex:1,minWidth:0}}>
-                      {isLucky ? (
-                        <span style={{color:'#8866aa'}}>Lucky Box — {entry.chosen>0?'+':''}{entry.chosen} bodů</span>
-                      ) : q ? (
+                      {q ? (
                         <>
-                          <div style={{color:'#7788aa',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{q.q}</div>
-                          <div style={{fontSize:9,color:'#334466',marginTop:1}}>
-                            {q.cat}
+                          <div style={{color:'#aabbcc',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',marginBottom:2}}>{q.q}</div>
+                          <div style={{fontSize:9,color:'#334466'}}>
+                            <span style={{color:'#556688'}}>{q.cat}</span>
                             {entry.correct ? (
-                              <span style={{color:'#44aa44'}}> · správně</span>
+                              <span style={{color:'#44aa44'}}> · ✓ {correctOpt}</span>
                             ) : (
-                              <span style={{color:'#aa4444'}}> · správně: {q.opts[q.a]}</span>
+                              <>
+                                <span style={{color:'#aa3333'}}> · ✗ zvoleno: {chosenOpt || '?'}</span>
+                                <span style={{color:'#44aa44'}}> · ✓ správně: {correctOpt}</span>
+                              </>
                             )}
                           </div>
                         </>
@@ -3001,34 +2996,41 @@ function ArchiveRow({ s, pct, col }) {
                         <span style={{color:'#445566'}}>Otázka #{entry.qId}</span>
                       )}
                     </div>
-                    {/* Čas + body */}
-                    <div style={{textAlign:'right',flexShrink:0}}>
-                      {!isLucky && <div style={{fontSize:9,color:'#334466'}}>{entry.time_spent||0}s</div>}
-                      <div style={{
-                        fontWeight:700,
-                        color: entry.correct||isLucky ? (entry.pts>0||entry.chosen>0?'#44ff44':'#ff8844') : '#ff4444',
-                        fontSize:11,
-                      }}>
-                        {isLucky
-                          ? (entry.chosen>0?`+${entry.chosen}`:entry.chosen===0?'0':String(entry.chosen))
-                          : entry.correct?`+${entry.pts}`:'0'
-                        }
+                    <div style={{textAlign:'right',flexShrink:0,minWidth:40}}>
+                      <div style={{fontSize:9,color:'#334466'}}>{entry.time_spent||0}s</div>
+                      <div style={{fontWeight:700,color:entry.correct?'#44ff44':'#ff4444',fontSize:11}}>
+                        {entry.correct ? `+${entry.pts||0}` : '0'}
                       </div>
                     </div>
                   </div>
                 );
               })}
+
+              {/* Lucky Box sekce */}
+              {luckyLog.length > 0 && (
+                <div style={{marginTop:8,padding:'8px 10px',background:'rgba(100,50,200,0.08)',border:'1px solid #bb44ff33',borderRadius:6}}>
+                  {luckyLog.map((entry, idx) => {
+                    const v = entry.chosen || 0;
+                    const lcol = v >= 500 ? '#ffd700' : v > 0 ? '#44ffaa' : v === 0 ? '#8899bb' : '#ff4444';
+                    const emoji = v === 1000 ? '🏆' : v === -500 ? '💣' : v > 0 ? '💰' : v === 0 ? '📦' : '🪦';
+                    return (
+                      <div key={idx} style={{display:'flex',alignItems:'center',gap:8,fontSize:11}}>
+                        <span style={{fontSize:16}}>{emoji}</span>
+                        <span style={{color:'#8866aa',flex:1}}>Lucky Box</span>
+                        <span style={{color:lcol,fontWeight:700,fontFamily:"'Orbitron',sans-serif",fontSize:12}}>
+                          {v > 0 ? `+${v}` : String(v)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ) : (
-            <div style={{
-              display:'flex',alignItems:'center',gap:8,padding:'6px 0',
-            }}>
-              {/* Bez play_log — zobrazíme aspoň souhrnný výsledek */}
-              <span style={{color:'#445566',fontSize:11}}>
-                Tento kvíz byl odehrán před zavedením detailního záznamu odpovědí.
-                Výsledek: {s.correct}/{s.total} správně, {s.score.toLocaleString()} bodů.
-              </span>
-            </div>
+            <span style={{color:'#445566',fontSize:11}}>
+              Kvíz odehrán před zavedením detailního záznamu.
+              Výsledek: {correctN}/{totalNormal} správně, {s.score.toLocaleString()} bodů.
+            </span>
           )}
         </div>
       )}
@@ -3200,9 +3202,7 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
                     Celkem {profileScores.length} {profileScores.length===1?'kvíz':'kvízů'} · od nejnovějšího
                   </div>
                   {[...profileScores].reverse().map((s,idx)=>{
-                    const pct = s.total ? Math.round((s.correct/s.total)*100) : 0;
-                    const col = pct>=80 ? '#44ffaa' : pct>=60 ? '#ffd700' : '#ff8844';
-                    return <ArchiveRow key={s.id||idx} s={s} pct={pct} col={col}/>;
+                    return <ArchiveRow key={s.id||idx} s={s}/>;
                   })}
                 </div>
               )
@@ -3541,7 +3541,7 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
                   {lTot>=2 && (
                     <div style={{background:'rgba(12,18,50,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:16}}>
                       <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,color:'#4488ff',letterSpacing:2,marginBottom:12}}>🎲 LUCKY BOX PROFIL</div>
-                      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:8}}>
+                      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:10}}>
                         {[
                           {e:'🏆',l:'Jackpoty',v:lJack,c:C.gold},
                           {e:'💣',l:'Bomby',v:lBomb,c:C.red},
@@ -3555,9 +3555,21 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
                           </div>
                         ))}
                       </div>
-                      <div style={{fontSize:11,color:'#556688',textAlign:'center'}}>
-                        Celkem: {lPts>=0?'+':''}{lPts} b
-                        {lJack>lBomb?<span style={{color:C.gold}}> — šťastlivec</span>:lBomb>lJack?<span style={{color:C.red}}> — smolař</span>:<span> — vyrovnaný</span>}
+                      {/* Celkový zisk/ztráta — velké číslo */}
+                      <div style={{background:'rgba(8,12,35,0.6)',border:`1px solid ${lPts>=0?'#44ffaa44':'#ff444444'}`,borderRadius:8,padding:'10px',textAlign:'center'}}>
+                        <div style={{fontSize:9,color:'#445566',letterSpacing:2,marginBottom:4}}>CELKOVÝ ZISK / ZTRÁTA Z LUCKY BOXU</div>
+                        <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:22,fontWeight:900,color:lPts>0?C.green:lPts<0?C.red:C.gray}}>
+                          {lPts>0?'+':''}{lPts.toLocaleString()} b
+                        </div>
+                        <div style={{fontSize:10,color:'#445566',marginTop:3}}>
+                          {lPts>0
+                            ? `Lucky box ti přinesl ${lPts} bodů navíc`
+                            : lPts<0
+                            ? `Lucky box tě stál ${Math.abs(lPts)} bodů`
+                            : 'Lucky box — přesná nula. Karmatická rovnováha.'}
+                          {lJack>lBomb && <span style={{color:C.gold}}> · šťastlivec 🍀</span>}
+                          {lBomb>lJack && <span style={{color:C.red}}> · smolař 💣</span>}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -4141,7 +4153,7 @@ function StatsScreen({ user, scores, onBack }) {
           {lucky.total >= 2 && (
             <div style={{background:'rgba(12,18,50,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:16}}>
               <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,color:'#4488ff',letterSpacing:2,marginBottom:12}}>🎲 LUCKY BOX PROFIL</div>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:8}}>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:10}}>
                 {[
                   {e:'🏆',l:'Jackpoty',v:lucky.jackpots,c:C.gold},
                   {e:'💣',l:'Bomby',v:lucky.bombs,c:C.red},
@@ -4155,16 +4167,22 @@ function StatsScreen({ user, scores, onBack }) {
                   </div>
                 ))}
               </div>
-              {(() => {
-                const lp=Math.round(((lucky.jackpots+lucky.wins)/lucky.total)*100);
-                const netPts=lucky.totalPts;
-                const msg=lucky.bombs>lucky.jackpots
-                  ? `Štěstí tě nemá rádo. ${lucky.bombs}× bomba vs ${lucky.jackpots}× jackpot. Celkový výsledek: ${netPts>=0?'+':''}${netPts} b.`
-                  : lucky.jackpots>=3
-                  ? `${lucky.jackpots}× jackpot! Máš domluveno s generátorem náhody? Celkem: +${netPts} b.`
-                  : `${lp}% úspěšnost. Průměrný hazardér IT světa. Celkem: ${netPts>=0?'+':''}${netPts} b.`;
-                return <div style={{fontSize:11,color:'#556688',textAlign:'center'}}>{msg}</div>;
-              })()}
+              {/* Celkový zisk/ztráta — velké číslo */}
+              <div style={{background:'rgba(8,12,35,0.6)',border:`1px solid ${lucky.totalPts>=0?'#44ffaa44':'#ff444444'}`,borderRadius:8,padding:'10px',textAlign:'center'}}>
+                <div style={{fontSize:9,color:'#445566',letterSpacing:2,marginBottom:4}}>CELKOVÝ ZISK / ZTRÁTA Z LUCKY BOXU</div>
+                <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:24,fontWeight:900,color:lucky.totalPts>0?C.green:lucky.totalPts<0?C.red:C.gray}}>
+                  {lucky.totalPts>0?'+':''}{lucky.totalPts.toLocaleString()} b
+                </div>
+                <div style={{fontSize:10,color:'#556688',marginTop:4}}>
+                  {lucky.totalPts>0
+                    ? `Lucky box ti přinesl ${lucky.totalPts} bodů navíc`
+                    : lucky.totalPts<0
+                    ? `Lucky box tě stál ${Math.abs(lucky.totalPts)} bodů`
+                    : 'Lucky box — přesná nula. Karmatická rovnováha.'}
+                  {lucky.jackpots>lucky.bombs && <span style={{color:C.gold}}> · šťastlivec 🍀</span>}
+                  {lucky.bombs>lucky.jackpots && <span style={{color:C.red}}> · smolař 💣</span>}
+                </div>
+              </div>
             </div>
           )}
 

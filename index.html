@@ -1077,20 +1077,21 @@ function shuffleQuestionsAndAnswers(questions) {
 }
 
 // Uloží rozehraný kvíz do localStorage
-function saveActiveQuiz(quiz) {
+function saveActiveQuiz(quiz, mode) {
   lss('itq_active_quiz', {
     ...quiz,
-    savedAt: getTodayKey(), // den kdy byl kvíz uložen
+    savedAt: getTodayKey(),
+    quiz_mode: mode || QUIZ_MODES.IT,
   });
 }
 
-// Načte rozehraný kvíz — vrátí null pokud neexistuje nebo je ze starého dne
-function loadActiveQuiz(todayKey) {
+function loadActiveQuiz(todayKey, mode) {
   const saved = ls('itq_active_quiz', null);
   if (!saved) return null;
   if (saved.savedAt !== todayKey) { lsDel('itq_active_quiz'); return null; }
-  // Kvíz byl dokončen nebo výsledky zobrazeny
   if (saved.finished) { lsDel('itq_active_quiz'); return null; }
+  // Pokud mód neodpovídá, ignoruj
+  if (mode && (saved.quiz_mode || QUIZ_MODES.IT) !== mode) return null;
   return saved;
 }
 
@@ -1963,7 +1964,7 @@ function App() {
     loadScores();
     loadMonthlyChampions();
     // Zkontroluj rozehraný kvíz z dnešního dne
-    const saved = loadActiveQuiz(getTodayKey());
+    const saved = loadActiveQuiz(getTodayKey(), quizMode);
     if (saved) setResumableQuiz(saved);
   }, []);
 
@@ -2110,23 +2111,26 @@ function App() {
     };
 
     // Zkus najít existující záznam pro tento den + mód
-    const { data: existing } = await db.from('scores')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('date', todayKey)
-      .eq('quiz_mode', quizMode)
-      .maybeSingle();
+    try {
+      const { data: existing } = await db.from('scores')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('date', todayKey)
+        .eq('quiz_mode', quizMode)
+        .maybeSingle();
 
-    if (existing) {
-      // Aktualizuj existující
-      await db.from('scores').update(entry).eq('id', existing.id);
-    } else {
-      // Vlož nový — pokud selže kvůli constraint, zkus bez quiz_mode
-      const { error: insertErr } = await db.from('scores').insert(entry);
-      if (insertErr) {
-        const entryFallback = {...entry, quiz_mode: quizMode};
-        await db.from('scores').upsert(entryFallback, { onConflict: 'user_id,date' });
+      if (existing) {
+        await db.from('scores').update(entry).eq('id', existing.id);
+      } else {
+        const { error: insertErr } = await db.from('scores').insert(entry);
+        if (insertErr) {
+          console.error('Score insert failed:', insertErr);
+          // Fallback — zkus bez quiz_mode constraint
+          await db.from('scores').insert({...entry, id: (Date.now()+1).toString()});
+        }
       }
+    } catch(err) {
+      console.error('Score save error:', err);
     }
     // Kvíz dokončen — smaž uložený stav
     lsDel('itq_active_quiz');
@@ -2314,7 +2318,7 @@ function App() {
           timeBonusToday={timeBonusToday}
           resumableQuiz={resumableQuiz}
           quizMode={quizMode}
-          onSwitchMode={(m)=>{ setQuizMode(m); setResumableQuiz(loadActiveQuiz(getTodayKey()+'_'+m)||null); }}
+          onSwitchMode={(m)=>{ setQuizMode(m); setResumableQuiz(loadActiveQuiz(getTodayKey(), m)||null); }}
           onResume={()=>{
             setCurrentQuiz(resumableQuiz);
             setResumableQuiz(null);
@@ -2325,15 +2329,15 @@ function App() {
           onProfile={()=>setScreen(SCREENS.PROFILE)}
           onStart={()=>{
             const totalTime = QUIZ_DURATION + timeBonusToday;
-            // Zamíchej otázky i odpovědi náhodně pro tohoto hráče
             const questions = shuffleQuestionsAndAnswers(todayQuestions);
             const newQuiz = {
               questions, answers: [], current: 0,
               timeLeft: totalTime, totalDuration: totalTime,
               totalScore: 0, timeBonusUsed: timeBonusToday,
               savedAt: getTodayKey(),
+              quiz_mode: quizMode,
             };
-            saveActiveQuiz(newQuiz);
+            saveActiveQuiz(newQuiz, quizMode);
             setResumableQuiz(null);
             setCurrentQuiz(newQuiz);
             setScreen(SCREENS.QUIZ);
@@ -2976,7 +2980,7 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
           questionStartTimeRef.current = timeLeftRef.current;
           setQuiz(p => {
             const updated = {...p, answers: newAns, current: next};
-            saveActiveQuiz({...updated, timeLeft: timeLeftRef.current});
+            saveActiveQuiz({...updated, timeLeft: timeLeftRef.current}, initQuiz.quiz_mode);
             return updated;
           });
           setSelected(null);
@@ -3074,7 +3078,7 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
           questionStartTimeRef.current = timeLeftRef.current;
           setQuiz(p => {
             const updated = {...p, answers: newAns, totalScore: newScore, current: next};
-            saveActiveQuiz({...updated, timeLeft: timeLeftRef.current});
+            saveActiveQuiz({...updated, timeLeft: timeLeftRef.current}, initQuiz.quiz_mode);
             return updated;
           });
           setSelected(null);

@@ -2344,7 +2344,7 @@ function App() {
           }}
         />}
         {screen===SCREENS.RESULT && currentQuiz && <ResultScreen quiz={currentQuiz} timeSaved={currentQuiz.timeSaved||0} onHome={()=>setScreen(SCREENS.HOME)} onBoard={()=>setScreen(SCREENS.BOARD)}/>}
-        {screen===SCREENS.BOARD && <BoardScreen scores={scores} user={user} todayKey={todayKey} monthlyChampions={monthlyChampions} onBack={()=>setScreen(SCREENS.HOME)}/>}
+        {screen===SCREENS.BOARD && <BoardScreen scores={scores} user={user} todayKey={todayKey} monthlyChampions={monthlyChampions} quizMode={quizMode} onBack={()=>setScreen(SCREENS.HOME)}/>}
         {screen===SCREENS.STATS && user && <StatsScreen user={user} scores={scores} onBack={()=>setScreen(SCREENS.HOME)}/>}
       </div>
     </div>
@@ -3415,21 +3415,25 @@ function ArchiveRow({ s }) {
 }
 
 // ─── BOARD SCREEN ─────────────────────────────────────────
-function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
+function BoardScreen({ scores, user, todayKey, monthlyChampions, quizMode, onBack }) {
   const [tab, setTab] = useState('today');
   const [profileView, setProfileView] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [avatarCache, setAvatarCache] = useState({});
   const [cheaterCache, setCheaterCache] = useState({});
   const [profileScores, setProfileScores] = useState([]);
-  const [profileTab, setProfileTab] = useState('stats'); // 'stats' | 'archive'
+  const [profileTab, setProfileTab] = useState('stats');
 
   const currentMonth = getCurrentMonthKey();
-  const todayList = scores.filter(s=>s.date===todayKey).sort((a,b)=>b.score-a.score);
+  const mode = quizMode || QUIZ_MODES.IT;
+  // Filtruj podle módu — starší záznamy bez quiz_mode jsou IT
+  const modeScores = scores.filter(s => (s.quiz_mode || QUIZ_MODES.IT) === mode);
+
+  const todayList = modeScores.filter(s=>s.date===todayKey).sort((a,b)=>b.score-a.score);
 
   // Celkové skóre (all-time)
   const allMap = {};
-  scores.forEach(s=>{
+  modeScores.forEach(s=>{
     if(!allMap[s.user_id]) allMap[s.user_id]={id:s.user_id,user_id:s.user_id,name:s.user_name,total:0,played:0,best:0,perfects:0};
     allMap[s.user_id].total+=s.score; allMap[s.user_id].played+=1;
     allMap[s.user_id].best=Math.max(allMap[s.user_id].best,s.score);
@@ -3439,7 +3443,7 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
 
   // Měsíční skóre (aktuální měsíc)
   const monthMap = {};
-  scores.filter(s=>s.date.startsWith(currentMonth)).forEach(s=>{
+  modeScores.filter(s=>s.date.startsWith(currentMonth)).forEach(s=>{
     if(!monthMap[s.user_id]) monthMap[s.user_id]={id:s.user_id,user_id:s.user_id,name:s.user_name,total:0,played:0,best:0,perfects:0};
     monthMap[s.user_id].total+=s.score; monthMap[s.user_id].played+=1;
     monthMap[s.user_id].best=Math.max(monthMap[s.user_id].best,s.score);
@@ -4007,6 +4011,7 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
         <div style={{textAlign:'center',paddingTop:28,marginBottom:20}}>
           <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:10,letterSpacing:4,color:'#4488ff',marginBottom:6}}>HALL OF FAME</div>
           <h2 className="glow" style={{fontFamily:"'Orbitron', sans-serif",fontSize:32,fontWeight:900,color:'#fff'}}>ŽEBŘÍČEK</h2>
+          <div style={{fontSize:12,color:'#445566',marginTop:4}}>{mode===QUIZ_MODES.GENERAL?'🌍 Obecný kvíz':'💻 IT Kvíz'}</div>
         </div>
 
         {/* Tabs */}

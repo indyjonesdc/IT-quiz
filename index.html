@@ -2120,17 +2120,19 @@ function App() {
         .maybeSingle();
 
       if (existing) {
-        await db.from('scores').update(entry).eq('id', existing.id);
+        const { error: updErr } = await db.from('scores').update(entry).eq('id', existing.id);
+        if (updErr) console.error('UPDATE ERR:', updErr.message);
       } else {
         const { error: insertErr } = await db.from('scores').insert(entry);
         if (insertErr) {
-          console.error('Score insert failed:', insertErr);
-          // Fallback — zkus bez quiz_mode constraint
-          await db.from('scores').insert({...entry, id: (Date.now()+1).toString()});
+          console.error('INSERT ERR:', insertErr.message, insertErr.details);
+          // Poslední záchrana — upsert bez konfliktu
+          const { error: e2 } = await db.from('scores').upsert({...entry, id: Date.now().toString()+'x'});
+          if (e2) console.error('UPSERT ERR:', e2.message);
         }
       }
     } catch(err) {
-      console.error('Score save error:', err);
+      console.error('Score save EXCEPTION:', err);
     }
     // Kvíz dokončen — smaž uložený stav
     lsDel('itq_active_quiz');

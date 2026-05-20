@@ -4239,7 +4239,8 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, quizMode, onBac
 
 // ─── STATS SCREEN ─────────────────────────────────────
 function StatsScreen({ user, scores, quizMode, onBack }) {
-  const mode = quizMode || QUIZ_MODES.IT;
+  const [localMode, setLocalMode] = useState(quizMode || QUIZ_MODES.IT);
+  const mode = localMode;
   const isGeneral = mode === QUIZ_MODES.GENERAL;
 
   // Filtruj podle módu
@@ -4455,12 +4456,27 @@ function StatsScreen({ user, scores, quizMode, onBack }) {
   return (
     <div style={{minHeight:'100vh',padding:'20px',maxWidth:700,margin:'0 auto'}}>
       <div className="slide-in">
-        <div style={{textAlign:'center',paddingTop:24,marginBottom:24}}>
-          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,letterSpacing:4,color:'#4488ff',marginBottom:6}}>
-            {isGeneral ? '🌍 OBECNÝ KVÍZ' : '💻 IT KVÍZ'} — ANALÝZA HRÁČE
-          </div>
+        <div style={{textAlign:'center',paddingTop:24,marginBottom:16}}>
+          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,letterSpacing:4,color:'#4488ff',marginBottom:6}}>ANALÝZA HRÁČE</div>
           <h2 className="glow" style={{fontFamily:"'Orbitron',sans-serif",fontSize:28,fontWeight:900,color:'#fff',marginBottom:4}}>MÉ STATISTIKY</h2>
-          <div style={{fontSize:12,color:'#445566'}}>{user.name} · {totalPlayed} {totalPlayed===1?'kvíz':'kvízů'}</div>
+          <div style={{fontSize:12,color:'#445566',marginBottom:16}}>{user.name}</div>
+        </div>
+
+        {/* Přepínač módu */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:20,background:'rgba(10,15,40,0.6)',borderRadius:10,padding:4,border:'1px solid #1e2a4a'}}>
+          {[{m:QUIZ_MODES.IT,l:'💻 IT Kvíz'},{m:QUIZ_MODES.GENERAL,l:'🌍 Obecný kvíz'}].map(({m,l})=>(
+            <button key={m} onClick={()=>setLocalMode(m)} style={{
+              padding:'10px',borderRadius:8,border:'none',cursor:'pointer',
+              fontFamily:'inherit',fontSize:13,fontWeight:700,
+              transition:'all 0.2s',
+              background: localMode===m ? 'linear-gradient(135deg,#1a3a8a,#2255cc)' : 'transparent',
+              color: localMode===m ? '#fff' : '#4a5a7a',
+              boxShadow: localMode===m ? '0 0 20px rgba(68,136,255,0.3)' : 'none',
+            }}>{l}</button>
+          ))}
+        </div>
+        <div style={{fontSize:12,color:'#445566',textAlign:'center',marginBottom:16}}>
+          {user.name} · {myScores.length} {myScores.length===1?'kvíz':'kvízů'}
         </div>
 
         {totalPlayed===0 ? (

@@ -3197,32 +3197,31 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
               ) : (
                 <div>
                   <div style={{fontSize:11,color:'#445566',marginBottom:12,textAlign:'center'}}>
-                    Celkem {profileScores.length} {profileScores.length===1?'kvíz':'kvízů'} · seřazeno od nejnovějšího
+                    Celkem {profileScores.length} {profileScores.length===1?'kvíz':'kvízů'} · od nejnovějšího
                   </div>
-                  {[...profileScores].reverse().map((s,i)=>{
-                    const [expanded, setExpanded] = [false, ()=>{}]; // stateless — použijeme click handler níže
+                  {[...profileScores].reverse().map((s,idx)=>{
                     const pct = s.total ? Math.round((s.correct/s.total)*100) : 0;
                     const col = pct>=80 ? '#44ffaa' : pct>=60 ? '#ffd700' : '#ff8844';
-                    return (
-                      <ArchiveRow key={s.id||i} s={s} pct={pct} col={col}/>
-                    );
+                    return <ArchiveRow key={s.id||idx} s={s} pct={pct} col={col}/>;
                   })}
                 </div>
               )
             )}
 
             {/* STATS TAB */}
-            {profileTab==='stats' && (
+            {profileTab==='stats' && profileLoading && (
               <div style={{textAlign:'center',padding:'60px 0',color:'#445566',fontSize:14}}>
                 <div style={{fontSize:32,marginBottom:12}}>⏳</div>
                 Načítám statistiky...
               </div>
-            ) : profileScores.length === 0 ? (
+            )}
+            {profileTab==='stats' && !profileLoading && profileScores.length===0 && (
               <div style={{textAlign:'center',padding:'60px 0'}}>
                 <div style={{fontSize:48,marginBottom:12}}>🥚</div>
                 <div style={{color:'#445566',fontSize:14}}>Zatím žádné odehrané kvízy.</div>
               </div>
-            ) : (() => {
+            )}
+            {profileTab==='stats' && !profileLoading && profileScores.length>0 && (()=>{
               const ps = profileScores;
               const totalPlayed = ps.length;
               const totalScore2 = ps.reduce((s,r)=>s+r.score,0);
@@ -3611,7 +3610,7 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
                 </div>
               );
             })()}
-            )} {/* konec profileTab==='stats' */}
+
           </div>
         </div>
       )}

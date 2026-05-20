@@ -3094,12 +3094,16 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
       time_left: timeLeftRef.current,
       pts: Math.max(pts, 0),
     });
-    setTimeout(() => {
-      setFlash(null);
-      const newAns = [...quiz.answers, {q: 'lucky', chosen: pts, correct: pts > 0, pts: Math.max(pts, 0), luckyPts: pts, comboBonus: 0}];
-      const newScore = Math.max(quiz.totalScore + pts, 0);
-      onFinish({...quiz, answers: newAns, totalScore: newScore, current: quiz.current + 1, playLog: playLogRef.current});
-    }, 300);
+    // Použij setQuiz callback aby měl vždy aktuální stav (ne stale closure)
+    setQuiz(currentQuiz => {
+      const newAns = [...currentQuiz.answers, {q: 'lucky', chosen: pts, correct: pts > 0, pts: Math.max(pts, 0), luckyPts: pts, comboBonus: 0}];
+      const newScore = Math.max(currentQuiz.totalScore + pts, 0);
+      // Zavolej onFinish s aktuálním stavem
+      setTimeout(() => {
+        onFinish({...currentQuiz, answers: newAns, totalScore: newScore, current: currentQuiz.current + 1, playLog: playLogRef.current});
+      }, 0);
+      return currentQuiz; // stav se nezmění — jen čteme
+    });
   }
 
   const totalDuration = initQuiz.totalDuration || QUIZ_DURATION;

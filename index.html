@@ -1034,7 +1034,7 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusT
   const showInstallBanner = isMobile && !installed && (installable || isIOS);
   return (
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:20}}>
-      <div className="slide-in" style={{width:'100%',maxWidth:640,textAlign:'center'}}>
+      <div className="slide-in" style={{width:'100%',maxWidth:640,textAlign:'center',position:'relative'}}>
 
         {/* PWA Install Banner — jen mobil, jen pokud není nainstalováno */}
         {showInstallBanner && (
@@ -1086,21 +1086,66 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusT
           ))}
         </div>
 
-        <div style={{background:'rgba(20,35,80,0.55)',border:'1px solid #2a3a6a',borderRadius:14,padding:'20px 28px',marginBottom:timeBonusToday>0?12:28,backdropFilter:'blur(8px)'}}>
-          <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:10,color:'#4488ff',letterSpacing:3,marginBottom:10}}>
-            {isGeneral ? '🌍 OBECNÝ KVÍZ' : '💻 IT KVÍZ'} — {todayKey}
+        <div style={{background:'rgba(10,15,40,0.8)',border:`1px solid ${isGeneral?'#226644':'#1e3a6a'}`,borderRadius:16,overflow:'hidden',marginBottom:timeBonusToday>0?12:28}}>
+
+          {/* Header */}
+          <div style={{
+            padding:'14px 18px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,
+            borderBottom:`1px solid ${isGeneral?'#1a4030':'#1a2a4a'}`,
+            background:isGeneral?'rgba(0,80,40,0.3)':'rgba(30,60,160,0.3)',
+          }}>
+            <div>
+              <div style={{fontSize:16,fontWeight:700,color:'#fff',marginBottom:3}}>
+                {isGeneral?'🌍 Obecný kvíz':'💻 IT kvíz'}
+              </div>
+              <div style={{fontSize:11,color:'#556688'}}>{todayKey}</div>
+            </div>
+            <div style={{display:'flex',gap:6,flexShrink:0,flexWrap:'wrap',justifyContent:'flex-end'}}>
+              {[`📝 15 otázek`, `⏱ Celkový limit ${totalTime}s${timeBonusToday>0?' (+'+timeBonusToday+'s bonus)':''}`].map(t=>(
+                <span key={t} style={{
+                  fontSize:11,fontWeight:600,padding:'4px 10px',borderRadius:20,whiteSpace:'nowrap',
+                  background:isGeneral?'rgba(0,100,50,0.35)':'rgba(40,80,200,0.35)',
+                  color:isGeneral?'#44ffaa':'#88aaff',
+                  border:`1px solid ${isGeneral?'#226644':'#2a4a9a'}`,
+                }}>{t}</span>
+              ))}
+            </div>
           </div>
-          <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'center',marginBottom:14}}>
-            {cats.map(c=><span key={c} style={{background:'rgba(68,136,255,0.12)',border:'1px solid rgba(68,136,255,0.25)',borderRadius:20,padding:'3px 12px',fontSize:11,color:'#88aaff',letterSpacing:0.5}}>{c}</span>)}
+
+          {/* Témata */}
+          <div style={{padding:'11px 16px',borderBottom:'1px solid #1a2040',display:'flex',flexWrap:'wrap',gap:5,alignItems:'center'}}>
+            <span style={{fontSize:12,fontWeight:600,color:'#8899bb',marginRight:4,flexShrink:0}}>Témata:</span>
+            {cats.map(c=>(
+              <span key={c} style={{
+                fontSize:11,padding:'3px 10px',borderRadius:20,
+                background:isGeneral?'rgba(0,80,40,0.3)':'rgba(30,50,140,0.3)',
+                color:isGeneral?'#44cc88':'#88aaff',
+                border:`1px solid ${isGeneral?'#1a4030':'#1e2a5a'}`,
+              }}>{c}</span>
+            ))}
           </div>
-          <div style={{color:'#6677aa',fontSize:12}}>
-            ⏱ {totalTime}s
-            {timeBonusToday > 0 && <span style={{color:'#22cc88'}}> ({QUIZ_DURATION}s + {timeBonusToday}s bonus)</span>}
-            &nbsp;•&nbsp; {QUESTIONS_PER_QUIZ} otázek &nbsp;•&nbsp; max {MAX_PTS} bodů/otázka
+
+          {/* Pravidla */}
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr'}}>
+            {[
+              {e:'⚡',l:'Body za otázku',v:'100 – 1 000',c:'#ffd700'},
+              {e:'🔥',l:'Kombo',v:'3–5× = až +2 000',c:'#ff6644'},
+              {e:'💎',l:'Perfect run',v:'15/15 = +2 000',c:'#ffd700'},
+              {e:'🎁',l:'Lucky box',v:'−500 až +1 000',c:isGeneral?'#44ffaa':'#bb88ff'},
+            ].map((r,i)=>(
+              <div key={r.l} style={{
+                padding:'11px 14px',display:'flex',alignItems:'center',gap:10,
+                borderRight:i%2===0?'1px solid #1a2040':'none',
+                borderBottom:i<2?'1px solid #1a2040':'none',
+              }}>
+                <span style={{fontSize:18,flexShrink:0}}>{r.e}</span>
+                <div>
+                  <div style={{fontSize:10,color:'#445566',marginBottom:2}}>{r.l}</div>
+                  <div style={{fontSize:12,fontWeight:700,color:r.c}}>{r.v}</div>
+                </div>
+              </div>
+            ))}
           </div>
-          <div style={{color:'#445566',fontSize:11,marginTop:5}}>🔥 3× rychle = SUPER KOMBO &nbsp;⚡ 4× = MEGA &nbsp;💥 5× = ULTRA</div>
-          <div style={{color:'#cc9900',fontSize:11,marginTop:4}}>💎 Bez jediné chyby = PERFECT RUN +{PERFECT_BONUS.toLocaleString()} prémiových bodů</div>
-          <div style={{color:'#4a6a44',fontSize:11,marginTop:4}}>🎲 Poslední otázka = Lucky Box — bedny s skrytými body (+1000 až -500)</div>
         </div>
 
         {/* Time bonus banner */}
@@ -1141,35 +1186,24 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusT
           </div>
         )}
 
-        {user ? (
-          <div style={{marginBottom:24}}>
-            <div style={{fontSize:12,color:'#4a5a7a',marginBottom:8}}>Přihlášen jako</div>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12,marginBottom:6}}>
-              {/* Avatar */}
-              <div style={{width:48,height:48,borderRadius:'50%',border:'2px solid #2a3a6a',overflow:'hidden',background:'#0d1428',flexShrink:0}}>
-                {user.avatar_url
-                  ? <img src={avatarSrc(user.avatar_url)} alt="" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
-                  : <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,color:'#2a3a6a'}}>👤</div>
-                }
-              </div>
-              <div style={{textAlign:'left'}}>
-                <div style={{fontSize:20,color:'#88aaff',fontWeight:700,letterSpacing:1}}>{user.name}</div>
-                {(user.company||user.position) && (
-                  <div style={{fontSize:12,color:'#4a5a7a',marginTop:1}}>
-                    {user.company && `🏢 ${user.company}`}{user.company&&user.position?' · ':''}{user.position&&`💼 ${user.position}`}
-                  </div>
-                )}
-                {user.os_religion && <div style={{fontSize:11,color:'#334455',marginTop:1}}>{OS_LABELS[user.os_religion]||user.os_religion}</div>}
-              </div>
+        {/* Avatar vpravo nahoře — kliknutí = profil */}
+        {user && (
+          <div onClick={onProfile} title="Upravit profil" style={{position:'absolute',top:8,right:8,cursor:'pointer'}}>
+            <div style={{
+              width:52,height:52,borderRadius:'50%',
+              border:'2px solid #4488ff',overflow:'hidden',
+              background:'#0d1428',
+              boxShadow:'0 0 0 3px rgba(68,136,255,0.2)',
+              transition:'box-shadow 0.2s',
+            }}>
+              {user.avatar_url
+                ? <img src={avatarSrc(user.avatar_url)} alt="Profil" style={{width:'100%',height:'100%',objectFit:'cover'}}/>
+                : <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,color:'#4488ff'}}>👤</div>
+              }
             </div>
-            <div style={{display:'flex',gap:14,justifyContent:'center',marginTop:4}}>
-              <button onClick={onProfile} style={{background:'transparent',border:'none',color:'#4488ff',fontSize:11,cursor:'pointer',letterSpacing:1,textDecoration:'underline'}}>✏️ UPRAVIT PROFIL</button>
-              <button onClick={onLogout} style={{background:'transparent',border:'none',color:'#334455',fontSize:11,cursor:'pointer',letterSpacing:1}}>ODHLÁSIT SE</button>
-              {installed && <button onClick={()=>window.close()} style={{background:'transparent',border:'none',color:'#2a3a4a',fontSize:11,cursor:'pointer',letterSpacing:1}}>✕ ZAVŘÍT</button>}
-            </div>
+            {/* Malá tužka ikona přes avatar */}
+            <div style={{position:'absolute',bottom:-2,right:-2,width:18,height:18,borderRadius:'50%',background:'#4488ff',display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,border:'1.5px solid #0a0a0f'}}>✏️</div>
           </div>
-        ) : (
-          <div style={{marginBottom:24,color:'#ff9944',fontSize:13}}>⚠ Nejsi přihlášen</div>
         )}
 
         <div style={{display:'flex',flexDirection:'column',gap:10,maxWidth:340,margin:'0 auto'}}>
@@ -1190,6 +1224,14 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusT
             📊 MÉ STATISTIKY
           </button>}
         </div>
+
+        {/* Odhlášení — úplně dole */}
+        {user && (
+          <div style={{marginTop:24,display:'flex',gap:16,justifyContent:'center',alignItems:'center'}}>
+            <button onClick={onLogout} style={{background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1}}>⏏ Odhlásit se</button>
+            {installed && <button onClick={()=>window.close()} style={{background:'transparent',border:'none',color:'#2a3a4a',fontSize:12,cursor:'pointer',letterSpacing:1}}>✕ Zavřít</button>}
+          </div>
+        )}
       </div>
     </div>
   );

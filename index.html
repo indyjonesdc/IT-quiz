@@ -922,6 +922,67 @@ const EXPLANATIONS = {
 
 // ─── HELPERS ─────────────────────────────────────────
 function getTodayKey() { return new Date().toISOString().slice(0,10); }
+
+// ─── VTIPNÉ FAKTY O HRÁČÍCH ──────────────────────────
+// Každý hráč dostane jeden unikátní fakt odvozený ze svého jména (deterministicky)
+const PLAYER_FACTS = [
+  'Jednou přesvědčil záchranáře že zachraňují jeho, přestože volal on.',
+  'Má doloženou alergii na pondělí. Lékař to odmítl zapsat. Má druhý názor.',
+  'Třikrát v životě spontánně tancoval na pohřbu. Vždy správně odhadl situaci.',
+  'Vyhrál soutěž v jídle kdo dřív přestane. Vyhrál. Nikdo tomu nerozuměl.',
+  'Jednou přesvědčil celé letadlo že je pilot. Nebyl. Přistáli normálně.',
+  'Má podanou žalobu na vlastní stín za pronásledování. Soud ji zamítl.',
+  'Jednou omylem vyhlásil zásnuby na cizí svatbě. Byli rádi.',
+  'Přežil tři situace které pojišťovna označila jako "statisticky nemožné".',
+  'Jednou usnul ve frontě na cokoliv a probudil se první.',
+  'Přesvědčen že jeho jméno způsobuje technické problémy. Má důkazy.',
+  'Jednou vyhrál v kasinu a okamžitě utratil výhru za vstup zpět.',
+  'Má fotografický důkaz že byl na dvou místech zároveň. Fyzikálně to nevysvětlil.',
+  'Třikrát omylem nastoupil do záchranky místo taxíku. Pokaždé dojel.',
+  'Jednou přesvědčil celou restauraci že je zavřeno. Nebyla. Jedl sám.',
+  'Přežil výbuch mikrovlnky, tři zatopené sklepy a jeden výtah. Ve stejném roce.',
+  'Má dokumentovaný případ kdy jeho kýchnutí zastavilo hodiny. Ve třech domácnostech.',
+  'Jednou omylem řídil pohřební průvod. Dorazili na správné místo.',
+  'Přesvědčen že má jiný čas než zbytek světa. O sedm minut napřed.',
+  'Jednou ho záchranáři zachránili ze situace kterou sám způsobil náhodou za poslední čtyři minuty.',
+  'Má notářsky ověřené prohlášení že není on. Pro případ potřeby.',
+  'Třikrát v životě omylem absolvoval cizí pracovní pohovor. Jednou dostal nabídku.',
+  'Jednou přesvědčil hasiče že zachraňují kočku. Kočka tam nebyla. Hasiči to ocenili.',
+  'Má alergii na konkrétní odstín béžové. Dermatolog to potvrdil s údivem.',
+  'Jednou omylem moderoval televizní pořad. Nikdo nic neřekl do konce vysílání.',
+  'Přežil situaci ve které byl statisticky třikrát po sobě bleskem. Jeden byl kulový.',
+  'Má doloženou historii kdy jeho přítomnost způsobuje výpadek proudu. V různých zemích.',
+  'Jednou se probudil na střeše budovy ve které nikdy nebyl. Má alibi.',
+  'Přesvědčen že ho sledují turisté. Má fotografie jako důkaz. Je na nich náhodou.',
+  'Třikrát v životě omylem přijal státní vyznamenání. Dvakrát ho vrátil.',
+  'Jednou ho aerolinky povýšily na pilota z nedopatření. Odmítl. Litoval.',
+  'Má notářsky ověřený seznam věcí které se mu nemůžou stát. Staly se.',
+  'Jednou omylem vyhrál místní volby. Nekandidoval. Mandát nepřijal.',
+  'Přesvědčen že zrcadla ho zobrazují o vteřinu opožděně. Testuje to.',
+  'Třikrát záměrně zůstal v hotelu po checkoutu. Třikrát to prošlo.',
+  'Jednou přesvědčil celé muzeum že je exponát. Čtyři hodiny.',
+  'Má dokumentovaný případ kdy jeho telefonát způsobil sesuv půdy. Nepřímo.',
+  'Jednou omylem koupil dům na dražbě. Prodal ho se ziskem. Nebyl to záměr.',
+  'Přežil tři situace ve kterých byl prohlášen za mrtvého. Vždy to opravil.',
+  'Má doloženou alergii na konkrétní televizní kanál. Jen na vysílání v úterý.',
+  'Jednou omylem vstoupil do svědkové ochrany. Byl z ní propuštěn po třech dnech.',
+  'Přesvědčen že jeho bunda má vlastní osobnost. Chová se jinak podle počasí.',
+  'Třikrát v životě omylem dirigoval orchestr. Jednou za potlesku.',
+  'Jednou přesvědčil celé sídliště že se stěhuje. Nestěhoval se. Pomohli mu.',
+  'Má fotografický důkaz o setkání s pěti celebrity které nepoznal. Jsou na selfíčkách.',
+  'Jednou omylem vyhlásil požární poplach na čtyřech kontinentech současně. Telefonicky.',
+  'Přežil situaci která by podle fyzikálních zákonů vyžadovala být na dvou místech.',
+  'Má doloženou historii kdy jeho přítomnost způsobuje déšť. V poloměru sto metrů.',
+  'Jednou omylem absolvoval celý maraton. Šel si koupit rohlík.',
+  'Přesvědčen že jeho podpis způsobuje technické problémy. Banky souhlasí.',
+  'Třikrát v životě spontánně zorganizoval evakuaci. Vždy byl důvod. Vždy jiný.',
+];
+
+function getPlayerFact(name) {
+  // Deterministický výběr podle jména — stejný hráč = stejný fakt
+  const seed = name.split('').reduce((a, c) => a * 31 + c.charCodeAt(0), 7);
+  return PLAYER_FACTS[Math.abs(seed) % PLAYER_FACTS.length];
+}
 // Přidá cache-busting aby prohlížeč vždy načetl aktuální verzi avataru
 function avatarSrc(url) {
   if (!url) return null;
@@ -2202,39 +2263,54 @@ function ProfileScreen({ user, onSave, onBack, loading }) {
     superpower: user.superpower||'',
   });
   const [avatarPreview, setAvatarPreview] = useState(user.avatar_url ? avatarSrc(user.avatar_url) : null);
-  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarFile, setAvatarFile] = useState(null);     // komprimovaný Blob
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState('');
+  const [avatarSize, setAvatarSize] = useState('');       // info o velikosti pro UI
   const fileRef = useRef(null);
 
   function pickFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { setAvatarError('Max 2 MB'); return; }
-    if (!file.type.startsWith('image/')) { setAvatarError('Pouze obrázky'); return; }
+    if (!file.type.startsWith('image/')) { setAvatarError('Pouze obrázky (JPG, PNG, WebP)'); return; }
     setAvatarError('');
-    setAvatarFile(file);
+    // Komprimuj pomocí Canvas — max 800px, JPEG 0.82
+    const img = new Image();
     const reader = new FileReader();
-    reader.onload = ev => setAvatarPreview(ev.target.result);
+    reader.onload = ev => {
+      img.onload = () => {
+        const MAX = 800;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else       { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        canvas.toBlob(blob => {
+          setAvatarFile(blob);
+          setAvatarSize(`${(blob.size/1024).toFixed(0)} KB`);
+          setAvatarPreview(canvas.toDataURL('image/jpeg', 0.82));
+        }, 'image/jpeg', 0.82);
+      };
+      img.src = ev.target.result;
+    };
     reader.readAsDataURL(file);
   }
 
   async function handleSave() {
-    let avatarUrl = user.avatar_url
-      ? user.avatar_url.split('?')[0]  // odstraň starý cache-bust
-      : null;
-
+    let avatarUrl = user.avatar_url ? user.avatar_url.split('?')[0] : null;
     if (avatarFile) {
       setAvatarUploading(true);
       try {
-        // Vždy stejná cesta → upsert přepíše soubor
         const path = `${user.id}/avatar`;
         const { error: upErr } = await db.storage
           .from('avatars')
-          .upload(path, avatarFile, { upsert: true, contentType: avatarFile.type });
+          .upload(path, avatarFile, { upsert: true, contentType: 'image/jpeg' });
         if (upErr) { setAvatarError('Upload selhal: ' + upErr.message); setAvatarUploading(false); return; }
         const { data: urlData } = db.storage.from('avatars').getPublicUrl(path);
-        avatarUrl = urlData.publicUrl; // čistá URL bez timestamp
+        avatarUrl = urlData.publicUrl;
       } catch(e) { setAvatarError('Upload selhal'); setAvatarUploading(false); return; }
       setAvatarUploading(false);
     }
@@ -2263,11 +2339,19 @@ function ProfileScreen({ user, onSave, onBack, loading }) {
             {avatarPreview ? '📷 ZMĚNIT FOTKU' : '📷 PŘIDAT FOTKU'}
           </button>
           {avatarError && <div style={{color:'#ff4444',fontSize:11}}>{avatarError}</div>}
-          <div style={{fontSize:10,color:'#334455'}}>Max 2 MB · JPG, PNG, WebP</div>
+          <div style={{fontSize:10,color:'#334455'}}>
+            {avatarSize ? `Zkomprimováno na ${avatarSize} ✓` : 'Jakákoliv velikost · JPG, PNG, WebP · automaticky zkomprimováno'}
+          </div>
         </div>
 
         <div style={{fontSize:20,fontWeight:700,color:'#fff',marginBottom:4}}>{user.name}</div>
-        {user.company && <div style={{fontSize:13,color:'#556688',marginBottom:16}}>{user.company}{user.position?` · ${user.position}`:''}</div>}
+        {user.company && <div style={{fontSize:13,color:'#556688',marginBottom:10}}>{user.company}{user.position?` · ${user.position}`:''}</div>}
+
+        {/* Vtipný fakt */}
+        <div style={{background:'rgba(68,136,255,0.06)',border:'1px dashed #2a3a6a',borderRadius:10,padding:'10px 14px',marginBottom:18,display:'flex',gap:10,alignItems:'flex-start',textAlign:'left'}}>
+          <span style={{fontSize:18,flexShrink:0}}>💡</span>
+          <div style={{fontSize:12,color:'#556688',lineHeight:1.55,fontStyle:'italic'}}>{getPlayerFact(user.name)}</div>
+        </div>
 
         <div style={{background:'rgba(20,35,80,0.6)',border:'1px solid #2a3a6a',borderRadius:12,padding:24,textAlign:'left'}}>
           <ProfileFields profile={profile} setProfile={setProfile}/>
@@ -2969,6 +3053,12 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
                 )}
                 {profileView.superpower && <div style={{fontSize:11,color:'#334455',marginTop:3}}>🦸 {profileView.superpower}</div>}
               </div>
+            </div>
+
+            {/* Vtipný fakt */}
+            <div style={{background:'rgba(68,136,255,0.06)',border:'1px dashed #2a3a6a',borderRadius:10,padding:'10px 14px',marginBottom:20,display:'flex',gap:10,alignItems:'flex-start'}}>
+              <span style={{fontSize:18,flexShrink:0}}>💡</span>
+              <div style={{fontSize:12,color:'#556688',lineHeight:1.55,fontStyle:'italic'}}>{getPlayerFact(profileView.name)}</div>
             </div>
 
             {/* Statistiky */}

@@ -2108,10 +2108,25 @@ function App() {
       play_checksum: checksum,
       quiz_mode: quizMode,
     };
-    // Ulož výsledek — zkus nejdřív s quiz_mode, jinak bez
-    const { error: e1 } = await db.from('scores').upsert(entry, { onConflict: 'user_id,date,quiz_mode' });
-    if (e1) {
-      await db.from('scores').upsert(entry, { onConflict: 'user_id,date' });
+
+    // Zkus najít existující záznam pro tento den + mód
+    const { data: existing } = await db.from('scores')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('date', todayKey)
+      .eq('quiz_mode', quizMode)
+      .maybeSingle();
+
+    if (existing) {
+      // Aktualizuj existující
+      await db.from('scores').update(entry).eq('id', existing.id);
+    } else {
+      // Vlož nový — pokud selže kvůli constraint, zkus bez quiz_mode
+      const { error: insertErr } = await db.from('scores').insert(entry);
+      if (insertErr) {
+        const entryFallback = {...entry, quiz_mode: quizMode};
+        await db.from('scores').upsert(entryFallback, { onConflict: 'user_id,date' });
+      }
     }
     // Kvíz dokončen — smaž uložený stav
     lsDel('itq_active_quiz');

@@ -1271,11 +1271,13 @@ function App() {
 
     const playLog = quiz.playLog || [];
 
+    const normalAnswers = quiz.answers.filter(a => a.q !== 'lucky');
     const entry = {
       id: Date.now().toString(), user_id: user.id, user_name: user.name,
       date: todayKey, score: finalScore,
-      correct: quiz.answers.filter(a => a.correct).length,
-      total: quiz.questions.length, timestamp: Date.now(),
+      correct: normalAnswers.filter(a => a.correct).length,
+      total: normalAnswers.length, // bez Lucky Boxu = 15
+      timestamp: Date.now(),
       time_saved: timeSaved,
       perfect: allCorrect,
       play_log: playLog.length > 0 ? playLog : null,
@@ -3382,7 +3384,7 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, quizMode, onBac
                         </div>
                         {tab==='all' && <div style={{fontSize:11,color:'#445566',marginTop:1}}>{e.played} {e.played===1?'kvíz':'kvízy'} • nejlepší: {e.best.toLocaleString()} b</div>}
                         {tab==='month' && <div style={{fontSize:11,color:'#445566',marginTop:1}}>{e.played} {e.played===1?'den':'dní'} • nejlepší: {e.best.toLocaleString()} b</div>}
-                        {tab==='today' && <div style={{fontSize:11,color:'#445566',marginTop:1}}>{e.correct}/{e.total} správně</div>}
+                        {tab==='today' && <div style={{fontSize:11,color:'#445566',marginTop:1}}>{e.correct}/{Math.max((e.total||16)-1,15)} správně</div>}
                       </div>
 
                       {/* Score */}

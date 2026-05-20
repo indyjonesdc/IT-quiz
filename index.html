@@ -624,7 +624,11 @@ function App() {
           p_name: username,
           p_password: pwd,
         });
-        if (authErr || !authData || authData.length === 0) {
+        if (authErr) {
+          alert('Chyba ověření: ' + authErr.message);
+          setLoading(false); return;
+        }
+        if (!authData || authData.length === 0) {
           alert('Špatné jméno nebo heslo!');
           setLoading(false); return;
         }

@@ -2345,7 +2345,7 @@ function App() {
         />}
         {screen===SCREENS.RESULT && currentQuiz && <ResultScreen quiz={currentQuiz} timeSaved={currentQuiz.timeSaved||0} onHome={()=>setScreen(SCREENS.HOME)} onBoard={()=>setScreen(SCREENS.BOARD)}/>}
         {screen===SCREENS.BOARD && <BoardScreen scores={scores} user={user} todayKey={todayKey} monthlyChampions={monthlyChampions} quizMode={quizMode} onBack={()=>setScreen(SCREENS.HOME)}/>}
-        {screen===SCREENS.STATS && user && <StatsScreen user={user} scores={scores} onBack={()=>setScreen(SCREENS.HOME)}/>}
+        {screen===SCREENS.STATS && user && <StatsScreen user={user} scores={scores} quizMode={quizMode} onBack={()=>setScreen(SCREENS.HOME)}/>}
       </div>
     </div>
   );
@@ -4176,15 +4176,19 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, quizMode, onBac
 }
 
 // ─── STATS SCREEN ─────────────────────────────────────
-function StatsScreen({ user, scores, onBack }) {
-  const myScores = scores.filter(s => s.user_id === user.id)
+function StatsScreen({ user, scores, quizMode, onBack }) {
+  const mode = quizMode || QUIZ_MODES.IT;
+  const isGeneral = mode === QUIZ_MODES.GENERAL;
+
+  // Filtruj podle módu
+  const myScores = scores
+    .filter(s => s.user_id === user.id && (s.quiz_mode || QUIZ_MODES.IT) === mode)
     .sort((a,b) => a.date.localeCompare(b.date));
 
   const totalPlayed  = myScores.length;
   const totalScore   = myScores.reduce((s,r) => s+r.score, 0);
   const avgScore     = totalPlayed ? Math.round(totalScore/totalPlayed) : 0;
   const bestScore    = totalPlayed ? Math.max(...myScores.map(r=>r.score)) : 0;
-  const worstScore   = totalPlayed ? Math.min(...myScores.map(r=>r.score)) : 0;
   const perfectCount = myScores.filter(r=>r.perfect).length;
   const totalCorrect = myScores.reduce((s,r) => s+(r.correct||0), 0);
   const totalQs      = myScores.reduce((s,r) => s+(r.total||0), 0);
@@ -4208,33 +4212,28 @@ function StatsScreen({ user, scores, onBack }) {
     else break;
   }
 
-  // ── Analýza play_log ──────────────────────────────────
-  const catData = {}; // cat → {correct, total, totalTime, times[]}
+  // Analýza play_log — použij správný pool otázek
+  const questionPool = isGeneral ? ALL_GENERAL_QUESTIONS : ALL_QUESTIONS;
+  const catData = {};
   let totalAnswers=0, totalAnswerTime=0, fastAnswers=0, slowAnswers=0;
-  let comboCount3=0, comboCount4=0, comboCount5=0;
-  let wrongAfterRight=0, streakTracker=0, maxAnswerStreak=0, curAnswerStreak=0;
+  let maxAnswerStreak=0, curAnswerStreak=0;
 
   myScores.forEach(s => {
     if (!s.play_log || !s.play_log.length) return;
-    let localStreak=0;
     s.play_log.forEach(e => {
       if (e.qId==='lucky') return;
-      const q = ALL_QUESTIONS.find(q=>String(q.id)===String(e.qId));
+      const q = questionPool.find(q=>String(q.id)===String(e.qId));
       const cat = q ? q.cat : 'Ostatní';
-      if (!catData[cat]) catData[cat]={correct:0,total:0,totalTime:0,times:[]};
+      if (!catData[cat]) catData[cat]={correct:0,total:0,totalTime:0};
       catData[cat].total++;
       if (e.correct) catData[cat].correct++;
-
       const t = e.time_spent || 0;
       catData[cat].totalTime += t;
-      catData[cat].times.push(t);
-      totalAnswers++;
-      totalAnswerTime += t;
+      totalAnswers++; totalAnswerTime += t;
       if (t <= 3) fastAnswers++;
       if (t >= 15) slowAnswers++;
-
-      if (e.correct) { localStreak++; curAnswerStreak++; }
-      else { maxAnswerStreak=Math.max(maxAnswerStreak,curAnswerStreak); curAnswerStreak=0; localStreak=0; }
+      if (e.correct) { curAnswerStreak++; }
+      else { maxAnswerStreak=Math.max(maxAnswerStreak,curAnswerStreak); curAnswerStreak=0; }
     });
     maxAnswerStreak=Math.max(maxAnswerStreak,curAnswerStreak);
   });
@@ -4252,24 +4251,42 @@ function StatsScreen({ user, scores, onBack }) {
       avgTime: d.total ? (d.totalTime/d.total).toFixed(1) : 0,
     }))
     .sort((a,b)=>b.acc-a.acc);
+  const avgCatAcc = catList.length ? Math.round(catList.reduce((s,c)=>s+c.acc,0)/catList.length) : 50;
+  const topCats  = catList.filter(c=>c.acc>avgCatAcc).slice(0,4);
+  const weakCats = catList.filter(c=>c.acc<=avgCatAcc).sort((a,b)=>a.acc-b.acc).slice(0,4);
 
-  const topCats  = catList.slice(0,4);
-  const weakCats = [...catList].sort((a,b)=>a.acc-b.acc).slice(0,4);
-
-  // Odvětvové kategorie (skupiny)
-  const SECTORS = {
+  // Odvětví — IT vs Obecný
+  const SECTORS_IT = {
     'Sítě & Infrastruktura': ['Sítě','WiFi','Konektory','Telco','DC'],
     'Bezpečnost': ['Bezpečnost','Šifrování'],
     'Cloud & DevOps': ['Cloud','Virtualizace','Správa'],
     'Systémy & OS': ['OS','Linux','Windows'],
     'Data & Protokoly': ['Databáze','Protokoly','Email'],
-    'Hardware': ['Hardware','Periferie','Úložiště','Zálohy','Konektory'],
+    'Hardware': ['Hardware','Periferie','Úložiště','Zálohy'],
     'AI & Moderní tech': ['AI/ML','IoT','Telco'],
   };
+  const SECTORS_GENERAL = {
+    'Geografie': ['🌍 Geografie'],
+    'Historie': ['🏛️ Historie'],
+    'Věda': ['🔬 Věda'],
+    'Film & TV': ['🎬 Film & TV'],
+    'Hudba': ['🎵 Hudba'],
+    'Sport': ['⚽ Sport'],
+    'Jídlo': ['🍕 Jídlo'],
+    'Příroda': ['🐾 Příroda'],
+    'Logika': ['🧠 Logika'],
+    'Zajímavosti': ['💡 Zajímavosti'],
+  };
+  const SECTORS = isGeneral ? SECTORS_GENERAL : SECTORS_IT;
   const sectorData = Object.entries(SECTORS).map(([sector, cats]) => {
     let correct=0, total=0;
     cats.forEach(c => {
-      if (catData[c]) { correct+=catData[c].correct; total+=catData[c].total; }
+      // Pro obecný kvíz kategorie jsou přesné shody (včetně emoji)
+      Object.entries(catData).forEach(([cat, d]) => {
+        if (cat === c || cat.includes(c.replace(/^[^ ]+ /,''))) {
+          correct += d.correct; total += d.total;
+        }
+      });
     });
     return { sector, acc: total ? Math.round((correct/total)*100) : null, total };
   }).filter(s=>s.total>=2).sort((a,b)=>b.acc-a.acc);
@@ -4280,8 +4297,7 @@ function StatsScreen({ user, scores, onBack }) {
     if(!s.play_log) return;
     s.play_log.filter(e=>e.qId==='lucky').forEach(e=>{
       lucky.total++;
-      const v=e.chosen||0;
-      lucky.totalPts+=v;
+      const v=e.chosen||0; lucky.totalPts+=v;
       if(v===1000) lucky.jackpots++;
       else if(v===-500) lucky.bombs++;
       else if(v===0) lucky.zeros++;
@@ -4290,27 +4306,43 @@ function StatsScreen({ user, scores, onBack }) {
     });
   });
 
-  // Časové statistiky per den
   const timeScores = myScores.filter(s=>s.time_saved!=null);
   const avgTimeSaved = timeScores.length ? Math.round(timeScores.reduce((a,s)=>a+(s.time_saved||0),0)/timeScores.length) : 0;
 
-  // Globální
-  const allAvg = scores.length ? Math.round(scores.reduce((s,r)=>s+r.score,0)/scores.length) : 0;
-  const allPlayers = new Set(scores.map(s=>s.user_id)).size;
-  const myRank = [...new Set(scores.map(s=>s.user_id))]
-    .map(uid=>({uid,t:scores.filter(s=>s.user_id===uid).reduce((a,r)=>a+r.score,0)}))
+  // Globální průměr jen ze stejného módu
+  const modeAll = scores.filter(s=>(s.quiz_mode||QUIZ_MODES.IT)===mode);
+  const allAvg = modeAll.length ? Math.round(modeAll.reduce((s,r)=>s+r.score,0)/modeAll.length) : 0;
+  const allPlayers = new Set(modeAll.map(s=>s.user_id)).size;
+  const myRank = [...new Set(modeAll.map(s=>s.user_id))]
+    .map(uid=>({uid,t:modeAll.filter(s=>s.user_id===uid).reduce((a,r)=>a+r.score,0)}))
     .sort((a,b)=>b.t-a.t).findIndex(r=>r.uid===user.id)+1;
 
-  // ── Vtipné hodnocení ──────────────────────────────────
+  // ── VTIPNÉ HODNOCENÍ ──────────────────────────────────
   function speedRoast(avg) {
     const a=parseFloat(avg);
+    if (isGeneral) {
+      if(a<=2) return {e:'⚡',t:'Speedrunner vědomostí',d:'Odpovídáš rychleji než Wikipedie načte stránku. Buď jsi génius, nebo tipuješ.'};
+      if(a<=4) return {e:'🚀',t:'Encyklopedie na nohou',d:'Pod 4 sekundy. Buď to víš, nebo máš štěstí. Obojí funguje.'};
+      if(a<=7) return {e:'🎯',t:'Rozumný znalec',d:'Přemýšlíš, ale ne moc dlouho. Zlatá střední cesta vzdělance.'};
+      if(a<=12) return {e:'🐢',t:'Hluboký myslitel',d:'Dlouhé přemýšlení. Nebo si vzpomínáš kde jsi to četl. Nebo obojí.'};
+      return {e:'🦥',t:'Filosof v křesle',d:'Každá otázka je výzva k zamyšlení nad smyslem existence. A pak klikneš B.'};
+    }
     if(a<=2) return {e:'⚡',t:'Kvantový procesor',d:'Odpovídáš rychleji než si stihneš přečíst otázku. Hazard nebo génius?'};
     if(a<=4) return {e:'🚀',t:'Rychlý jako NVMe',d:'Průměr pod 4s. Jsi připravený. Nebo odhazuješ naslepo.'};
     if(a<=7) return {e:'🎯',t:'Rozvážný expert',d:'Přemýšlíš před kliknutím. Starý zvyk správného admina.'};
     if(a<=12) return {e:'🐢',t:'Důkladný čtenář',d:'Čteš otázku třikrát. Jednou by stačilo, ale respektujeme pečlivost.'};
     return {e:'🦥',t:'Filosof v IT',d:'Každá odpověď je existenciální rozhodnutí. Nebo jsi šel uvařit kávu.'};
   }
+
   function accuracyRoast(acc) {
+    if (isGeneral) {
+      if(acc>=95) return {e:'🧠',t:'Živoucí Wikipedie',d:'Víš všechno. Nebo si to myslíš. Ostatní se tě bojí na kvízy.'};
+      if(acc>=85) return {e:'📚',t:'Vzdělaný člověk',d:'Četl jsi knihy. Nebo sleduješ Discovery. Každopádně ti to jde.'};
+      if(acc>=70) return {e:'💡',t:'Solidní všeobecný přehled',d:'Nad průměrem. V hospodském kvízu bys byl ten užitečný člen týmu.'};
+      if(acc>=55) return {e:'🤔',t:'Průměrný středoškolák',d:'Polovina správně. Maturitu bys asi udělal. Asi.'};
+      if(acc>=40) return {e:'😅',t:'Optimistický nevzdělanec',d:'Aspoň víš kde leží Francie. Doufáme.'};
+      return {e:'🌍',t:'Záhada přírody',d:'Statisticky vzato, náhodné tipování by dopadlo lépe. A to říká hodně.'};
+    }
     if(acc>=95) return {e:'🧠',t:'Kyborg v lidském těle',d:'Podezřele správně. IT oddělení tě sleduje.'};
     if(acc>=85) return {e:'🎯',t:'Ostrý jako nový SSD',d:'Nemáš odpovědi, ty jsi odpověď.'};
     if(acc>=70) return {e:'💪',t:'Nadprůměrný člověk',d:'Ve firmě bys byl ten co opravuje ostatní.'};
@@ -4318,7 +4350,16 @@ function StatsScreen({ user, scores, onBack }) {
     if(acc>=40) return {e:'😅',t:'Optimistický začátečník',d:'Aspoň heslo na WiFi víš. Doufáme.'};
     return {e:'💀',t:'Živoucí důkaz chaosu',d:'Tiskárna by tě přechytračila.'};
   }
+
   function streakRoast(s) {
+    if (isGeneral) {
+      if(s>=30) return {e:'🔥',t:'Encyklopedie na steroidech',d:'Měsíc denního kvízu. Twoje všeobecná vzdělanost dosáhla NPC úrovně.'};
+      if(s>=14) return {e:'📅',t:'Věrný student světa',d:`${s} dní v kuse. Twoje IQ roste pomaleji než to číslo, ale roste.`};
+      if(s>=7)  return {e:'🌱',t:'Týdenní znalec',d:'Týden bez přerušení. To je víc než tvoje dieta vydržela.'};
+      if(s>=3)  return {e:'🐣',t:'Začínající polymath',d:'3 dny. Malý krok pro člověka, velký krok pro tvůj přehled.'};
+      if(s>=1)  return {e:'👶',t:'Jeden malý krok',d:'Aspoň jsi tu. Svět je plný lidí kteří nevědí kde leží Brazílie.'};
+      return {e:'📺',t:'Trochu více televize',d:'Streak = 0. I seriály by tě naučily víc.'};
+    }
     if(s>=30) return {e:'🔥',t:'Na dovolené s laptopem',d:'Normální lidé odpočívají. Ty kvízuješ.'};
     if(s>=14) return {e:'⚡',t:'Pravidelný jako cron job',d:`${s} dní v kuse. Tvůj terapeut o tom neví.`};
     if(s>=7)  return {e:'📅',t:'Solidní návyk',d:'Týden v kuse. Víc než většina projektů.'};
@@ -4332,19 +4373,30 @@ function StatsScreen({ user, scores, onBack }) {
   const strR  = streakRoast(currentStreak);
   const C={gold:'#ffd700',blue:'#4488ff',green:'#44ffaa',red:'#ff4444',gray:'#556688',purple:'#bb44ff',orange:'#ff9900'};
 
+  // Doporučení — obecný vs IT
   const trainingTips = [];
-  if (accuracy<60)  trainingTips.push({e:'🎓',t:'IT základy',d:'Kurz "Proč je kabel důležitý a jiné záhady"'});
-  if (parseFloat(avgAnswerTime)>12) trainingTips.push({e:'⚡',t:'Rychlost rozhodování',d:'Trénink rychlého rozhodování — ideálně bez Google a kávy'});
-  if (perfectCount===0 && totalPlayed>=5) trainingTips.push({e:'💎',t:'Konzistence',d:'Na perfect run potřebuješ znalosti, ne štěstí'});
-  if (weakCats.length && weakCats[0].acc<50) trainingTips.push({e:'📚',t:weakCats[0].cat,d:`Přesnost ${weakCats[0].acc}% — tady by pomohlo pořádné školení`});
-  if (lucky.bombs>lucky.jackpots && lucky.total>=3) trainingTips.push({e:'🎲',t:'Risk management',d:'Tvůj instinkt na Lucky Box je statisticky tragický'});
-  if (currentStreak===0 && totalPlayed>=3) trainingTips.push({e:'📅',t:'Pravidelnost',d:'Nepravidelné hraní = nepravidelné znalosti'});
+  if (isGeneral) {
+    if (accuracy<60)  trainingTips.push({e:'📖',t:'Čti více',d:'Noviny, knihy, Wikipedia — cokoliv. Tvůj přehled to ocení.'});
+    if (weakCats.length && weakCats[0].acc<50) trainingTips.push({e:'🌍',t:weakCats[0].cat.replace(/^[^ ]+ /,''),d:`${weakCats[0].acc}% přesnost. Existuje YouTube, documentaries, a věci zvané "knihy".`});
+    if (parseFloat(avgAnswerTime)>12) trainingTips.push({e:'⚡',t:'Rozhoduj rychleji',d:'Buď to víš, nebo nevíš. 15 sekund přemýšlení výsledek nezmění.'});
+    if (perfectCount===0 && totalPlayed>=5) trainingTips.push({e:'💎',t:'Míř na perfekt',d:'15/15 čeká. Stačí trochu více BBC, National Geographic, nebo prostě víc žít.'});
+    if (lucky.bombs>lucky.jackpots && lucky.total>=3) trainingTips.push({e:'🎲',t:'Lucky Box smolař',d:'Ani náhoda tě nemá ráda. Zkus jinou bednu. Nebo ne.'});
+  } else {
+    if (accuracy<60)  trainingTips.push({e:'🎓',t:'IT základy',d:'Kurz "Proč je kabel důležitý a jiné záhady"'});
+    if (parseFloat(avgAnswerTime)>12) trainingTips.push({e:'⚡',t:'Rychlost rozhodování',d:'Trénink rychlého rozhodování — ideálně bez Google a kávy'});
+    if (perfectCount===0 && totalPlayed>=5) trainingTips.push({e:'💎',t:'Konzistence',d:'Na perfect run potřebuješ znalosti, ne štěstí'});
+    if (weakCats.length && weakCats[0].acc<50) trainingTips.push({e:'📚',t:weakCats[0].cat,d:`Přesnost ${weakCats[0].acc}% — tady by pomohlo pořádné školení`});
+    if (lucky.bombs>lucky.jackpots && lucky.total>=3) trainingTips.push({e:'🎲',t:'Risk management',d:'Tvůj instinkt na Lucky Box je statisticky tragický'});
+    if (currentStreak===0 && totalPlayed>=3) trainingTips.push({e:'📅',t:'Pravidelnost',d:'Nepravidelné hraní = nepravidelné znalosti'});
+  }
 
   return (
     <div style={{minHeight:'100vh',padding:'20px',maxWidth:700,margin:'0 auto'}}>
       <div className="slide-in">
         <div style={{textAlign:'center',paddingTop:24,marginBottom:24}}>
-          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,letterSpacing:4,color:'#4488ff',marginBottom:6}}>ANALÝZA HRÁČE</div>
+          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,letterSpacing:4,color:'#4488ff',marginBottom:6}}>
+            {isGeneral ? '🌍 OBECNÝ KVÍZ' : '💻 IT KVÍZ'} — ANALÝZA HRÁČE
+          </div>
           <h2 className="glow" style={{fontFamily:"'Orbitron',sans-serif",fontSize:28,fontWeight:900,color:'#fff',marginBottom:4}}>MÉ STATISTIKY</h2>
           <div style={{fontSize:12,color:'#445566'}}>{user.name} · {totalPlayed} {totalPlayed===1?'kvíz':'kvízů'}</div>
         </div>
@@ -4417,7 +4469,9 @@ function StatsScreen({ user, scores, onBack }) {
           {/* ── ODVĚTVOVÁ ANALÝZA ── */}
           {sectorData.length >= 2 && (
             <div style={{background:'rgba(12,18,50,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:16}}>
-              <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,color:'#4488ff',letterSpacing:2,marginBottom:14}}>🏭 JAKÁ ODVĚTVÍ TI JDOU</div>
+              <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,color:'#4488ff',letterSpacing:2,marginBottom:14}}>
+                {isGeneral ? '🌍 JAKÁ TÉMATA TI JDOU' : '🏭 JAKÁ ODVĚTVÍ TI JDOU'}
+              </div>
               {sectorData.map((s,i)=>{
                 const col=s.acc>=80?C.green:s.acc>=60?C.gold:s.acc>=40?C.orange:C.red;
                 const emoji=s.acc>=80?'✅':s.acc>=60?'🟡':s.acc>=40?'⚠️':'❌';
@@ -4626,18 +4680,29 @@ function StatsScreen({ user, scores, onBack }) {
           <div style={{background:'rgba(12,18,50,0.8)',border:'1px dashed #2a3a6a',borderRadius:12,padding:16,marginBottom:16,textAlign:'center'}}>
             <div style={{fontSize:9,color:'#334455',letterSpacing:2,marginBottom:8,fontFamily:"'Orbitron',sans-serif"}}>CELKOVÝ VERDIKT</div>
             <div style={{fontSize:12,color:'#556688',lineHeight:1.8}}>
-              {accuracy>=75&&avgScore>=allAvg&&parseFloat(avgAnswerTime)<=6
-                ? `${user.name}, jsi ten člověk ve firmě co opravdu ví co dělá, dělá to rychle a nepotřebuje Stack Overflow. Ostatní to jen předstírají.`
-                : accuracy>=75&&avgScore>=allAvg
-                ? `${user.name}, znalosti i skóre máš výborné. Jen ta rychlost — ale kdo se nespěchá, taky někam dojde.`
-                : accuracy>=75&&parseFloat(avgAnswerTime)<=6
-                ? `${user.name}, rychlý a přesný. Jen to skóre by mohlo být vyšší — máš kombinace nebo se ti nevyplatí?`
-                : accuracy>=75
-                ? `${user.name}, přesnost výborná, zbytek má potenciál. Potenciál se ale nenapíše do CV.`
-                : avgScore>=allAvg
-                ? `${user.name}, skóre nad průměrem, ale přesnost to trochu kazí. Rychlost ano, přesnost... pracujeme na tom.`
-                : `${user.name}, máš co zlepšovat — to je pozitivní zpráva. Horší by bylo kdybys měl pocit že ne.`
-              }
+              {isGeneral ? (
+                accuracy>=75&&avgScore>=allAvg&&parseFloat(avgAnswerTime)<=6
+                  ? `${user.name}, jsi ten typ co ví kde leží Madagaskar, pamatuje si datum bitvy u Waterloo a zná chemický vzorec vody. Ostatní tě nesnáší na všeobecném kvízu.`
+                  : accuracy>=75&&avgScore>=allAvg
+                  ? `${user.name}, máš výborný přehled. Jen ta rychlost — ale rozhled se nesází na čas.`
+                  : accuracy>=75
+                  ? `${user.name}, vědomosti máš, ale skóre trochu pokulhává. Víc rychlosti, míň filozofování.`
+                  : avgScore>=allAvg
+                  ? `${user.name}, rychlý jsi, ale občas střílíš od boku. Znalosti se nedají nahradit odhadem.`
+                  : `${user.name}, máš co zlepšovat. Existuje věc zvaná kniha. A také Wikipedia. A televize. A okna.`
+              ) : (
+                accuracy>=75&&avgScore>=allAvg&&parseFloat(avgAnswerTime)<=6
+                  ? `${user.name}, jsi ten člověk ve firmě co opravdu ví co dělá, dělá to rychle a nepotřebuje Stack Overflow. Ostatní to jen předstírají.`
+                  : accuracy>=75&&avgScore>=allAvg
+                  ? `${user.name}, znalosti i skóre máš výborné. Jen ta rychlost — ale kdo se nespěchá, taky někam dojde.`
+                  : accuracy>=75&&parseFloat(avgAnswerTime)<=6
+                  ? `${user.name}, rychlý a přesný. Jen to skóre by mohlo být vyšší.`
+                  : accuracy>=75
+                  ? `${user.name}, přesnost výborná, zbytek má potenciál. Potenciál se ale nenapíše do CV.`
+                  : avgScore>=allAvg
+                  ? `${user.name}, skóre nad průměrem, ale přesnost to trochu kazí.`
+                  : `${user.name}, máš co zlepšovat — to je pozitivní zpráva.`
+              )}
             </div>
           </div>
 

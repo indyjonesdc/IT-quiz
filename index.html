@@ -561,6 +561,8 @@ function App() {
   const yesterdayKey = getYesterdayKey();
   const todayQuestions = getDailyQuestions(todayKey, quizMode);
   const hasPlayedToday = user && scores.some(s => s.user_id === user.id && s.date === todayKey && (s.quiz_mode||QUIZ_MODES.IT) === quizMode);
+  const otherMode = quizMode === QUIZ_MODES.IT ? QUIZ_MODES.GENERAL : QUIZ_MODES.IT;
+  const hasPlayedOtherMode = user && scores.some(s => s.user_id === user.id && s.date === todayKey && (s.quiz_mode||QUIZ_MODES.IT) === otherMode);
 
   useEffect(() => {
     // Nejdřív načti otázky, pak scores
@@ -934,7 +936,7 @@ function App() {
             </div>
           </div>
         ) : (<>
-        {screen===SCREENS.HOME && <HomeScreen user={user} hasPlayedToday={hasPlayedToday} todayKey={todayKey} todayQuestions={todayQuestions}
+        {screen===SCREENS.HOME && <HomeScreen user={user} hasPlayedToday={hasPlayedToday} hasPlayedOtherMode={hasPlayedOtherMode} todayKey={todayKey} todayQuestions={todayQuestions}
           timeBonusToday={timeBonusToday}
           resumableQuiz={resumableQuiz}
           quizMode={quizMode}
@@ -993,9 +995,10 @@ function App() {
 }
 
 // ─── HOME ─────────────────────────────────────────────
-function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusToday, resumableQuiz, quizMode, onSwitchMode, onResume, onRegister, onLogin, onStart, onBoard, onStats, onLogout, onProfile, loading }) {
+function HomeScreen({ user, hasPlayedToday, hasPlayedOtherMode, todayKey, todayQuestions, timeBonusToday, resumableQuiz, quizMode, onSwitchMode, onResume, onRegister, onLogin, onStart, onBoard, onStats, onLogout, onProfile, loading }) {
   const cats = [...new Set(todayQuestions.map(q=>q.cat).filter(c=>c!=='🎲 Lucky Box'))];
   const isGeneral = quizMode === QUIZ_MODES.GENERAL;
+  const otherMode = quizMode === QUIZ_MODES.IT ? QUIZ_MODES.GENERAL : QUIZ_MODES.IT;
   const OS_LABELS = {linux:'🐧 Linux', windows:'🪟 Windows', macos:' macOS', bsd:'👹 BSD', arch:'💀 Arch (btw)'};
   const totalTime = QUIZ_DURATION + (timeBonusToday||0);
   const resumeProgress = resumableQuiz ? resumableQuiz.answers.length : 0;
@@ -1225,6 +1228,27 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusT
             📊 MÉ STATISTIKY
           </button>}
         </div>
+
+        {/* Upozornění na druhý kvíz */}
+        {user && hasPlayedToday && !hasPlayedOtherMode && (
+          <div onClick={()=>onSwitchMode(otherMode)} style={{
+            marginTop:16,cursor:'pointer',
+            background: quizMode===QUIZ_MODES.IT ? 'rgba(0,80,40,0.25)' : 'rgba(30,60,160,0.25)',
+            border: `1px solid ${quizMode===QUIZ_MODES.IT?'#226644':'#2a4a9a'}`,
+            borderRadius:12,padding:'12px 16px',
+            display:'flex',alignItems:'center',gap:12,
+            maxWidth:340,margin:'16px auto 0',
+          }}>
+            <span style={{fontSize:24,flexShrink:0}}>{quizMode===QUIZ_MODES.IT?'🌍':'💻'}</span>
+            <div style={{flex:1}}>
+              <div style={{fontSize:13,fontWeight:700,color:quizMode===QUIZ_MODES.IT?'#44ffaa':'#88aaff',marginBottom:2}}>
+                {quizMode===QUIZ_MODES.IT ? 'Zkus i Obecný kvíz!' : 'Zkus i IT kvíz!'}
+              </div>
+              <div style={{fontSize:11,color:'#445566'}}>Dnes jsi ho ještě nehrál — klepni pro přepnutí</div>
+            </div>
+            <span style={{fontSize:16,color:'#445566',flexShrink:0}}>→</span>
+          </div>
+        )}
 
         {/* Odhlášení — úplně dole */}
         {user && (

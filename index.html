@@ -1090,20 +1090,18 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusT
 
           {/* Header */}
           <div style={{
-            padding:'14px 18px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,
+            padding:'12px 14px',
             borderBottom:`1px solid ${isGeneral?'#1a4030':'#1a2a4a'}`,
             background:isGeneral?'rgba(0,80,40,0.3)':'rgba(30,60,160,0.3)',
           }}>
-            <div>
-              <div style={{fontSize:16,fontWeight:700,color:'#fff',marginBottom:3}}>
-                {isGeneral?'🌍 Obecný kvíz':'💻 IT kvíz'}
-              </div>
-              <div style={{fontSize:11,color:'#556688'}}>{todayKey}</div>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:8}}>
+              <div style={{fontSize:15,fontWeight:700,color:'#fff'}}>{isGeneral?'🌍 Obecný kvíz':'💻 IT kvíz'}</div>
+              <div style={{fontSize:10,color:'#556688',flexShrink:0}}>{todayKey}</div>
             </div>
-            <div style={{display:'flex',gap:6,flexShrink:0,flexWrap:'wrap',justifyContent:'flex-end'}}>
-              {[`📝 15 otázek`, `⏱ Celkový limit ${totalTime}s${timeBonusToday>0?' (+'+timeBonusToday+'s bonus)':''}`].map(t=>(
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              {[`📝 15 otázek`, `⏱ Celkový limit ${totalTime}s${timeBonusToday>0?' (+'+timeBonusToday+'s)':''}`].map(t=>(
                 <span key={t} style={{
-                  fontSize:11,fontWeight:600,padding:'4px 10px',borderRadius:20,whiteSpace:'nowrap',
+                  fontSize:11,fontWeight:600,padding:'4px 9px',borderRadius:20,whiteSpace:'nowrap',
                   background:isGeneral?'rgba(0,100,50,0.35)':'rgba(40,80,200,0.35)',
                   color:isGeneral?'#44ffaa':'#88aaff',
                   border:`1px solid ${isGeneral?'#226644':'#2a4a9a'}`,
@@ -1113,35 +1111,37 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusT
           </div>
 
           {/* Témata */}
-          <div style={{padding:'11px 16px',borderBottom:'1px solid #1a2040',display:'flex',flexWrap:'wrap',gap:5,alignItems:'center'}}>
-            <span style={{fontSize:12,fontWeight:600,color:'#8899bb',marginRight:4,flexShrink:0}}>Témata:</span>
-            {cats.map(c=>(
-              <span key={c} style={{
-                fontSize:11,padding:'3px 10px',borderRadius:20,
-                background:isGeneral?'rgba(0,80,40,0.3)':'rgba(30,50,140,0.3)',
-                color:isGeneral?'#44cc88':'#88aaff',
-                border:`1px solid ${isGeneral?'#1a4030':'#1e2a5a'}`,
-              }}>{c}</span>
-            ))}
+          <div style={{padding:'10px 14px',borderBottom:'1px solid #1a2040'}}>
+            <div style={{display:'flex',flexWrap:'wrap',gap:5,alignItems:'center'}}>
+              <span style={{fontSize:12,fontWeight:600,color:'#8899bb',flexShrink:0}}>Témata:</span>
+              {cats.map(c=>(
+                <span key={c} style={{
+                  fontSize:11,padding:'3px 9px',borderRadius:20,
+                  background:isGeneral?'rgba(0,80,40,0.3)':'rgba(30,50,140,0.3)',
+                  color:isGeneral?'#44cc88':'#88aaff',
+                  border:`1px solid ${isGeneral?'#1a4030':'#1e2a5a'}`,
+                }}>{c}</span>
+              ))}
+            </div>
           </div>
 
           {/* Pravidla */}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr'}}>
             {[
               {e:'⚡',l:'Body za otázku',v:'100 – 1 000',c:'#ffd700'},
-              {e:'🔥',l:'Kombo',v:'3–5× = až +2 000',c:'#ff6644'},
+              {e:'🔥',l:'Kombo',v:'3–5× = +2 000',c:'#ff6644'},
               {e:'💎',l:'Perfect run',v:'15/15 = +2 000',c:'#ffd700'},
               {e:'🎁',l:'Lucky box',v:'−500 až +1 000',c:isGeneral?'#44ffaa':'#bb88ff'},
             ].map((r,i)=>(
               <div key={r.l} style={{
-                padding:'11px 14px',display:'flex',alignItems:'center',gap:10,
+                padding:'10px 12px',display:'flex',alignItems:'center',gap:8,
                 borderRight:i%2===0?'1px solid #1a2040':'none',
                 borderBottom:i<2?'1px solid #1a2040':'none',
               }}>
-                <span style={{fontSize:18,flexShrink:0}}>{r.e}</span>
-                <div>
-                  <div style={{fontSize:10,color:'#445566',marginBottom:2}}>{r.l}</div>
-                  <div style={{fontSize:12,fontWeight:700,color:r.c}}>{r.v}</div>
+                <span style={{fontSize:16,flexShrink:0}}>{r.e}</span>
+                <div style={{minWidth:0}}>
+                  <div style={{fontSize:10,color:'#445566',marginBottom:1}}>{r.l}</div>
+                  <div style={{fontSize:11,fontWeight:700,color:r.c,whiteSpace:'nowrap'}}>{r.v}</div>
                 </div>
               </div>
             ))}

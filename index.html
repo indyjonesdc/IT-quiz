@@ -3110,11 +3110,11 @@ function StatsScreen({ user, scores, quizMode, onBack }) {
   function speedRoast(avg) {
     const a=parseFloat(avg);
     if (isGeneral) {
-      if(a<=2) return {e:'⚡',t:'Speedrunner vědomostí',d:'Odpovídáš rychleji než Wikipedie načte stránku. Buď jsi génius, nebo tipuješ.'};
-      if(a<=4) return {e:'🚀',t:'Encyklopedie na nohou',d:'Pod 4 sekundy. Buď to víš, nebo máš štěstí. Obojí funguje.'};
-      if(a<=7) return {e:'🎯',t:'Rozumný znalec',d:'Přemýšlíš, ale ne moc dlouho. Zlatá střední cesta vzdělance.'};
-      if(a<=12) return {e:'🐢',t:'Hluboký myslitel',d:'Dlouhé přemýšlení. Nebo si vzpomínáš kde jsi to četl. Nebo obojí.'};
-      return {e:'🦥',t:'Filosof v křesle',d:'Každá otázka je výzva k zamyšlení nad smyslem existence. A pak klikneš B.'};
+      if(a<=2) return {e:'⚡',t:'Klikací automat',d:'Odpovídáš rychleji než přečteš otázku. Buď jsi génius, nebo máš zavřené oči a klikáš naslepo. Výsledky napovídají.'};
+      if(a<=4) return {e:'🚀',t:'Překvapivě funkční',d:'Pod 4 sekundy. Někdo zřejmě četl aspoň jednu knížku. Nebo titulky k filmům. Počítáme obojí.'};
+      if(a<=7) return {e:'🐌',t:'Průměrný člověk',d:'Přemýšlíš kolem 7 sekund. Průměr. Jako všechno ostatní v tvém životě.'};
+      if(a<=12) return {e:'🦴',t:'Mozek se zahřívá',d:'12 sekund na otázku z obecného přehledu. Buď přemýšlíš hodně, nebo hodně málo. Výsledky mluví za sebe.'};
+      return {e:'🐠',t:'Zlatá rybka',d:'Víc než 12 sekund na otázku. Buď čteš pomalu, nebo čteš otázku vícekrát v naději že se změní. Nezmění.'};
     }
     if(a<=2) return {e:'⚡',t:'Kvantový procesor',d:'Odpovídáš rychleji než si stihneš přečíst otázku. Hazard nebo génius?'};
     if(a<=4) return {e:'🚀',t:'Rychlý jako NVMe',d:'Průměr pod 4s. Jsi připravený. Nebo odhazuješ naslepo.'};
@@ -3125,12 +3125,12 @@ function StatsScreen({ user, scores, quizMode, onBack }) {
 
   function accuracyRoast(acc) {
     if (isGeneral) {
-      if(acc>=95) return {e:'🧠',t:'Živoucí Wikipedie',d:'Víš všechno. Nebo si to myslíš. Ostatní se tě bojí na kvízy.'};
-      if(acc>=85) return {e:'📚',t:'Vzdělaný člověk',d:'Četl jsi knihy. Nebo sleduješ Discovery. Každopádně ti to jde.'};
-      if(acc>=70) return {e:'💡',t:'Solidní všeobecný přehled',d:'Nad průměrem. V hospodském kvízu bys byl ten užitečný člen týmu.'};
-      if(acc>=55) return {e:'🤔',t:'Průměrný středoškolák',d:'Polovina správně. Maturitu bys asi udělal. Asi.'};
-      if(acc>=40) return {e:'😅',t:'Optimistický nevzdělanec',d:'Aspoň víš kde leží Francie. Doufáme.'};
-      return {e:'🌍',t:'Záhada přírody',d:'Statisticky vzato, náhodné tipování by dopadlo lépe. A to říká hodně.'};
+      if(acc>=95) return {e:'🧠',t:'Podezřele chytrý',d:'95 % přesnost v obecném kvízu. Buď jsi výjimečně vzdělaný, nebo máš výjimečně dobrou paměť na náhodné věci. Každopádně ostatní tě nesnáší na teambuildingu.'};
+      if(acc>=85) return {e:'📚',t:'Ten co četl knížky',d:'85 % přesnost. Zřejmě jsi v životě otevřel knihu. Nebo aspoň Wikipedia doporučené články. Vzácný druh.'};
+      if(acc>=70) return {e:'💡',t:'Nadprůměrný smrtelník',d:'70 % přesnost. Nad průměrem — ale ten průměr je tak nízko, že je to trochu smutné. Přesto gratulujeme.'};
+      if(acc>=55) return {e:'🤷',t:'Náhodou správně',d:'55 % přesnost. Statisticky jen o málo lepší než náhodné tipování. Ale aspoň se snažíš. Nebo ne?'};
+      if(acc>=40) return {e:'🪨',t:'Vzdělanostní beton',d:'40 % přesnost. Pevný, nepropustný pro nové informace. Kde leží Afrika? Kdoví.'};
+      return {e:'🌵',t:'Poušť vědomostí',d:'Pod 40 %. Sucho. Nic neroste. Naposledy ses učil ve škole a i tam to bylo sporné. Ale kvíz hraješ, takže něco.'};
     }
     if(acc>=95) return {e:'🧠',t:'Kyborg v lidském těle',d:'Podezřele správně. IT oddělení tě sleduje.'};
     if(acc>=85) return {e:'🎯',t:'Ostrý jako nový SSD',d:'Nemáš odpovědi, ty jsi odpověď.'};
@@ -3142,12 +3142,12 @@ function StatsScreen({ user, scores, quizMode, onBack }) {
 
   function streakRoast(s) {
     if (isGeneral) {
-      if(s>=30) return {e:'🔥',t:'Encyklopedie na steroidech',d:'Měsíc denního kvízu. Twoje všeobecná vzdělanost dosáhla NPC úrovně.'};
-      if(s>=14) return {e:'📅',t:'Věrný student světa',d:`${s} dní v kuse. Twoje IQ roste pomaleji než to číslo, ale roste.`};
-      if(s>=7)  return {e:'🌱',t:'Týdenní znalec',d:'Týden bez přerušení. To je víc než tvoje dieta vydržela.'};
-      if(s>=3)  return {e:'🐣',t:'Začínající polymath',d:'3 dny. Malý krok pro člověka, velký krok pro tvůj přehled.'};
-      if(s>=1)  return {e:'👶',t:'Jeden malý krok',d:'Aspoň jsi tu. Svět je plný lidí kteří nevědí kde leží Brazílie.'};
-      return {e:'📺',t:'Trochu více televize',d:'Streak = 0. I seriály by tě naučily víc.'};
+      if(s>=30) return {e:'🔥',t:'Závislák na vědomostech',d:`${s} dní v kuse. V práci na tě čekají emaily. Rodina si zvykla. Terapeut ví o kvízu víc než o tobě.`};
+      if(s>=14) return {e:'📅',t:'Pravidelný jako léky',d:`${s} dní. Přísně vzato — toto je jedinkrát kdy "pravidelně" nezní pozitivně. Ale IQ roste. Pomalu.`};
+      if(s>=7)  return {e:'🌱',t:'Týden naděje',d:'7 dní v kuse. Začínáš budovat návyk. Nebo prokrastinuješ od něčeho důležitějšího. Pravděpodobně to druhé.'};
+      if(s>=3)  return {e:'🐣',t:'Tři dny slavný',d:'3 dny. Skoro jako rekord. Uvidíme jestli to vydržíš déle než gym membership ze Silvestra.'};
+      if(s>=1)  return {e:'👶',t:'Odhodlaný nováček',d:'Aspoň jeden den. To je víc než spousta lidí kteří si „chtěli rozšířit přehled" a pak sledovali Netflix.'};
+      return {e:'📺',t:'Streak? Jaký streak?',d:'Nula dní v kuse. Vzdělanost nevznikne sama od sebe. I když — podle tvých výsledků možná neškodí.'};
     }
     if(s>=30) return {e:'🔥',t:'Na dovolené s laptopem',d:'Normální lidé odpočívají. Ty kvízuješ.'};
     if(s>=14) return {e:'⚡',t:'Pravidelný jako cron job',d:`${s} dní v kuse. Tvůj terapeut o tom neví.`};
@@ -3165,11 +3165,11 @@ function StatsScreen({ user, scores, quizMode, onBack }) {
   // Doporučení — obecný vs IT
   const trainingTips = [];
   if (isGeneral) {
-    if (accuracy<60)  trainingTips.push({e:'📖',t:'Čti více',d:'Noviny, knihy, Wikipedia — cokoliv. Tvůj přehled to ocení.'});
-    if (weakCats.length && weakCats[0].acc<50) trainingTips.push({e:'🌍',t:weakCats[0].cat.replace(/^[^ ]+ /,''),d:`${weakCats[0].acc}% přesnost. Existuje YouTube, documentaries, a věci zvané "knihy".`});
-    if (parseFloat(avgAnswerTime)>12) trainingTips.push({e:'⚡',t:'Rozhoduj rychleji',d:'Buď to víš, nebo nevíš. 15 sekund přemýšlení výsledek nezmění.'});
-    if (perfectCount===0 && totalPlayed>=5) trainingTips.push({e:'💎',t:'Míř na perfekt',d:'15/15 čeká. Stačí trochu více BBC, National Geographic, nebo prostě víc žít.'});
-    if (lucky.bombs>lucky.jackpots && lucky.total>=3) trainingTips.push({e:'🎲',t:'Lucky Box smolař',d:'Ani náhoda tě nemá ráda. Zkus jinou bednu. Nebo ne.'});
+    if (accuracy<60)  trainingTips.push({e:'📖',t:'Čti cokoliv',d:'Noviny, knihy, Wikipedia, záložky ve WC — cokoliv. Aktuální stav je alarmující.'});
+    if (weakCats.length && weakCats[0].acc<50) trainingTips.push({e:'🌍',t:weakCats[0].cat.replace(/^[^ ]+ /,''),d:`${weakCats[0].acc}% přesnost. To není slabina, to je díra. Doporučujeme Google, nebo aspoň otevřít okno a podívat se na svět.`});
+    if (parseFloat(avgAnswerTime)>12) trainingTips.push({e:'⚡',t:'Rozhoduj rychleji',d:'Buď to víš, nebo nevíš. 12 sekund nezmění fakt, že to nevíš.'});
+    if (perfectCount===0 && totalPlayed>=5) trainingTips.push({e:'💎',t:'Perfect run? Vzdálený sen',d:'Po pěti kvízech stále žádný perfect. Stačí 15/15. Ani jednou. Zamyšlení hodné.'});
+    if (lucky.bombs>lucky.jackpots && lucky.total>=3) trainingTips.push({e:'🎲',t:'Smolař roku',d:'Lucky Box tě nenávidí. Nebo ty jeho. Každopádně — statisticky tragické.'});
   } else {
     if (accuracy<60)  trainingTips.push({e:'🎓',t:'IT základy',d:'Kurz "Proč je kabel důležitý a jiné záhady"'});
     if (parseFloat(avgAnswerTime)>12) trainingTips.push({e:'⚡',t:'Rychlost rozhodování',d:'Trénink rychlého rozhodování — ideálně bez Google a kávy'});
@@ -3486,14 +3486,14 @@ function StatsScreen({ user, scores, quizMode, onBack }) {
             <div style={{fontSize:12,color:'#556688',lineHeight:1.8}}>
               {isGeneral ? (
                 accuracy>=75&&avgScore>=allAvg&&parseFloat(avgAnswerTime)<=6
-                  ? `${user.name}, jsi ten typ co ví kde leží Madagaskar, pamatuje si datum bitvy u Waterloo a zná chemický vzorec vody. Ostatní tě nesnáší na všeobecném kvízu.`
+                  ? `${user.name}, víš kde leží Madagaskar, pamatuješ si bitvy i chemické vzorce a ještě to říkáš rychle. Ostatní tě nesnáší na kvízech a mají proč.`
                   : accuracy>=75&&avgScore>=allAvg
-                  ? `${user.name}, máš výborný přehled. Jen ta rychlost — ale rozhled se nesází na čas.`
+                  ? `${user.name}, přesnost výborná, skóre slušné. Jen ta rychlost — ale chápeme, přemýšlení nějaký čas trvá. Aspoň u tebe.`
                   : accuracy>=75
-                  ? `${user.name}, vědomosti máš, ale skóre trochu pokulhává. Víc rychlosti, míň filozofování.`
+                  ? `${user.name}, vědomosti máš, ale skóre je průměrné. Buď klikáš pomalu, nebo oslavuješ každou správnou odpověď příliš dlouho.`
                   : avgScore>=allAvg
-                  ? `${user.name}, rychlý jsi, ale občas střílíš od boku. Znalosti se nedají nahradit odhadem.`
-                  : `${user.name}, máš co zlepšovat. Existuje věc zvaná kniha. A také Wikipedia. A televize. A okna.`
+                  ? `${user.name}, rychlý jsi — ale tipuješ. Rychlé špatné odpovědi jsou pořád špatné odpovědi. Jen rychleji.`
+                  : `${user.name}, výsledky jsou... zajímavé. Existuje věc zvaná kniha. Taky internet. Taky škola. Třeba jsi to minul.`
               ) : (
                 accuracy>=75&&avgScore>=allAvg&&parseFloat(avgAnswerTime)<=6
                   ? `${user.name}, jsi ten člověk ve firmě co opravdu ví co dělá, dělá to rychle a nepotřebuje Stack Overflow. Ostatní to jen předstírají.`

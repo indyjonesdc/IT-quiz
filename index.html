@@ -2823,11 +2823,9 @@ function LuckyBoxSlot({ prizes, onPick, locked }) {
   function pick(i) {
     if (locked || opened !== null) return;
     setOpened(i);
-    // Po 900ms odkryj všechny bedny
     setTimeout(() => {
       setRevealed(true);
-      // Po dalších 200ms automaticky zavolej onPick — žádné extra tlačítko
-      setTimeout(() => onPick(prizes[i]), 200);
+      onPick(prizes[i]); // volej hned po odkrytí
     }, 900);
   }
 
@@ -2922,6 +2920,7 @@ function LuckyBoxSlot({ prizes, onPick, locked }) {
 // ─── QUIZ ─────────────────────────────────────────────
 function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
   const [quiz, setQuiz] = useState({...initQuiz});
+  const quizRef = useRef({...initQuiz}); // vždy aktuální kopie stavu
   const [selected, setSelected] = useState(null);
   const [locked, setLocked] = useState(false);
   const [flash, setFlash] = useState(null);
@@ -3070,10 +3069,13 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
 
   const isLucky = q && q.type === 'lucky';
 
+  // Sync quizRef při každé změně quiz state
+  useEffect(() => { quizRef.current = quiz; }, [quiz]);
+
   // Speciální handler pro Lucky Box — chráníme před dvojitým voláním
   const luckyCalledRef = useRef(false);
   function answerLucky(pts) {
-    if (luckyCalledRef.current) return; // ochrana před double-call
+    if (luckyCalledRef.current) return;
     luckyCalledRef.current = true;
     clearInterval(timer.current);
     comboCountRef.current = 0;
@@ -3087,15 +3089,14 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
       time_left: timeLeftRef.current,
       pts: Math.max(pts, 0),
     });
-    // Použij setQuiz callback aby měl vždy aktuální stav (ne stale closure)
-    setQuiz(currentQuiz => {
-      const newAns = [...currentQuiz.answers, {q: 'lucky', chosen: pts, correct: pts > 0, pts: Math.max(pts, 0), luckyPts: pts, comboBonus: 0}];
-      const newScore = Math.max(currentQuiz.totalScore + pts, 0);
-      setTimeout(() => {
-        onFinish({...currentQuiz, answers: newAns, totalScore: newScore, current: currentQuiz.current + 1, playLog: playLogRef.current});
-      }, 800); // dáme čas aby se reakce zobrazila
-      return currentQuiz;
-    });
+    // Přečti aktuální quiz z ref — žádný stale closure problém
+    const currentQuiz = quizRef.current;
+    const newAns = [...currentQuiz.answers, {q:'lucky', chosen:pts, correct:pts>0, pts:Math.max(pts,0), luckyPts:pts, comboBonus:0}];
+    const newScore = Math.max(currentQuiz.totalScore + pts, 0);
+    // Počkej na reakci Lucky Boxu, pak přejdi na výsledky
+    setTimeout(() => {
+      onFinish({...currentQuiz, answers:newAns, totalScore:newScore, current:currentQuiz.current+1, playLog:playLogRef.current});
+    }, 1500);
   }
 
   const totalDuration = initQuiz.totalDuration || QUIZ_DURATION;

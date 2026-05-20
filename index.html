@@ -1271,7 +1271,6 @@ function App() {
 
     const playLog = quiz.playLog || [];
 
-    const normalAnswers = quiz.answers.filter(a => a.q !== 'lucky');
     const entry = {
       id: Date.now().toString(), user_id: user.id, user_name: user.name,
       date: todayKey, score: finalScore,

@@ -1088,24 +1088,22 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusT
 
         <div style={{background:'rgba(10,15,40,0.8)',border:`1px solid ${isGeneral?'#226644':'#1e3a6a'}`,borderRadius:16,overflow:'hidden',marginBottom:timeBonusToday>0?12:28}}>
 
-          {/* Header — datum + badgy */}
+          {/* Header — 15 otázek + celkový limit v jednom řádku */}
           <div style={{
             padding:'12px 14px',
             borderBottom:`1px solid ${isGeneral?'#1a4030':'#1a2a4a'}`,
             background:isGeneral?'rgba(0,80,40,0.15)':'rgba(30,60,160,0.15)',
-            display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,flexWrap:'wrap',
+            display:'flex',alignItems:'center',justifyContent:'center',gap:8,flexWrap:'wrap',
           }}>
-            <div style={{fontSize:13,fontWeight:600,color:isGeneral?'#44cc88':'#88aaff'}}>{todayKey}</div>
-            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-              <span style={{
-                fontSize:12,fontWeight:700,padding:'4px 11px',borderRadius:20,whiteSpace:'nowrap',
-                background:'rgba(255,180,0,0.15)',color:'#ffd700',border:'1px solid #aa8800',
-              }}>📝 15 otázek</span>
-              <span style={{
-                fontSize:12,fontWeight:700,padding:'4px 11px',borderRadius:20,whiteSpace:'nowrap',
-                background:'rgba(255,100,50,0.15)',color:'#ff9966',border:'1px solid #aa4422',
-              }}>⏱ Celkový limit {totalTime}s{timeBonusToday>0?` (+${timeBonusToday}s)`:''}</span>
-            </div>
+            <span style={{
+              fontSize:12,fontWeight:700,padding:'5px 13px',borderRadius:20,whiteSpace:'nowrap',
+              background:'rgba(255,180,0,0.12)',color:'#ffd700',border:'1px solid #7a5500',
+            }}>📝 15 otázek</span>
+            <span style={{color:'#2a3a5a',fontSize:16}}>·</span>
+            <span style={{
+              fontSize:12,fontWeight:700,padding:'5px 13px',borderRadius:20,whiteSpace:'nowrap',
+              background:'rgba(255,100,50,0.12)',color:'#ff9966',border:'1px solid #7a3311',
+            }}>⏱ Celkový limit {totalTime}s{timeBonusToday>0?` (+${timeBonusToday}s)`:''}</span>
           </div>
 
           {/* Témata — vycentrovaná */}

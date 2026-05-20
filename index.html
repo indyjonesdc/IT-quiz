@@ -217,6 +217,7 @@ const QUESTIONS_PER_QUIZ = 15;
 const MAX_PTS = 1000;
 const MIN_PTS = 100;
 const SCREENS = { HOME:'home', REGISTER:'register', LOGIN:'login', PROFILE:'profile', QUIZ:'quiz', RESULT:'result', BOARD:'board', STATS:'stats' };
+const QUIZ_MODES = { IT: 'it', GENERAL: 'general' };
 
 // Kombo konstanty
 const COMBO_TIME_LIMIT = 3; // sekund od zobrazení otázky
@@ -1022,19 +1023,18 @@ function seededShuffle(arr, seed) {
   return a;
 }
 
-function getDailyQuestions(dateKey) {
-  // Vyber 15 otázek pro daný den — stejné pro všechny hráče (seed ze dne)
+function getDailyQuestions(dateKey, mode) {
+  const pool = mode === QUIZ_MODES.GENERAL ? ALL_GENERAL_QUESTIONS : ALL_QUESTIONS;
   const seed = dateKey.split('-').reduce((a,b) => a*31+parseInt(b), 0);
-  const selectedQs = seededShuffle(ALL_QUESTIONS, seed).slice(0, QUESTIONS_PER_QUIZ);
+  const selectedQs = seededShuffle(pool, seed).slice(0, QUESTIONS_PER_QUIZ);
 
-  // Lucky Box jako 16. slot (prizes se zamíchají při startu kvízu)
   selectedQs.push({
     id: 'lucky', type: 'lucky', cat: '🎲 Lucky Box',
     q: 'Zkus štěstí! Vyber jednu ze 4 skrytých truhliček.',
     prizes: null,
   });
 
-  return selectedQs; // odpovědi a pořadí otázek se zamíchají při startu kvízu
+  return selectedQs;
 }
 
 function calcPoints(tl) { return Math.round(MIN_PTS+(MAX_PTS-MIN_PTS)*(tl/QUIZ_DURATION)); }
@@ -1598,7 +1598,348 @@ const ALL_QUESTIONS = [
   {id:500,cat:'Bezpečnost',q:'Co je to living off the land (LotL) útok?',opts:['Zálohovací útok','Útok využívající legitimní systémové nástroje pro škodlivé účely','Typ phishingu','Zálohovací strategie'],a:1},
 ];
 
-// ─── HLAVNÍ APP ───────────────────────────────────────
+// ─── OBECNÝ KVÍZ — 300 otázek ────────────────────────
+const ALL_GENERAL_QUESTIONS = [
+  // 🌍 GEOGRAFIE
+  {id:1001,cat:'🌍 Geografie',q:'Které město je hlavním městem Austrálie?',opts:['Sydney','Melbourne','Canberra','Brisbane'],a:2},
+  {id:1002,cat:'🌍 Geografie',q:'Která hora je nejvyšší na světě?',opts:['K2','Mont Blanc','Everest','Kilimandžáro'],a:2},
+  {id:1003,cat:'🌍 Geografie',q:'Která řeka je nejdelší na světě?',opts:['Amazonka','Nil','Yangtze','Mississippi'],a:1},
+  {id:1004,cat:'🌍 Geografie',q:'Kolik kontinentů má Země?',opts:['5','6','7','8'],a:2},
+  {id:1005,cat:'🌍 Geografie',q:'Ve které zemi leží Sahara?',opts:['Pouze v Egyptě','Pouze v Libyi','Ve více zemích severní Afriky','Pouze v Maroku'],a:2},
+  {id:1006,cat:'🌍 Geografie',q:'Jaké je hlavní město Kanady?',opts:['Toronto','Vancouver','Montreal','Ottawa'],a:3},
+  {id:1007,cat:'🌍 Geografie',q:'Která země má největší rozlohu na světě?',opts:['Kanada','USA','Čína','Rusko'],a:3},
+  {id:1008,cat:'🌍 Geografie',q:'Kolik států má USA?',opts:['48','50','52','46'],a:1},
+  {id:1009,cat:'🌍 Geografie',q:'Kde leží Machu Picchu?',opts:['Mexiko','Brazílie','Peru','Kolumbie'],a:2},
+  {id:1010,cat:'🌍 Geografie',q:'Která hora je nejvyšší v Evropě?',opts:['Mont Blanc','Elbrus','Matterhorn','Grossglockner'],a:1},
+  {id:1011,cat:'🌍 Geografie',q:'Jak se jmenuje největší oceán?',opts:['Atlantický','Indický','Tichý','Arktický'],a:2},
+  {id:1012,cat:'🌍 Geografie',q:'Kde leží hora Fuji?',opts:['Čína','Japonsko','Korea','Vietnam'],a:1},
+  {id:1013,cat:'🌍 Geografie',q:'Kolik zemí tvoří Skandinávii?',opts:['2','3','4','5'],a:1},
+  {id:1014,cat:'🌍 Geografie',q:'Která řeka protéká Prahou?',opts:['Morava','Labe','Vltava','Berounka'],a:2},
+  {id:1015,cat:'🌍 Geografie',q:'Ve které zemi leží Sahel?',opts:['Pouze v jedné zemi','Jde o poušť bez státu','Přes několik zemí subsaharské Afriky','Je to oceánský pás'],a:2},
+  {id:1016,cat:'🌍 Geografie',q:'Jaké je hlavní město Brazílie?',opts:['Rio de Janeiro','São Paulo','Brasília','Salvador'],a:2},
+  {id:1017,cat:'🌍 Geografie',q:'Která země má nejvíce sousedů?',opts:['Rusko','Čína','Brazílie','Německo'],a:1},
+  {id:1018,cat:'🌍 Geografie',q:'Kde leží Tierra del Fuego?',opts:['Argentina/Chile','Brazílie','Peru','Mexiko'],a:0},
+  {id:1019,cat:'🌍 Geografie',q:'Kolik zemí sdílí hranice s Českou republikou?',opts:['3','4','5','6'],a:1},
+  {id:1020,cat:'🌍 Geografie',q:'Která poušť je největší na světě?',opts:['Sahara','Gobi','Antarktida','Arabská'],a:2},
+
+  // 🏛️ HISTORIE
+  {id:1021,cat:'🏛️ Historie',q:'Ve kterém roce padla Berlínská zeď?',opts:['1987','1988','1989','1991'],a:2},
+  {id:1022,cat:'🏛️ Historie',q:'Kdo byl první prezident USA?',opts:['John Adams','Thomas Jefferson','Benjamin Franklin','George Washington'],a:3},
+  {id:1023,cat:'🏛️ Historie',q:'Ve kterém roce začala první světová válka?',opts:['1912','1913','1914','1915'],a:2},
+  {id:1024,cat:'🏛️ Historie',q:'Kdo napsal Mein Kampf?',opts:['Himmler','Goebbels','Hitler','Göring'],a:2},
+  {id:1025,cat:'🏛️ Historie',q:'Které impérium bylo největší v historii lidstva?',opts:['Římská říše','Mongolská říše','Britské impérium','Osmanská říše'],a:2},
+  {id:1026,cat:'🏛️ Historie',q:'Ve kterém roce Kryštof Kolumbus přistál v Americe?',opts:['1488','1490','1492','1498'],a:2},
+  {id:1027,cat:'🏛️ Historie',q:'Kdo byl poslední egyptský faraon?',opts:['Kleopatra VII','Ramesses III','Tutanchamon','Nefertiti'],a:0},
+  {id:1028,cat:'🏛️ Historie',q:'Kdy skončila druhá světová válka v Evropě?',opts:['1944','1945','1946','1947'],a:1},
+  {id:1029,cat:'🏛️ Historie',q:'Kdo vynalezl telefon?',opts:['Edison','Tesla','Bell','Marconi'],a:2},
+  {id:1030,cat:'🏛️ Historie',q:'Ve které zemi proběhla francouzská revoluce?',opts:['Francie','Itálie','Španělsko','Anglie'],a:0},
+  {id:1031,cat:'🏛️ Historie',q:'Kdo byl první člověk na Měsíci?',opts:['Buzz Aldrin','Yuri Gagarin','Neil Armstrong','John Glenn'],a:2},
+  {id:1032,cat:'🏛️ Historie',q:'Ve kterém roce padla Římská říše?',opts:['376 n.l.','410 n.l.','455 n.l.','476 n.l.'],a:3},
+  {id:1033,cat:'🏛️ Historie',q:'Kdo byl Karel IV ve vztahu k Čechám?',opts:['Polský král','Český král a císař Svaté říše římské','Francouzský rytíř','Německý vévoda'],a:1},
+  {id:1034,cat:'🏛️ Historie',q:'Kdy proběhla bitva u Waterloo?',opts:['1812','1813','1814','1815'],a:3},
+  {id:1035,cat:'🏛️ Historie',q:'Kdo byl Leonardo da Vinci?',opts:['Pouze malíř','Pouze vědec','Renesanční polymath — malíř, vědec, vynálezce','Pouze sochař'],a:2},
+  {id:1036,cat:'🏛️ Historie',q:'Ve které zemi vznikl buddhismus?',opts:['Čína','Tibet','Indie','Japonsko'],a:2},
+  {id:1037,cat:'🏛️ Historie',q:'Kdo vynalezl tiskařský lis?',opts:['Da Vinci','Gutenberg','Newton','Galileo'],a:1},
+  {id:1038,cat:'🏛️ Historie',q:'Kdy vznikla Česká republika jako samostatný stát?',opts:['1989','1990','1992','1993'],a:3},
+  {id:1039,cat:'🏛️ Historie',q:'Kdo byl T. G. Masaryk?',opts:['Druhý prezident ČSR','První prezident ČSR','Předseda vlády','Generál'],a:1},
+  {id:1040,cat:'🏛️ Historie',q:'Kdy začala studená válka?',opts:['1943','1945','1947','1950'],a:2},
+
+  // 🔬 VĚDA
+  {id:1041,cat:'🔬 Věda',q:'Kolik protonů má atom vodíku?',opts:['0','1','2','3'],a:1},
+  {id:1042,cat:'🔬 Věda',q:'Jaká je chemická značka zlata?',opts:['Gl','Go','Au','Ag'],a:2},
+  {id:1043,cat:'🔬 Věda',q:'Jak se jmenuje nejmenší planeta sluneční soustavy?',opts:['Mars','Merkur','Pluto','Venuše'],a:1},
+  {id:1044,cat:'🔬 Věda',q:'Co studuje entomologie?',opts:['Ptáky','Hmyz','Ryby','Plazy'],a:1},
+  {id:1045,cat:'🔬 Věda',q:'Jaká je rychlost světla ve vakuu?',opts:['200 000 km/s','300 000 km/s','400 000 km/s','150 000 km/s'],a:1},
+  {id:1046,cat:'🔬 Věda',q:'Z čeho se skládá voda?',opts:['H2O2','HO','H2O','H3O'],a:2},
+  {id:1047,cat:'🔬 Věda',q:'Co je DNA?',opts:['Typ proteinu','Druh tuku','Kyselina deoxyribonukleová','Typ hormonu'],a:2},
+  {id:1048,cat:'🔬 Věda',q:'Kolik kostí má lidské tělo dospělého?',opts:['196','206','216','186'],a:1},
+  {id:1049,cat:'🔬 Věda',q:'Kdo formuloval teorii relativity?',opts:['Newton','Darwin','Einstein','Curie'],a:2},
+  {id:1050,cat:'🔬 Věda',q:'Co je fotosyntéza?',opts:['Trávení světla','Přeměna světla na energii v rostlinách','Druh respirace','Typ rozmnožování'],a:1},
+  {id:1051,cat:'🔬 Věda',q:'Kolik chromozomů má zdravý člověk?',opts:['44','46','48','42'],a:1},
+  {id:1052,cat:'🔬 Věda',q:'Co je Newtonův první zákon?',opts:['Zákon energie','Zákon setrvačnosti','Zákon gravitace','Zákon tření'],a:1},
+  {id:1053,cat:'🔬 Věda',q:'Jaká krevní skupina je univerzální dárce?',opts:['A+','B-','AB+','0-'],a:3},
+  {id:1054,cat:'🔬 Věda',q:'Co je pH neutrální vody?',opts:['6','7','8','5'],a:1},
+  {id:1055,cat:'🔬 Věda',q:'Jaký plyn tvoří většinu zemské atmosféry?',opts:['Kyslík','Argon','Dusík','CO2'],a:2},
+  {id:1056,cat:'🔬 Věda',q:'Kdo popsal evoluci přirozeným výběrem?',opts:['Mendel','Pasteur','Darwin','Lamarck'],a:2},
+  {id:1057,cat:'🔬 Věda',q:'Co je atom?',opts:['Nejmenší část molekuly','Základní stavební jednotka hmoty','Typ elektronu','Druh záření'],a:1},
+  {id:1058,cat:'🔬 Věda',q:'Jak daleko je Měsíc od Země (přibližně)?',opts:['180 000 km','240 000 km','384 000 km','500 000 km'],a:2},
+  {id:1059,cat:'🔬 Věda',q:'Co je periodická tabulka?',opts:['Tabulka teplot','Tabulka chemických prvků','Tabulka sloučenin','Tabulka molekul'],a:1},
+  {id:1060,cat:'🔬 Věda',q:'Jaká je nejtvrdší přírodní látka?',opts:['Granit','Křemen','Diamant','Korund'],a:2},
+
+  // 🎬 FILM & TV
+  {id:1061,cat:'🎬 Film & TV',q:'Kdo režíroval Titanic (1997)?',opts:['Steven Spielberg','James Cameron','Christopher Nolan','Ridley Scott'],a:1},
+  {id:1062,cat:'🎬 Film & TV',q:'Jak se jmenuje hlavní postava série Harry Potter?',opts:['Ron Weasley','Hermiona Grangerová','Harry Potter','Neville Longbottom'],a:2},
+  {id:1063,cat:'🎬 Film & TV',q:'Ve které zemi vznikl film Amélie z Montmartru?',opts:['Belgie','Švýcarsko','Francie','Itálie'],a:2},
+  {id:1064,cat:'🎬 Film & TV',q:'Kdo hrál Iron Mana v Marvel filmech?',opts:['Chris Evans','Robert Downey Jr.','Chris Hemsworth','Mark Ruffalo'],a:1},
+  {id:1065,cat:'🎬 Film & TV',q:'Jak se jmenuje seriál o výrobě pervitinu?',opts:['Dexter','Breaking Bad','Better Call Saul','Ozark'],a:1},
+  {id:1066,cat:'🎬 Film & TV',q:'Kdo napsal Pána prstenů?',opts:['C.S. Lewis','George R.R. Martin','J.R.R. Tolkien','Terry Pratchett'],a:2},
+  {id:1067,cat:'🎬 Film & TV',q:'Ve kterém roce vyšel první Star Wars film?',opts:['1975','1976','1977','1978'],a:2},
+  {id:1068,cat:'🎬 Film & TV',q:'Kdo režíroval Schindlerův seznam?',opts:['Spielberg','Kubrick','Scorsese','Coppola'],a:0},
+  {id:1069,cat:'🎬 Film & TV',q:'Jak se jmenuje hlavní postava Hry o trůny?',opts:['Jon Snow','Tyrion Lannister','Daenerys Targaryen','Eddard Stark'],a:3},
+  {id:1070,cat:'🎬 Film & TV',q:'Ve které zemi se odehrává seriál Squid Game?',opts:['Japonsko','Čína','Korea','Vietnam'],a:2},
+  {id:1071,cat:'🎬 Film & TV',q:'Kdo hraje Sherlocka Holmese v BBC seriálu?',opts:['Martin Freeman','Benedict Cumberbatch','Idris Elba','Tom Hiddleston'],a:1},
+  {id:1072,cat:'🎬 Film & TV',q:'Jak se jmenuje animovaný film o lvu od Disneyho?',opts:['Džungle','Lví král','Bambi','Dumbo'],a:1},
+  {id:1073,cat:'🎬 Film & TV',q:'Kdo hrál Jokera v Dark Knight (2008)?',opts:['Jack Nicholson','Jared Leto','Joaquin Phoenix','Heath Ledger'],a:3},
+  {id:1074,cat:'🎬 Film & TV',q:'Jak se jmenuje film kde DiCaprio hraje sny?',opts:['Interstellar','Počátek (Inception)','Shutter Island','Prestiz'],a:1},
+  {id:1075,cat:'🎬 Film & TV',q:'Kdo je režisér Pulp Fiction?',opts:['Coen Brothers','David Lynch','Quentin Tarantino','Tim Burton'],a:2},
+  {id:1076,cat:'🎬 Film & TV',q:'Jak se jmenuje česká pohádka s Popelkou?',opts:['Tři oříšky pro Popelku','Popelka a princ','Kouzelný střevíček','Zlatá Popelka'],a:0},
+  {id:1077,cat:'🎬 Film & TV',q:'Ve kterém roce byl natočen film Matrix?',opts:['1997','1998','1999','2000'],a:2},
+  {id:1078,cat:'🎬 Film & TV',q:'Kdo hraje Wolverina v X-Men filmech?',opts:['Hugh Jackman','Russell Crowe','Liam Neeson','Daniel Craig'],a:0},
+  {id:1079,cat:'🎬 Film & TV',q:'Jak se jmenuje seriál o rodině Sopranos?',opts:['Sopranos','The Wire','Boardwalk Empire','Goodfellas'],a:0},
+  {id:1080,cat:'🎬 Film & TV',q:'Ve které zemi se točí bollywoodské filmy?',opts:['Pákistán','Bangladéš','Indie','Srí Lanka'],a:2},
+
+  // 🎵 HUDBA
+  {id:1081,cat:'🎵 Hudba',q:'Kdo složil Devátou symfonii?',opts:['Mozart','Bach','Beethoven','Brahms'],a:2},
+  {id:1082,cat:'🎵 Hudba',q:'Jak se jmenuje nejprodávanější album všech dob?',opts:['Thriller — Michael Jackson','Back in Black — AC/DC','The Dark Side of the Moon','Led Zeppelin IV'],a:0},
+  {id:1083,cat:'🎵 Hudba',q:'Kdo byl zpěvákem skupiny Queen?',opts:['David Bowie','Freddie Mercury','Mick Jagger','Elton John'],a:1},
+  {id:1084,cat:'🎵 Hudba',q:'Kolik strun má klasická kytara?',opts:['4','5','6','7'],a:2},
+  {id:1085,cat:'🎵 Hudba',q:'Ze které země pochází ABBA?',opts:['Norsko','Dánsko','Finsko','Švédsko'],a:3},
+  {id:1086,cat:'🎵 Hudba',q:'Kdo napsal operu Carmen?',opts:['Verdi','Puccini','Bizet','Wagner'],a:2},
+  {id:1087,cat:'🎵 Hudba',q:'Jak se jmenuje nejznámější píseň Elvise Presleyho?',opts:['Blue Suede Shoes','Jailhouse Rock','Hound Dog','Love Me Tender'],a:2},
+  {id:1088,cat:'🎵 Hudba',q:'Ze které země pochází skupina U2?',opts:['Anglie','Skotsko','Irsko','Wales'],a:2},
+  {id:1089,cat:'🎵 Hudba',q:'Co je to jazz?',opts:['Klasická hudba','Hudební žánr vzniklý v USA z africké a evropské tradice','Latinská hudba','Anglická lidová hudba'],a:1},
+  {id:1090,cat:'🎵 Hudba',q:'Kdo je Karel Gott?',opts:['Český herec','Český zpěvák přezdívaný Zlatý hlas Prahy','Slovenský zpěvák','Český skladatel'],a:1},
+  {id:1091,cat:'🎵 Hudba',q:'Kolik tónů má stupnice?',opts:['5','6','7','8'],a:2},
+  {id:1092,cat:'🎵 Hudba',q:'Jak se jmenuje slavný houslista Paganini?',opts:['Johann','Antonio','Niccolò','Francesco'],a:2},
+  {id:1093,cat:'🎵 Hudba',q:'Ze které země pochází reggae?',opts:['Barbados','Trinidad','Jamajka','Kuba'],a:2},
+  {id:1094,cat:'🎵 Hudba',q:'Kdo složil Čtyři roční období?',opts:['Bach','Vivaldi','Handel','Telemann'],a:1},
+  {id:1095,cat:'🎵 Hudba',q:'Jak se jmenuje slavná arénní skupina z Brna?',opts:['Kabát','Lucie','Olympic','Chinaski'],a:0},
+  {id:1096,cat:'🎵 Hudba',q:'Co je to akord?',opts:['Část melodie','Několik tónů znějících současně','Typ rytmu','Délka noty'],a:1},
+  {id:1097,cat:'🎵 Hudba',q:'Ze které země pochází K-pop?',opts:['Japonsko','Čína','Korea','Vietnam'],a:2},
+  {id:1098,cat:'🎵 Hudba',q:'Kdo zpívá Bohemian Rhapsody?',opts:['The Beatles','Rolling Stones','Queen','Led Zeppelin'],a:2},
+  {id:1099,cat:'🎵 Hudba',q:'Co je to metronom?',opts:['Typ nástroje','Přístroj udávající tempo','Typ not','Druh kytary'],a:1},
+  {id:1100,cat:'🎵 Hudba',q:'Jak se jmenuje nejslavnější opera Verdiho?',opts:['Tosca','Aida','Carmen','Rigoletto'],a:1},
+
+  // ⚽ SPORT
+  {id:1101,cat:'⚽ Sport',q:'Kolik hráčů hraje ve fotbalovém týmu na hřišti?',opts:['9','10','11','12'],a:2},
+  {id:1102,cat:'⚽ Sport',q:'Která země vyhrála nejvíce mistrovství světa ve fotbale?',opts:['Německo','Argentina','Itálie','Brazílie'],a:3},
+  {id:1103,cat:'⚽ Sport',q:'Kde se konaly letní olympijské hry 2020?',opts:['Paříž','Tokio','Londýn','Los Angeles'],a:1},
+  {id:1104,cat:'⚽ Sport',q:'Jak dlouhý je maraton?',opts:['40 km','41,5 km','42,195 km','43 km'],a:2},
+  {id:1105,cat:'⚽ Sport',q:'Kolik hráčů je v basketbalovém týmu na hřišti?',opts:['4','5','6','7'],a:1},
+  {id:1106,cat:'⚽ Sport',q:'Kdo drží rekord v počtu zlatých olympijských medailí?',opts:['Carl Lewis','Mark Spitz','Michael Phelps','Usain Bolt'],a:2},
+  {id:1107,cat:'⚽ Sport',q:'Jaká je délka tenisového kurtu?',opts:['23,77 m','24,50 m','25 m','22 m'],a:0},
+  {id:1108,cat:'⚽ Sport',q:'Ve které zemi se hraje kriket nejvíce?',opts:['USA','Austrálie a Indie','Brazílie','Japonsko'],a:1},
+  {id:1109,cat:'⚽ Sport',q:'Kdo byl Martina Navrátilová?',opts:['Česká plavkyně','Česká tenistka světové třídy','Slovenská atletka','Česká gymnasstka'],a:1},
+  {id:1110,cat:'⚽ Sport',q:'Kolik bodů dává touchdown v americkém fotbale?',opts:['3','6','7','4'],a:1},
+  {id:1111,cat:'⚽ Sport',q:'Ve které zemi vznikl baseball?',opts:['Kanada','Anglie','Kuba','USA'],a:3},
+  {id:1112,cat:'⚽ Sport',q:'Jak se jmenuje nejslavnější cyklistický závod?',opts:['Giro d\'Italia','Tour de France','Vuelta a España','Paris-Roubaix'],a:1},
+  {id:1113,cat:'⚽ Sport',q:'Kolik hráčů hraje volejbal na jedné straně?',opts:['5','6','7','4'],a:1},
+  {id:1114,cat:'⚽ Sport',q:'Kde se konaly první moderní olympijské hry?',opts:['Paříž','Londýn','Atény','Stockholm'],a:2},
+  {id:1115,cat:'⚽ Sport',q:'Co je sumo?',opts:['Japonský bojový sport','Čínský tanec','Korejský fotbal','Indická meditace'],a:0},
+  {id:1116,cat:'⚽ Sport',q:'Kdo byl Emil Zátopek?',opts:['Český plavec','Český atlet, trojnásobný olympijský vítěz','Slovenský lyžař','Český fotbalista'],a:1},
+  {id:1117,cat:'⚽ Sport',q:'Kolik periód má hokejový zápas?',opts:['2','3','4','5'],a:1},
+  {id:1118,cat:'⚽ Sport',q:'Ve které zemi vzniklo judo?',opts:['Čína','Korea','Japonsko','Thailand'],a:2},
+  {id:1119,cat:'⚽ Sport',q:'Jak se jmenuje největší golfový turnaj?',opts:['US Open','The Masters','The Open Championship','Ryder Cup'],a:1},
+  {id:1120,cat:'⚽ Sport',q:'Kolik hráčů je v ragbyovém týmu?',opts:['13','15','17','11'],a:1},
+
+  // 🍕 JÍDLO & VAŘENÍ
+  {id:1121,cat:'🍕 Jídlo',q:'Ve které zemi vznikla pizza?',opts:['Španělsko','Řecko','Itálie','Francie'],a:2},
+  {id:1122,cat:'🍕 Jídlo',q:'Co je sushi?',opts:['Japonské jídlo z ryže a ryb','Čínská nudlová polévka','Korejský salát','Vietnamský závitek'],a:0},
+  {id:1123,cat:'🍕 Jídlo',q:'Z čeho se vyrábí tofu?',opts:['Mléko','Sója','Obilí','Vejce'],a:1},
+  {id:1124,cat:'🍕 Jídlo',q:'Co je to quiche?',opts:['Francouzský slaný koláč','Italská pasta','Španělský chléb','Německá polévka'],a:0},
+  {id:1125,cat:'🍕 Jídlo',q:'Ve které zemi vznikl hamburger?',opts:['USA','Německo','Anglie','Kanada'],a:1},
+  {id:1126,cat:'🍕 Jídlo',q:'Co je wasabi?',opts:['Japonská omáčka','Japonský křen','Typ soje','Druh ryby'],a:1},
+  {id:1127,cat:'🍕 Jídlo',q:'Z jaké zeměpisné oblasti pochází guláš?',opts:['Česko','Slovensko','Maďarsko','Rakousko'],a:2},
+  {id:1128,cat:'🍕 Jídlo',q:'Co je to tiramisu?',opts:['Španělský dezert','Italský dezert z mascarpone','Francouzský moučník','Řecký koláč'],a:1},
+  {id:1129,cat:'🍕 Jídlo',q:'Kolik Scoville jednotek má jalapeño přibližně?',opts:['500–1000','2000–5000','8000–20000','50000+'],a:2},
+  {id:1130,cat:'🍕 Jídlo',q:'Co je paella?',opts:['Italský rýžový pokrm','Španělský rýžový pokrm','Francouzská polévka','Portugalský dezert'],a:1},
+  {id:1131,cat:'🍕 Jídlo',q:'Z jakého ovoce se vyrábí kečup?',opts:['Paprika','Rajče','Červená řepa','Mrkev'],a:1},
+  {id:1132,cat:'🍕 Jídlo',q:'Co je to croissant?',opts:['Německý chléb','Francouzské rohlíkové pečivo','Italská sušenka','Belgická vafle'],a:1},
+  {id:1133,cat:'🍕 Jídlo',q:'Ve které zemi se pije nejvíce čaje na světě?',opts:['Indie','Japonsko','Čína','Anglie'],a:2},
+  {id:1134,cat:'🍕 Jídlo',q:'Co je to tzatziki?',opts:['Turecký kebab','Řecká omáčka z jogurtu a okurky','Arabský chléb','Bulharský sýr'],a:1},
+  {id:1135,cat:'🍕 Jídlo',q:'Z čeho se vyrábí čokoláda?',opts:['Kakaové boby','Vanilkové lusky','Kávové boby','Cukrová třtina'],a:0},
+  {id:1136,cat:'🍕 Jídlo',q:'Co je to svíčková?',opts:['Český vepřový pokrm','Česká hovězí svíčková na smetaně','Slovenský pokrm','Moravský dezert'],a:1},
+  {id:1137,cat:'🍕 Jídlo',q:'Ve které zemi se pije nejvíce kávy na osobu?',opts:['Itálie','USA','Finsko','Brazílie'],a:2},
+  {id:1138,cat:'🍕 Jídlo',q:'Co je hummus?',opts:['Řecký salát','Arabský dip z cizrny','Turecká omáčka','Perský dezert'],a:1},
+  {id:1139,cat:'🍕 Jídlo',q:'Z čeho je vyrobena sake?',opts:['Pšenice','Ječmen','Rýže','Kukuřice'],a:2},
+  {id:1140,cat:'🍕 Jídlo',q:'Co je to kimchi?',opts:['Japonská polévka','Korejská fermentovaná zelenina','Čínský závitek','Vietnamský salát'],a:1},
+
+  // 🐾 PŘÍRODA & ZVÍŘATA
+  {id:1141,cat:'🐾 Příroda',q:'Jaké je nejrychlejší suchozemské zvíře?',opts:['Lev','Gepard','Kůň','Pštros'],a:1},
+  {id:1142,cat:'🐾 Příroda',q:'Kolik srdcí má chobotnice?',opts:['1','2','3','4'],a:2},
+  {id:1143,cat:'🐾 Příroda',q:'Jaké je největší suchozemské zvíře?',opts:['Hroch','Nosorožec','Africký slon','Žirafa'],a:2},
+  {id:1144,cat:'🐾 Příroda',q:'Co je to metamorfóza?',opts:['Typ migrace','Přeměna tvaru organismu','Druh rozmnožování','Způsob dýchání'],a:1},
+  {id:1145,cat:'🐾 Příroda',q:'Jak dlouho žije průměrný slon?',opts:['30–40 let','50–60 let','60–70 let','70–80 let'],a:2},
+  {id:1146,cat:'🐾 Příroda',q:'Jaké je největší zvíře na světě?',opts:['Africký slon','Žralok velrybí','Modrá velryba','Kakapo'],a:2},
+  {id:1147,cat:'🐾 Příroda',q:'Která zvířata jsou savci?',opts:['Hadi','Delfíni','Žáby','Ptáci'],a:1},
+  {id:1148,cat:'🐾 Příroda',q:'Co je to fototropismus?',opts:['Reakce na dotyk','Reakce rostliny na světlo','Reakce na vlhkost','Typ pohybu hub'],a:1},
+  {id:1149,cat:'🐾 Příroda',q:'Kolik nohou má pavouk?',opts:['6','8','10','12'],a:1},
+  {id:1150,cat:'🐾 Příroda',q:'Jaký je nejjedovatější had na světě?',opts:['Kobra','Mamba','Taipan vnitrozemský','Chřestýš'],a:2},
+  {id:1151,cat:'🐾 Příroda',q:'Co je to chlorofyl?',opts:['Druh vitamínu','Zelené barvivo v rostlinách','Typ kyseliny','Druh bakterie'],a:1},
+  {id:1152,cat:'🐾 Příroda',q:'Jak se nazývá mláďě orla?',opts:['Orel mládě','Orle','Orlíček','Orel (nemá jiný název)'],a:2},
+  {id:1153,cat:'🐾 Příroda',q:'Která zvířata jsou plazi?',opts:['Krokodýl','Ježek','Veverka','Vydra'],a:0},
+  {id:1154,cat:'🐾 Příroda',q:'Co je to ekosystém?',opts:['Typ klimatu','Soubor organismů a prostředí','Druh půdy','Typ vegetace'],a:1},
+  {id:1155,cat:'🐾 Příroda',q:'Jak dlouho trvá březost slona?',opts:['12 měsíců','16 měsíců','22 měsíců','9 měsíců'],a:2},
+  {id:1156,cat:'🐾 Příroda',q:'Co je to migrace?',opts:['Zimní spánek','Sezonní přesun zvířat','Druh lovu','Způsob krmení'],a:1},
+  {id:1157,cat:'🐾 Příroda',q:'Které zvíře má černobílé pruhy?',opts:['Tapír','Zebra','Okapi','Všechna tato'],a:3},
+  {id:1158,cat:'🐾 Příroda',q:'Co je to symbioza?',opts:['Boj dvou druhů','Vzájemně prospěšný vztah dvou druhů','Parazitismus','Komenzalismus'],a:1},
+  {id:1159,cat:'🐾 Příroda',q:'Jaký je nejmenší savec na světě?',opts:['Myš domácí','Rejsek etruský','Netopýr čmelákovitý','Shrew pygmy'],a:1},
+  {id:1160,cat:'🐾 Příroda',q:'Kde žijí tučňáci přirozeně?',opts:['Arktida','Antarktida a jižní polokoule','Pouze v Antarktidě','Po celém světě'],a:1},
+
+  // 🧠 LOGIKA & MATEMATIKA
+  {id:1161,cat:'🧠 Logika',q:'Kolik je 15% ze 200?',opts:['25','30','35','20'],a:1},
+  {id:1162,cat:'🧠 Logika',q:'Jaký je výsledek: 7 × 8?',opts:['54','56','58','52'],a:1},
+  {id:1163,cat:'🧠 Logika',q:'Pokud vlak jede 100 km/h a cesta trvá 3 hodiny, jak daleko ujel?',opts:['200 km','250 km','300 km','350 km'],a:2},
+  {id:1164,cat:'🧠 Logika',q:'Kolik stran má krychle?',opts:['4','5','6','8'],a:2},
+  {id:1165,cat:'🧠 Logika',q:'Co je to prvočíslo?',opts:['Číslo dělitelné 2','Číslo dělitelné pouze 1 a sebou samým','Číslo větší než 100','Číslo na druhé'],a:1},
+  {id:1166,cat:'🧠 Logika',q:'Jaký je obvod čtverce se stranou 5 cm?',opts:['15 cm','20 cm','25 cm','10 cm'],a:1},
+  {id:1167,cat:'🧠 Logika',q:'Kolik minut má den?',opts:['1200','1440','1600','1380'],a:1},
+  {id:1168,cat:'🧠 Logika',q:'Jaké číslo chybí: 2, 4, 8, 16, ?',opts:['24','28','32','36'],a:2},
+  {id:1169,cat:'🧠 Logika',q:'Pokud máš 3 jablka a dáš 2, kolik zbyde?',opts:['0','1','2','3'],a:1},
+  {id:1170,cat:'🧠 Logika',q:'Co je Pythagorova věta?',opts:['a+b=c','a²+b²=c²','a×b=c²','2a+b=c'],a:1},
+  {id:1171,cat:'🧠 Logika',q:'Kolik nul má milion?',opts:['5','6','7','8'],a:1},
+  {id:1172,cat:'🧠 Logika',q:'Jaký je výsledek: 144 ÷ 12?',opts:['10','11','12','13'],a:2},
+  {id:1173,cat:'🧠 Logika',q:'Co je Fibonacciho posloupnost?',opts:['Každé číslo je dvojnásobek','Každé číslo je součet dvou předchozích','Každé číslo je mocnina','Každé číslo je prvočíslo'],a:1},
+  {id:1174,cat:'🧠 Logika',q:'Jaký je obsah kruhu s poloměrem 3? (π≈3,14)',opts:['18,84','28,26','9,42','56,52'],a:1},
+  {id:1175,cat:'🧠 Logika',q:'Kolik sekund má hodina?',opts:['2400','3000','3600','4200'],a:2},
+  {id:1176,cat:'🧠 Logika',q:'Jaké číslo chybí: 1, 1, 2, 3, 5, 8, ?',opts:['11','12','13','14'],a:2},
+  {id:1177,cat:'🧠 Logika',q:'Co je procentuální zisk pokud koupíš za 100 a prodáš za 130?',opts:['20%','25%','30%','35%'],a:2},
+  {id:1178,cat:'🧠 Logika',q:'Kolik je 2 na třetí?',opts:['6','8','9','12'],a:1},
+  {id:1179,cat:'🧠 Logika',q:'Jaký je úhel v pravoúhlém trojúhelníku?',opts:['60°','75°','90°','120°'],a:2},
+  {id:1180,cat:'🧠 Logika',q:'Pokud je dnes pondělí, co bude za 10 dní?',opts:['Pondělí','Úterý','Středa','Čtvrtek'],a:2},
+
+  // 💡 ZAJÍMAVOSTI & KULTURA
+  {id:1181,cat:'💡 Zajímavosti',q:'Co je to Mona Lisa?',opts:['Socha','Obraz','Budova','Píseň'],a:1},
+  {id:1182,cat:'💡 Zajímavosti',q:'Ve které zemi se nachází Eiffelova věž?',opts:['Belgie','Švýcarsko','Francie','Itálie'],a:2},
+  {id:1183,cat:'💡 Zajímavosti',q:'Kdo napsal Romeoa a Julii?',opts:['Dickens','Shakespeare','Goethe','Molière'],a:1},
+  {id:1184,cat:'💡 Zajímavosti',q:'Co je to hieroglyf?',opts:['Řecké písmo','Egyptské obrázkové písmo','Čínský znak','Latinské zkratky'],a:1},
+  {id:1185,cat:'💡 Zajímavosti',q:'Kdy byl vynalezen internet?',opts:['1969 — ARPANET','1980','1991','1995'],a:0},
+  {id:1186,cat:'💡 Zajímavosti',q:'Co je to Nobel Prize?',opts:['Vědecký grant','Mezinárodní cena za vědu, mír a literaturu','Vojenské ocenění','Sportovní trofej'],a:1},
+  {id:1187,cat:'💡 Zajímavosti',q:'Kdo napsal Hamlet?',opts:['Goethe','Molière','Shakespeare','Cervantes'],a:2},
+  {id:1188,cat:'💡 Zajímavosti',q:'Co je to UNESCO?',opts:['Vojenská aliance','OSN agentura pro vzdělání, vědu a kulturu','Ekonomická unie','Humanitární fond'],a:1},
+  {id:1189,cat:'💡 Zajímavosti',q:'Ve které zemi leží Stonehenge?',opts:['Irsko','Skotsko','Wales','Anglie'],a:3},
+  {id:1190,cat:'💡 Zajímavosti',q:'Co je to Taj Mahal?',opts:['Palác','Mešita','Mausoleum','Chrám'],a:2},
+  {id:1191,cat:'💡 Zajímavosti',q:'Kdo namaloval Sixtinskou kapli?',opts:['Da Vinci','Rafael','Michelangelo','Botticelli'],a:2},
+  {id:1192,cat:'💡 Zajímavosti',q:'Co je to karma?',opts:['Indický tanec','Princip příčiny a následku v hinduismu a buddhismu','Typ meditace','Druh postu'],a:1},
+  {id:1193,cat:'💡 Zajímavosti',q:'Ve které zemi se nachází Koloseum?',opts:['Řecko','Španělsko','Itálie','Turecko'],a:2},
+  {id:1194,cat:'💡 Zajímavosti',q:'Co je to esperanto?',opts:['Španělský dialekt','Umělý mezinárodní jazyk','Italský nářečí','Latinskoamerický kreol'],a:1},
+  {id:1195,cat:'💡 Zajímavosti',q:'Kdo vynalezl žárovku?',opts:['Tesla','Bell','Edison','Morse'],a:2},
+  {id:1196,cat:'💡 Zajímavosti',q:'Co je to Ramadán?',opts:['Islámský svátek','Islámský půst v devátém měsíci','Hinduistický festival','Arabský nový rok'],a:1},
+  {id:1197,cat:'💡 Zajímavosti',q:'Ve které zemi se nachází Akropolis?',opts:['Turecko','Itálie','Řecko','Chorvatsko'],a:2},
+  {id:1198,cat:'💡 Zajímavosti',q:'Co je to Big Bang teorie?',opts:['Teorie o gravitaci','Teorie vzniku vesmíru','Teorie evoluce','Teorie relativity'],a:1},
+  {id:1199,cat:'💡 Zajímavosti',q:'Kdo byl Sigmund Freud?',opts:['Německý filozof','Rakouský zakladatel psychoanalýzy','Francouzský spisovatel','Britský vědec'],a:1},
+  {id:1200,cat:'💡 Zajímavosti',q:'Co je to Velká čínská zeď?',opts:['Zavlažovací systém','Fortifikační systém na severní hranici Číny','Obchodní stezka','Posvátné místo'],a:1},
+
+  // 🌍 GEOGRAFIE 2
+  {id:1201,cat:'🌍 Geografie',q:'Jaké je hlavní město Japonska?',opts:['Osaka','Kyoto','Tokio','Hirošima'],a:2},
+  {id:1202,cat:'🌍 Geografie',q:'Která země má největší počet obyvatel?',opts:['Indie','USA','Čína','Indonésie'],a:2},
+  {id:1203,cat:'🌍 Geografie',q:'Kde leží Bospor?',opts:['Egypt','Řecko','Turecko','Izrael'],a:2},
+  {id:1204,cat:'🌍 Geografie',q:'Jaké je hlavní město Egypta?',opts:['Luxor','Alexandria','Gíza','Káhira'],a:3},
+  {id:1205,cat:'🌍 Geografie',q:'Ve které zemi leží Kilimandžáro?',opts:['Keňa','Uganda','Tanzanie','Etiopie'],a:2},
+  {id:1206,cat:'🌍 Geografie',q:'Která řeka protéká Paříží?',opts:['Rýn','Loira','Seina','Rhône'],a:2},
+  {id:1207,cat:'🌍 Geografie',q:'Ve které zemi leží jezero Bajkal?',opts:['Mongolsko','Čína','Kazachstán','Rusko'],a:3},
+  {id:1208,cat:'🌍 Geografie',q:'Jaké je hlavní město Indie?',opts:['Bombaj','Kalkata','Dillí','Bengalúru'],a:2},
+  {id:1209,cat:'🌍 Geografie',q:'Kde leží Panama průplav?',opts:['Mexiko','Guatemala','Panama','Kolumbie'],a:2},
+  {id:1210,cat:'🌍 Geografie',q:'Která hora je nejvyšší v Africe?',opts:['Mount Kenya','Kilimandžáro','Ras Dashen','Toubkal'],a:1},
+
+  // 🔬 VĚDA 2
+  {id:1211,cat:'🔬 Věda',q:'Co je to černá díra?',opts:['Typ hvězdy','Oblast s gravitací tak silnou, že uniká i světlo','Druh mlhoviny','Typ planetárního systému'],a:1},
+  {id:1212,cat:'🔬 Věda',q:'Kdo vyvinul teorii gravitace?',opts:['Einstein','Galileo','Newton','Kepler'],a:2},
+  {id:1213,cat:'🔬 Věda',q:'Co je to kvantová fyzika?',opts:['Fyzika vesmíru','Fyzika atomů a subatomárních částic','Fyzika tekutin','Fyzika zvuku'],a:1},
+  {id:1214,cat:'🔬 Věda',q:'Jaký prvek je nejhojnější ve vesmíru?',opts:['Helium','Kyslík','Vodík','Uhlík'],a:2},
+  {id:1215,cat:'🔬 Věda',q:'Co je to termodynamika?',opts:['Věda o světle','Věda o teple a energii','Věda o zvuku','Věda o pohybu'],a:1},
+  {id:1216,cat:'🔬 Věda',q:'Kdo objevil penicilin?',opts:['Pasteur','Koch','Fleming','Salk'],a:2},
+  {id:1217,cat:'🔬 Věda',q:'Co je to supernova?',opts:['Druh planety','Výbuch hvězdy na konci jejího života','Nová galaxie','Typ komety'],a:1},
+  {id:1218,cat:'🔬 Věda',q:'Jaký je atomový počet uhlíku?',opts:['4','6','8','12'],a:1},
+  {id:1219,cat:'🔬 Věda',q:'Co je to ekologie?',opts:['Věda o zvířatech','Věda o vztazích organismů a prostředí','Věda o rostlinách','Věda o houbách'],a:1},
+  {id:1220,cat:'🔬 Věda',q:'Co je to tsunami?',opts:['Tropická bouře','Podmořské zemětřesení','Obrovská mořská vlna způsobená zemětřesením','Druh tornáda'],a:2},
+
+  // ⚽ SPORT 2
+  {id:1221,cat:'⚽ Sport',q:'Kdo je rekordní střelec FIFA World Cup?',opts:['Pelé','Ronaldo','Miroslav Klose','Gerd Müller'],a:2},
+  {id:1222,cat:'⚽ Sport',q:'Ve které zemi se narodil Lionel Messi?',opts:['Brazílie','Uruguay','Argentina','Španělsko'],a:2},
+  {id:1223,cat:'⚽ Sport',q:'Kolik her trvá tenisový set maximálně (bez tie-breaku)?',opts:['10','12','14','16'],a:1},
+  {id:1224,cat:'⚽ Sport',q:'Kdo drží rekord v počtu Wimbledon titulů u mužů?',opts:['Federer','Djokovic','Sampras','Nadal'],a:0},
+  {id:1225,cat:'⚽ Sport',q:'Ve které zemi vznikl šachy?',opts:['Čína','Persie/Indie','Egypte','Řecko'],a:1},
+  {id:1226,cat:'⚽ Sport',q:'Jak se jmenuje nejstarší tenisový turnaj?',opts:['US Open','Roland Garros','Australian Open','Wimbledon'],a:3},
+  {id:1227,cat:'⚽ Sport',q:'Kolik disciplín má moderní pětiboj?',opts:['4','5','6','7'],a:1},
+  {id:1228,cat:'⚽ Sport',q:'Kdo byl Jan Žižka ve vztahu ke sportu?',opts:['První český olympionik','Husitský válečník — nebyl sportovec','Prvorepublikový atlet','Středověký turnajový rytíř'],a:1},
+  {id:1229,cat:'⚽ Sport',q:'Ve které zemi vzniklo rugby?',opts:['Irsko','Skotsko','Anglie','Wales'],a:2},
+  {id:1230,cat:'⚽ Sport',q:'Jak se jmenuje nejdůležitější cena v závodech F1?',opts:['Constructors Championship','Drivers Championship','FIA Trophy','Grand Prix Award'],a:1},
+
+  // 🎬 FILM & TV 2
+  {id:1231,cat:'🎬 Film & TV',q:'Kdo režíroval film ET (1982)?',opts:['George Lucas','Francis Ford Coppola','Steven Spielberg','Martin Scorsese'],a:2},
+  {id:1232,cat:'🎬 Film & TV',q:'Ve které zemi vznikl anime žánr?',opts:['Čína','Korea','Japonsko','Vietnam'],a:2},
+  {id:1233,cat:'🎬 Film & TV',q:'Jak se jmenuje seriál o záchraně v nemocnici od Shondy Rhimes?',opts:['ER','House MD','Grey\'s Anatomy','Scrubs'],a:2},
+  {id:1234,cat:'🎬 Film & TV',q:'Kdo hraje v seriálu The Crown britskou královnu?',opts:['Cate Blanchett','Helena Bonham Carter','Claire Foy a Olivia Colman','Judi Dench'],a:2},
+  {id:1235,cat:'🎬 Film & TV',q:'Ve kterém roce byl natočen Forrest Gump?',opts:['1992','1993','1994','1995'],a:2},
+  {id:1236,cat:'🎬 Film & TV',q:'Kdo hraje Thora v Marvel filmech?',opts:['Chris Evans','Chris Pratt','Chris Hemsworth','Chris Pine'],a:2},
+  {id:1237,cat:'🎬 Film & TV',q:'Jak se jmenuje nejúspěšnější film roku 2023?',opts:['Indiana Jones','Mission Impossible','Barbie','Avatar 2'],a:2},
+  {id:1238,cat:'🎬 Film & TV',q:'Ve které zemi vznikl film Parasite (2019)?',opts:['Japonsko','Čína','Korea','Vietnam'],a:2},
+  {id:1239,cat:'🎬 Film & TV',q:'Kdo hraje Alaskaira v seriálu Skins?',opts:['Daniel Radcliffe','Nicolas Hoult','Kaya Scodelario','Jack O\'Connell'],a:1},
+  {id:1240,cat:'🎬 Film & TV',q:'Jak se jmenuje česká pohádka s čertem, smrtí a vodníkem?',opts:['Arabela','S čerty nejsou žerty','Byl jednou jeden král','Princezna se zlatou hvězdou'],a:1},
+
+  // 💡 ZAJÍMAVOSTI 2
+  {id:1241,cat:'💡 Zajímavosti',q:'Kolik jazyků je na světě přibližně?',opts:['1000–2000','3000–4000','7000–8000','500–1000'],a:2},
+  {id:1242,cat:'💡 Zajímavosti',q:'Co je to emoji?',opts:['Japonský žánr','Digitální obrázkové symboly pro komunikaci','Čínský znak','Typ počítačového kódu'],a:1},
+  {id:1243,cat:'💡 Zajímavosti',q:'Kdo vynalezl parní stroj?',opts:['Watt zdokonalil — Newcomen vynalezl','Edison','Tesla','Stephenson'],a:0},
+  {id:1244,cat:'💡 Zajímavosti',q:'Co je to Mensa?',opts:['Latinský název pro stůl i mezinárodní organizace pro lidi s vysokým IQ','Druh testu','Typ školy','Vědecký institut'],a:0},
+  {id:1245,cat:'💡 Zajímavosti',q:'Ve které zemi se mluví svahilsky?',opts:['Pouze v Keni','Pouze v Tanzánii','Ve více zemích východní Afriky','Pouze v Ugandě'],a:2},
+  {id:1246,cat:'💡 Zajímavosti',q:'Co je to déjà vu?',opts:['Francouzský film','Pocit že jste situaci zažili dříve','Typ snu','Druh amnézie'],a:1},
+  {id:1247,cat:'💡 Zajímavosti',q:'Kdo napsal 1984?',opts:['Aldous Huxley','Ray Bradbury','George Orwell','Franz Kafka'],a:2},
+  {id:1248,cat:'💡 Zajímavosti',q:'Co je to palindrom?',opts:['Typ básně','Slovo čtené stejně zprava i zleva','Druh rýmu','Literární postava'],a:1},
+  {id:1249,cat:'💡 Zajímavosti',q:'Ve které zemi se nachází Ayers Rock (Uluru)?',opts:['Nový Zéland','Jižní Afrika','Austrálie','Papua-Nová Guinea'],a:2},
+  {id:1250,cat:'💡 Zajímavosti',q:'Co je to fobofóbie?',opts:['Strach z výšek','Strach ze strachu samotného','Strach z vody','Strach ze tmy'],a:1},
+
+  // 🏛️ HISTORIE 2
+  {id:1251,cat:'🏛️ Historie',q:'Kdo byl Napoleon Bonaparte?',opts:['Francouzský admirál','Francouzský císař a vojevůdce','Britský generál','Italský vévoda'],a:1},
+  {id:1252,cat:'🏛️ Historie',q:'Ve které zemi proběhla Říjnová revoluce 1917?',opts:['Německo','Rakousko','Rusko','Polsko'],a:2},
+  {id:1253,cat:'🏛️ Historie',q:'Kdo byl Alexander Veliký?',opts:['Řecký filosof','Makedonský vojevůdce a dobyvatel','Římský consul','Perský král'],a:1},
+  {id:1254,cat:'🏛️ Historie',q:'Ve které zemi vzniklo první písmo?',opts:['Egypt','Čína','Mezopotámie (Sumer)','Indie'],a:2},
+  {id:1255,cat:'🏛️ Historie',q:'Kdo byl Jan Hus?',opts:['Český král','Český náboženský reformátor upálený 1415','Polský rytíř','Moravský vévoda'],a:1},
+  {id:1256,cat:'🏛️ Historie',q:'Kdy byl postaven Titanic?',opts:['1906–1909','1907–1910','1909–1912','1910–1913'],a:2},
+  {id:1257,cat:'🏛️ Historie',q:'Kdo byl Konfucius?',opts:['Japonský bůh','Čínský filosof a učitel','Korejský císař','Tibetský mnich'],a:1},
+  {id:1258,cat:'🏛️ Historie',q:'Ve které zemi vzniklo papírnictví (výroba papíru)?',opts:['Japonsko','Korea','Čína','Egypt'],a:2},
+  {id:1259,cat:'🏛️ Historie',q:'Kdo byl Nikola Tesla?',opts:['Americký vynálezce','Srbsko-americký vynálezce střídavého proudu','Německý inženýr','Britský fyzik'],a:1},
+  {id:1260,cat:'🏛️ Historie',q:'Kdy proběhl první let lidí letadlem (bratři Wrightové)?',opts:['1900','1901','1903','1905'],a:2},
+
+  // 🍕 JÍDLO 2
+  {id:1261,cat:'🍕 Jídlo',q:'Co je to ratatouille?',opts:['Francouzský dezert','Francouzský zeleninový pokrm','Italská pasta','Španělský koláč'],a:1},
+  {id:1262,cat:'🍕 Jídlo',q:'Z čeho se vyrábí sake?',opts:['Pšenice','Ječmen','Rýže','Kukuřice'],a:2},
+  {id:1263,cat:'🍕 Jídlo',q:'Co je to ceviche?',opts:['Mexický dezert','Latinskoamerické marinované syrové ryby','Španělský pokrm','Brazilský salát'],a:1},
+  {id:1264,cat:'🍕 Jídlo',q:'Ve které zemi vznikl kebab?',opts:['Řecko','Turecko a Blízký východ','Egypt','Írán'],a:1},
+  {id:1265,cat:'🍕 Jídlo',q:'Co je to miso?',opts:['Japonský koktejl','Japonská pasta z fermentované sóji','Čínský čaj','Korejská omáčka'],a:1},
+  {id:1266,cat:'🍕 Jídlo',q:'Z jakého mléka se vyrábí pravý parmazán?',opts:['Kozí','Ovčí','Kravské','Buvolí'],a:2},
+  {id:1267,cat:'🍕 Jídlo',q:'Co je to brioche?',opts:['Italský chléb','Francouzské máslem obohacené pečivo','Německý koláč','Belgická vafle'],a:1},
+  {id:1268,cat:'🍕 Jídlo',q:'Ve které zemi vznikl fondue?',opts:['Francie','Švýcarsko','Rakousko','Německo'],a:1},
+  {id:1269,cat:'🍕 Jídlo',q:'Co je to tempura?',opts:['Japonské smažené těsto','Čínské dumplings','Korejský salát','Vietnamský závitek'],a:0},
+  {id:1270,cat:'🍕 Jídlo',q:'Z čeho se vyrábí pesto?',opts:['Rajčata, česnek, olivový olej','Bazalka, piniové oříšky, parmazán, olivový olej','Paprika, čili, česnek','Artyčok, sýr, bylinky'],a:1},
+
+  // 🐾 PŘÍRODA 2
+  {id:1271,cat:'🐾 Příroda',q:'Jak se nazývá proces kdy housenka se promění v motýla?',opts:['Metamorfóza','Kokonace','Kuklení','Transformace'],a:0},
+  {id:1272,cat:'🐾 Příroda',q:'Co je to bioluminiscence?',opts:['Druh fotosyntézy','Schopnost organismu produkovat světlo','Typ chlorofylu','Druh fluorescence'],a:1},
+  {id:1273,cat:'🐾 Příroda',q:'Jak dlouho žije průměrný papoušek Ara?',opts:['20–30 let','40–50 let','60–80 let','10–15 let'],a:2},
+  {id:1274,cat:'🐾 Příroda',q:'Co je to chloroplast?',opts:['Část buněčné stěny','Organela kde probíhá fotosyntéza','Typ barviva','Druh enzymu'],a:1},
+  {id:1275,cat:'🐾 Příroda',q:'Která zvířata jsou hmyz?',opts:['Pavouci','Škorpioni','Mravenci','Stonožky'],a:2},
+  {id:1276,cat:'🐾 Příroda',q:'Co je to hibernace?',opts:['Letní spánek','Zimní spánek','Migrace','Způsob lovu'],a:1},
+  {id:1277,cat:'🐾 Příroda',q:'Jak se jmenuje největší ryba na světě?',opts:['Velký bílý žralok','Žralok velrybí','Tuňák červenoploutvý','Marlin'],a:1},
+  {id:1278,cat:'🐾 Příroda',q:'Co je to mycelium?',opts:['Část stromu','Podzemní síť vláken houby','Druh lišejníku','Typ řasy'],a:1},
+  {id:1279,cat:'🐾 Příroda',q:'Kolik druhů zvířat je odhadováno na Zemi?',opts:['1–2 miliony','5–10 milionů','8–20 milionů','50+ milionů'],a:2},
+  {id:1280,cat:'🐾 Příroda',q:'Co je to potravní řetězec?',opts:['Druh migrace','Hierarchie kdo koho jí v ekosystému','Způsob trávení','Typ symbiozy'],a:1},
+
+  // 🎵 HUDBA 2
+  {id:1281,cat:'🎵 Hudba',q:'Kdo složil Čarokrásnou (La Traviata)?',opts:['Puccini','Verdi','Bizet','Rossini'],a:1},
+  {id:1282,cat:'🎵 Hudba',q:'Ze které země pochází flamenco?',opts:['Itálie','Portugalsko','Španělsko','Latinská Amerika'],a:2},
+  {id:1283,cat:'🎵 Hudba',q:'Co je to blues?',opts:['Arabský hudební styl','Africko-americký hudební žánr ze 40. let 19. stol','Irská lidová hudba','Karibiské rytmy'],a:1},
+  {id:1284,cat:'🎵 Hudba',q:'Kdo byl Wolfgang Amadeus Mozart?',opts:['Italský skladatel','Německý skladatel','Rakouský hudební génius','Francouzský klavírista'],a:2},
+  {id:1285,cat:'🎵 Hudba',q:'Co je to dubstep?',opts:['Australský tanec','Britský elektronický hudební žánr','Americký folk','Irský step'],a:1},
+  {id:1286,cat:'🎵 Hudba',q:'Ze které části USA pochází country hudba?',opts:['Západ','Jih','Sever','Středozápad'],a:1},
+  {id:1287,cat:'🎵 Hudba',q:'Kdo je považován za krále rock\'n\'rollu?',opts:['Chuck Berry','Little Richard','Jerry Lee Lewis','Elvis Presley'],a:3},
+  {id:1288,cat:'🎵 Hudba',q:'Co je to scat singing?',opts:['Italský operní styl','Jazzový zpěv s nesmyslnými slabikami','Britský folk','Americký gospel'],a:1},
+  {id:1289,cat:'🎵 Hudba',q:'Kdo jsou Beatles?',opts:['Americká rocková skupina','Britská poprocková skupina 60. let','Australská kapela','Kanadský band'],a:1},
+  {id:1290,cat:'🎵 Hudba',q:'Co je to symfonický orchestr?',opts:['Komorní soubor','Velký orchestr hrající symfonie s dechovou, smyčcovou a bicí sekcí','Jazzový big band','Komorní kvarteto'],a:1},
+
+  // 🧠 LOGIKA 2
+  {id:1291,cat:'🧠 Logika',q:'Pokud je větší než 5 a menší než 8 a sudé, co to je?',opts:['5','6','7','8'],a:1},
+  {id:1292,cat:'🧠 Logika',q:'Kolik je 25% z 400?',opts:['75','100','125','150'],a:1},
+  {id:1293,cat:'🧠 Logika',q:'Jaký je výsledek: √144?',opts:['10','11','12','13'],a:2},
+  {id:1294,cat:'🧠 Logika',q:'Pokud letadlo letí 800 km/h a vzdálenost je 3200 km, jak dlouho letí?',opts:['2 h','3 h','4 h','5 h'],a:2},
+  {id:1295,cat:'🧠 Logika',q:'Co je větší: 2/3 nebo 3/4?',opts:['2/3','3/4','Jsou stejné','Nelze porovnat'],a:1},
+  {id:1296,cat:'🧠 Logika',q:'Jaký je výsledek: (5+3) × 4 - 2?',opts:['28','30','32','34'],a:1},
+  {id:1297,cat:'🧠 Logika',q:'Kolik je 3/5 ze 100?',opts:['50','55','60','65'],a:2},
+  {id:1298,cat:'🧠 Logika',q:'Jaké číslo chybí: 3, 6, 12, 24, ?',opts:['36','42','48','36'],a:2},
+  {id:1299,cat:'🧠 Logika',q:'Pokud snížím cenu o 20% a pak zvýším o 20%, jsem na původní ceně?',opts:['Ano','Ne — jsem o 4% níže','Ne — jsem o 4% výše','Záleží na ceně'],a:1},
+  {id:1300,cat:'🧠 Logika',q:'Kolik je 7 faktoriál (7!)?',opts:['2520','5040','10080','1260'],a:1},
+];
 function App() {
   const [screen, setScreen] = useState(SCREENS.HOME);
   const [user, setUser] = useState(() => ls('itq_user', null));
@@ -1610,12 +1951,13 @@ function App() {
   const [dbOk, setDbOk] = useState(true);
   const [timeBonusToday, setTimeBonusToday] = useState(0);
   const [monthlyChampions, setMonthlyChampions] = useState([]);
-  const [resumableQuiz, setResumableQuiz] = useState(null); // rozehraný kvíz z localStorage
+  const [resumableQuiz, setResumableQuiz] = useState(null);
+  const [quizMode, setQuizMode] = useState(QUIZ_MODES.IT); // 'it' nebo 'general' // rozehraný kvíz z localStorage
 
   const todayKey = getTodayKey();
   const yesterdayKey = getYesterdayKey();
-  const todayQuestions = getDailyQuestions(todayKey);
-  const hasPlayedToday = user && scores.some(s => s.user_id === user.id && s.date === todayKey);
+  const todayQuestions = getDailyQuestions(todayKey, quizMode);
+  const hasPlayedToday = user && scores.some(s => s.user_id === user.id && s.date === todayKey && (s.quiz_mode||QUIZ_MODES.IT) === quizMode);
 
   useEffect(() => {
     loadScores();
@@ -1764,8 +2106,12 @@ function App() {
       perfect: allCorrect,
       play_log: playLog.length > 0 ? playLog : null,
       play_checksum: checksum,
+      quiz_mode: quizMode,
     };
-    await db.from('scores').upsert(entry, { onConflict: 'user_id,date' });
+    // upsert podle user_id + date + quiz_mode (IT a obecný kvíz jsou oddělené záznamy)
+    await db.from('scores').upsert(entry, { onConflict: 'user_id,date,quiz_mode' }).catch(() =>
+      db.from('scores').upsert(entry, { onConflict: 'user_id,date' })
+    );
     // Kvíz dokončen — smaž uložený stav
     lsDel('itq_active_quiz');
     setResumableQuiz(null);
@@ -1951,6 +2297,8 @@ function App() {
         {screen===SCREENS.HOME && <HomeScreen user={user} hasPlayedToday={hasPlayedToday} todayKey={todayKey} todayQuestions={todayQuestions}
           timeBonusToday={timeBonusToday}
           resumableQuiz={resumableQuiz}
+          quizMode={quizMode}
+          onSwitchMode={(m)=>{ setQuizMode(m); setResumableQuiz(loadActiveQuiz(getTodayKey()+'_'+m)||null); }}
           onResume={()=>{
             setCurrentQuiz(resumableQuiz);
             setResumableQuiz(null);
@@ -2004,8 +2352,9 @@ function App() {
 }
 
 // ─── HOME ─────────────────────────────────────────────
-function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusToday, resumableQuiz, onResume, onRegister, onLogin, onStart, onBoard, onStats, onLogout, onProfile, loading }) {
+function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusToday, resumableQuiz, quizMode, onSwitchMode, onResume, onRegister, onLogin, onStart, onBoard, onStats, onLogout, onProfile, loading }) {
   const cats = [...new Set(todayQuestions.map(q=>q.cat).filter(c=>c!=='🎲 Lucky Box'))];
+  const isGeneral = quizMode === QUIZ_MODES.GENERAL;
   const OS_LABELS = {linux:'🐧 Linux', windows:'🪟 Windows', macos:' macOS', bsd:'👹 BSD', arch:'💀 Arch (btw)'};
   const totalTime = QUIZ_DURATION + (timeBonusToday||0);
   const resumeProgress = resumableQuiz ? resumableQuiz.answers.length : 0;
@@ -2080,10 +2429,26 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusT
         <h1 className="glow" style={{fontFamily:"'Orbitron', sans-serif",fontSize:'clamp(40px,9vw,80px)',fontWeight:900,letterSpacing:4,color:'#fff',lineHeight:1}}>
           IT<span style={{color:'#4488ff'}}>QUIZ</span>
         </h1>
-        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:11,letterSpacing:3,color:'#4a5a7a',marginTop:4,marginBottom:36}}>KAŽDÝ DEN NOVÉ OTÁZKY</div>
+        <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:11,letterSpacing:3,color:'#4a5a7a',marginTop:4,marginBottom:20}}>KAŽDÝ DEN NOVÉ OTÁZKY</div>
+
+        {/* Přepínač módu */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:24,background:'rgba(10,15,40,0.6)',borderRadius:10,padding:4,border:'1px solid #1e2a4a',maxWidth:400,margin:'0 auto 24px'}}>
+          {[{m:QUIZ_MODES.IT,l:'💻 IT Kvíz'},{m:QUIZ_MODES.GENERAL,l:'🌍 Obecný kvíz'}].map(({m,l})=>(
+            <button key={m} onClick={()=>onSwitchMode(m)} style={{
+              padding:'11px',borderRadius:8,border:'none',cursor:'pointer',
+              fontFamily:'inherit',fontSize:13,fontWeight:700,
+              transition:'all 0.2s',
+              background: quizMode===m ? 'linear-gradient(135deg,#1a3a8a,#2255cc)' : 'transparent',
+              color: quizMode===m ? '#fff' : '#4a5a7a',
+              boxShadow: quizMode===m ? '0 0 20px rgba(68,136,255,0.3)' : 'none',
+            }}>{l}</button>
+          ))}
+        </div>
 
         <div style={{background:'rgba(20,35,80,0.55)',border:'1px solid #2a3a6a',borderRadius:14,padding:'20px 28px',marginBottom:timeBonusToday>0?12:28,backdropFilter:'blur(8px)'}}>
-          <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:10,color:'#4488ff',letterSpacing:3,marginBottom:10}}>DNEŠNÍ KVÍZ — {todayKey}</div>
+          <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:10,color:'#4488ff',letterSpacing:3,marginBottom:10}}>
+            {isGeneral ? '🌍 OBECNÝ KVÍZ' : '💻 IT KVÍZ'} — {todayKey}
+          </div>
           <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'center',marginBottom:14}}>
             {cats.map(c=><span key={c} style={{background:'rgba(68,136,255,0.12)',border:'1px solid rgba(68,136,255,0.25)',borderRadius:20,padding:'3px 12px',fontSize:11,color:'#88aaff',letterSpacing:0.5}}>{c}</span>)}
           </div>

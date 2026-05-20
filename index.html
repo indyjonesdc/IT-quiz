@@ -1270,9 +1270,6 @@ function App() {
     const monthKey = getCurrentMonthKey();
 
     const playLog = quiz.playLog || [];
-    // Jednoduchý checksum: součet (qId hash + time_spent + pts) pro každou odpověď
-      return sum + qHash + (e.time_spent||0) + (e.pts||0);
-    }, 0).toString(16);
 
     const entry = {
       id: Date.now().toString(), user_id: user.id, user_name: user.name,
@@ -1281,26 +1278,26 @@ function App() {
       total: quiz.questions.length, timestamp: Date.now(),
       time_saved: timeSaved,
       perfect: allCorrect,
-      play_log: playLog.length > 0 ? playLog : null,
       quiz_mode: quizMode,
     };
 
-    // Ulož výsledek
+    // Ulož přes Edge Function — validace + uložení na serveru
     try {
-      const { data: existing } = await db.from('scores')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('date', todayKey)
-        .eq('quiz_mode', quizMode)
-        .maybeSingle();
-
-      if (existing) {
-        await db.from('scores').update(entry).eq('id', existing.id);
-      } else {
-        await db.from('scores').insert(entry);
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/save-score`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+        },
+        body: JSON.stringify({ entry, playLog }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(()=>({}));
+        console.error('Save-score error:', err);
       }
     } catch(err) {
-      console.error('Score save error:', err);
+      console.error('Save-score exception:', err);
     }
     // Kvíz dokončen — smaž uložený stav
     lsDel('itq_active_quiz');
@@ -1485,16 +1482,16 @@ function App() {
       )}
 
       <div style={S.content}>
-        {/* Loading overlay dokud se nenačtou otázky */}
-        {!questionsLoaded && (
-          <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'#0a0a0f',zIndex:999,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16}}>
+        {/* Loading dokud se nenačtou otázky */}
+        {!questionsLoaded ? (
+          <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'#0a0a0f',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16}}>
             <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:24,color:'#4488ff',letterSpacing:4}}>IT QUIZ</div>
             <div style={{fontSize:13,color:'#445566'}}>Načítám otázky...</div>
             <div style={{width:200,height:3,background:'#1a2040',borderRadius:2,overflow:'hidden',marginTop:8}}>
               <div style={{height:'100%',background:'#4488ff',borderRadius:2,animation:'progressBar 1.5s ease infinite'}}/>
             </div>
           </div>
-        )}
+        ) : (<>
         {screen===SCREENS.HOME && <HomeScreen user={user} hasPlayedToday={hasPlayedToday} todayKey={todayKey} todayQuestions={todayQuestions}
           timeBonusToday={timeBonusToday}
           resumableQuiz={resumableQuiz}
@@ -1547,6 +1544,7 @@ function App() {
         {screen===SCREENS.RESULT && currentQuiz && <ResultScreen quiz={currentQuiz} timeSaved={currentQuiz.timeSaved||0} onHome={()=>setScreen(SCREENS.HOME)} onBoard={()=>setScreen(SCREENS.BOARD)}/>}
         {screen===SCREENS.BOARD && <BoardScreen scores={scores} user={user} todayKey={todayKey} monthlyChampions={monthlyChampions} quizMode={quizMode} onBack={()=>setScreen(SCREENS.HOME)}/>}
         {screen===SCREENS.STATS && user && <StatsScreen user={user} scores={scores} quizMode={quizMode} onBack={()=>setScreen(SCREENS.HOME)}/>}
+        </>)}
       </div>
     </div>
   );

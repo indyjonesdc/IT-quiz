@@ -1761,6 +1761,7 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
       playLogRef.current.push({
         qId: q.id,
         chosen: idx,
+        chosenText: q.opts[idx], // uložíme přímo text odpovědi
         correct: false,
         time_spent: questionStartTimeRef.current - timeLeftRef.current,
         time_left: timeLeftRef.current,
@@ -1795,6 +1796,7 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
       playLogRef.current.push({
         qId: q.id,
         chosen: idx,
+        chosenText: q.opts[idx], // uložíme přímo text odpovědi
         correct: true,
         time_spent: questionStartTimeRef.current - timeLeftRef.current,
         time_left: timeLeftRef.current,
@@ -2108,7 +2110,9 @@ function ArchiveRow({ s }) {
               {/* Normální otázky */}
               {normalLog.map((entry, idx) => {
                 const q = qPool.find(q=>String(q.id)===String(entry.qId));
-                const chosenOpt = q && entry.chosen !== undefined ? q.opts[entry.chosen] : null;
+                // chosenText = text uložený při hraní (správné pořadí)
+                // fallback na opts[chosen] pro starší záznamy
+                const chosenOpt = entry.chosenText || (q && entry.chosen !== undefined ? q.opts[entry.chosen] : null);
                 const correctOpt = q ? q.opts[q.a] : null;
                 return (
                   <div key={idx} style={{display:'flex',alignItems:'flex-start',gap:8,padding:'6px 0',borderBottom:'1px solid #121830',fontSize:11}}>

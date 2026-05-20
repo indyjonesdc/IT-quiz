@@ -2064,10 +2064,15 @@ function ArchiveRow({ s }) {
   const isPerfect = s.perfect;
   const hasLog = s.play_log && s.play_log.length > 0;
 
+  // Vyber správný pool podle módu záznamu
+  const qPool = (s.quiz_mode || QUIZ_MODES.IT) === QUIZ_MODES.GENERAL
+    ? ALL_GENERAL_QUESTIONS
+    : ALL_QUESTIONS;
+
   // Lucky Box se nepočítá do otázek — odfiltruj ho
   const normalLog   = hasLog ? s.play_log.filter(e => e.qId !== 'lucky') : [];
   const luckyLog    = hasLog ? s.play_log.filter(e => e.qId === 'lucky')  : [];
-  const totalNormal = hasLog ? normalLog.length : (s.total > 0 ? s.total - 1 : 0);
+  const totalNormal = hasLog ? normalLog.length : (s.total > 0 ? s.total : 15);
   const correctN    = hasLog ? normalLog.filter(e => e.correct).length : s.correct;
   const pct         = totalNormal > 0 ? Math.round((correctN / totalNormal) * 100) : 0;
   const col         = pct >= 80 ? '#44ffaa' : pct >= 60 ? '#ffd700' : '#ff8844';
@@ -2102,7 +2107,7 @@ function ArchiveRow({ s }) {
             <div>
               {/* Normální otázky */}
               {normalLog.map((entry, idx) => {
-                const q = ALL_QUESTIONS.find(q=>String(q.id)===String(entry.qId));
+                const q = qPool.find(q=>String(q.id)===String(entry.qId));
                 const chosenOpt = q && entry.chosen !== undefined ? q.opts[entry.chosen] : null;
                 const correctOpt = q ? q.opts[q.a] : null;
                 return (

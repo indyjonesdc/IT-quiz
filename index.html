@@ -1088,60 +1088,58 @@ function HomeScreen({ user, hasPlayedToday, todayKey, todayQuestions, timeBonusT
 
         <div style={{background:'rgba(10,15,40,0.8)',border:`1px solid ${isGeneral?'#226644':'#1e3a6a'}`,borderRadius:16,overflow:'hidden',marginBottom:timeBonusToday>0?12:28}}>
 
-          {/* Header */}
+          {/* Header — datum + badgy */}
           <div style={{
             padding:'12px 14px',
             borderBottom:`1px solid ${isGeneral?'#1a4030':'#1a2a4a'}`,
-            background:isGeneral?'rgba(0,80,40,0.3)':'rgba(30,60,160,0.3)',
+            background:isGeneral?'rgba(0,80,40,0.15)':'rgba(30,60,160,0.15)',
+            display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,flexWrap:'wrap',
           }}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:8}}>
-              <div style={{fontSize:15,fontWeight:700,color:'#fff'}}>{isGeneral?'🌍 Obecný kvíz':'💻 IT kvíz'}</div>
-              <div style={{fontSize:10,color:'#556688',flexShrink:0}}>{todayKey}</div>
-            </div>
+            <div style={{fontSize:13,fontWeight:600,color:isGeneral?'#44cc88':'#88aaff'}}>{todayKey}</div>
             <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-              {[`📝 15 otázek`, `⏱ Celkový limit ${totalTime}s${timeBonusToday>0?' (+'+timeBonusToday+'s)':''}`].map(t=>(
+              {[`15 otázek`, `Celkový limit ${totalTime}s${timeBonusToday>0?' (+'+timeBonusToday+'s)':''}`].map(t=>(
                 <span key={t} style={{
-                  fontSize:11,fontWeight:600,padding:'4px 9px',borderRadius:20,whiteSpace:'nowrap',
-                  background:isGeneral?'rgba(0,100,50,0.35)':'rgba(40,80,200,0.35)',
-                  color:isGeneral?'#44ffaa':'#88aaff',
-                  border:`1px solid ${isGeneral?'#226644':'#2a4a9a'}`,
+                  fontSize:11,padding:'3px 9px',borderRadius:20,whiteSpace:'nowrap',
+                  background:'rgba(255,255,255,0.05)',
+                  color:'#8899bb',
+                  border:'1px solid #1e2a4a',
                 }}>{t}</span>
               ))}
             </div>
           </div>
 
-          {/* Témata */}
-          <div style={{padding:'10px 14px',borderBottom:'1px solid #1a2040'}}>
-            <div style={{display:'flex',flexWrap:'wrap',gap:5,alignItems:'center'}}>
-              <span style={{fontSize:12,fontWeight:600,color:'#8899bb',flexShrink:0}}>Témata:</span>
+          {/* Témata — výraznější */}
+          <div style={{padding:'12px 14px',borderBottom:'1px solid #1a2040'}}>
+            <div style={{fontSize:11,color:'#556688',marginBottom:7,letterSpacing:1}}>TÉMATA</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:5}}>
               {cats.map(c=>(
                 <span key={c} style={{
-                  fontSize:11,padding:'3px 9px',borderRadius:20,
-                  background:isGeneral?'rgba(0,80,40,0.3)':'rgba(30,50,140,0.3)',
-                  color:isGeneral?'#44cc88':'#88aaff',
-                  border:`1px solid ${isGeneral?'#1a4030':'#1e2a5a'}`,
+                  fontSize:12,padding:'4px 11px',borderRadius:20,fontWeight:600,
+                  background:isGeneral?'rgba(0,100,50,0.25)':'rgba(40,80,200,0.25)',
+                  color:isGeneral?'#44ffaa':'#88ccff',
+                  border:`1px solid ${isGeneral?'#226644':'#2a4a9a'}`,
                 }}>{c}</span>
               ))}
             </div>
           </div>
 
-          {/* Pravidla */}
+          {/* Pravidla — tlumenější */}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr'}}>
             {[
-              {e:'⚡',l:'Body za otázku',v:'100 – 1 000',c:'#ffd700'},
-              {e:'🔥',l:'Kombo',v:'3–5× = +2 000',c:'#ff6644'},
-              {e:'💎',l:'Perfect run',v:'15/15 = +2 000',c:'#ffd700'},
-              {e:'🎁',l:'Lucky box',v:'−500 až +1 000',c:isGeneral?'#44ffaa':'#bb88ff'},
+              {e:'⚡',l:'Body za otázku',v:'100 – 1 000'},
+              {e:'🔥',l:'Kombo',v:'3–5× = +2 000'},
+              {e:'💎',l:'Perfect run',v:'15/15 = +2 000'},
+              {e:'🎁',l:'Lucky box',v:'−500 až +1 000'},
             ].map((r,i)=>(
               <div key={r.l} style={{
-                padding:'10px 12px',display:'flex',alignItems:'center',gap:8,
-                borderRight:i%2===0?'1px solid #1a2040':'none',
-                borderBottom:i<2?'1px solid #1a2040':'none',
+                padding:'9px 12px',display:'flex',alignItems:'center',gap:8,
+                borderRight:i%2===0?'1px solid #151f3a':'none',
+                borderBottom:i<2?'1px solid #151f3a':'none',
               }}>
-                <span style={{fontSize:16,flexShrink:0}}>{r.e}</span>
+                <span style={{fontSize:14,flexShrink:0,opacity:0.7}}>{r.e}</span>
                 <div style={{minWidth:0}}>
-                  <div style={{fontSize:10,color:'#445566',marginBottom:1}}>{r.l}</div>
-                  <div style={{fontSize:11,fontWeight:700,color:r.c,whiteSpace:'nowrap'}}>{r.v}</div>
+                  <div style={{fontSize:9,color:'#334455',marginBottom:1,letterSpacing:0.5}}>{r.l.toUpperCase()}</div>
+                  <div style={{fontSize:11,fontWeight:600,color:'#6677aa',whiteSpace:'nowrap'}}>{r.v}</div>
                 </div>
               </div>
             ))}

@@ -2121,22 +2121,21 @@ function App() {
         .eq('quiz_mode', quizMode)
         .maybeSingle();
 
-      console.log('existing record:', existing, 'selErr:', selErr);
+      if (selErr) { alert('SEL ERR: ' + selErr.message); }
 
       if (existing) {
         const { error: updErr } = await db.from('scores').update(entry).eq('id', existing.id);
-        console.log('UPDATE result:', updErr || 'OK');
+        if (updErr) alert('UPD ERR: ' + updErr.message);
       } else {
         const { error: insertErr } = await db.from('scores').insert(entry);
-        console.log('INSERT result:', insertErr || 'OK');
         if (insertErr) {
-          console.error('INSERT ERR details:', insertErr.message, insertErr.details, insertErr.hint);
+          alert('INS ERR: ' + insertErr.message + ' | ' + (insertErr.details||'') + ' | ' + (insertErr.hint||''));
           const { error: e2 } = await db.from('scores').upsert({...entry, id: Date.now().toString()+'x'});
-          console.log('UPSERT fallback:', e2 || 'OK');
+          if (e2) alert('UPS ERR: ' + e2.message);
         }
       }
     } catch(err) {
-      console.error('Score save EXCEPTION:', err);
+      alert('EXCEPTION: ' + err.message);
     }
     // Kvíz dokončen — smaž uložený stav
     lsDel('itq_active_quiz');

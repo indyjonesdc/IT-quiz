@@ -2817,22 +2817,20 @@ function RegisterScreen({ onRegister, onBack, loading, initialTab='login' }) {
 function LuckyBoxSlot({ prizes, onPick, locked }) {
   const [opened, setOpened] = useState(null);
   const [revealed, setRevealed] = useState(false);
-  const [done, setDone] = useState(false);       // hráč kliknul "Zobrazit výsledky"
 
   const prizeColor = (pts) => pts >= 500 ? '#ffd700' : pts >= 100 ? '#44ff88' : pts === 0 ? '#8899bb' : '#ff4444';
-  const prizeLabel = (pts) => pts > 0 ? `+${pts}` : String(pts);
 
   function pick(i) {
     if (locked || opened !== null) return;
     setOpened(i);
-    setTimeout(() => setRevealed(true), 900);
+    // Po 900ms odkryj všechny bedny
+    setTimeout(() => {
+      setRevealed(true);
+      // Po dalších 200ms automaticky zavolej onPick — žádné extra tlačítko
+      setTimeout(() => onPick(prizes[i]), 200);
+    }, 900);
   }
 
-  function confirm() {
-    if (!revealed) return;
-    setDone(true);
-    onPick(prizes[opened]);
-  }
 
   return (
     <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16,paddingBottom:20}}>
@@ -2902,21 +2900,15 @@ function LuckyBoxSlot({ prizes, onPick, locked }) {
       </div>
 
       {/* Reakce po výběru */}
-      {opened !== null && revealed && !done && (
+      {opened !== null && revealed && (
         <div className="slide-in" style={{
           textAlign:'center', padding:'12px 18px', maxWidth:380, width:'100%',
           background:'rgba(20,30,70,0.7)', border:'1px solid #2a3a6a', borderRadius:12,
         }}>
-          <div style={{fontSize:14, color: prizeColor(prizes[opened]), fontWeight:600, lineHeight:1.5, marginBottom:14}}>
+          <div style={{fontSize:14, color: prizeColor(prizes[opened]), fontWeight:600, lineHeight:1.5, marginBottom:6}}>
             {getLuckyReaction(prizes[opened])}
           </div>
-          <button className="btn" onClick={confirm} style={{
-            background:'linear-gradient(135deg,#1a3a8a,#2255cc)',
-            padding:'12px 32px', borderRadius:10, fontSize:14,
-            color:'#fff', letterSpacing:2,
-          }}>
-            ZOBRAZIT VÝSLEDKY →
-          </button>
+          <div style={{fontSize:11, color:'#4a5a7a'}}>přechod na výsledky...</div>
         </div>
       )}
 
@@ -3078,10 +3070,11 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
 
   const isLucky = q && q.type === 'lucky';
 
-  // Speciální handler pro Lucky Box
+  // Speciální handler pro Lucky Box — chráníme před dvojitým voláním
+  const luckyCalledRef = useRef(false);
   function answerLucky(pts) {
-    if (locked) return;
-    setLocked(true);
+    if (luckyCalledRef.current) return; // ochrana před double-call
+    luckyCalledRef.current = true;
     clearInterval(timer.current);
     comboCountRef.current = 0;
     setComboCount(0);
@@ -3098,11 +3091,10 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
     setQuiz(currentQuiz => {
       const newAns = [...currentQuiz.answers, {q: 'lucky', chosen: pts, correct: pts > 0, pts: Math.max(pts, 0), luckyPts: pts, comboBonus: 0}];
       const newScore = Math.max(currentQuiz.totalScore + pts, 0);
-      // Zavolej onFinish s aktuálním stavem
       setTimeout(() => {
         onFinish({...currentQuiz, answers: newAns, totalScore: newScore, current: currentQuiz.current + 1, playLog: playLogRef.current});
-      }, 0);
-      return currentQuiz; // stav se nezmění — jen čteme
+      }, 800); // dáme čas aby se reakce zobrazila
+      return currentQuiz;
     });
   }
 

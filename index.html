@@ -613,34 +613,44 @@ function App() {
 
   async function registerUser(name, password, profile) {
     setLoading(true);
-    const isLogin = profile === null; // null = přihlášení, object = registrace
+    const isLogin = profile === null;
     try {
       const username = name.trim();
       const pwd = password.trim();
-      const { data: ex } = await db.from('users').select('*').ilike('name', username).maybeSingle();
-      let u = ex;
-      if (u) {
-        if (u.password !== pwd) {
-          alert('Špatné heslo!');
+
+      if (isLogin) {
+        // Ověř heslo přes DB funkci crypt() — nikdy nepošleme heslo zpět do JS
+        const { data: authData, error: authErr } = await db.rpc('verify_password', {
+          p_name: username,
+          p_password: pwd,
+        });
+        if (authErr || !authData || authData.length === 0) {
+          alert('Špatné jméno nebo heslo!');
           setLoading(false); return;
         }
-        if (profile) {
-          const { data: upd } = await db.from('users').update(profile).eq('id', u.id).select().single();
-          if (upd) u = upd;
-        }
+        const u = {...authData[0], premium: false};
+        setUser(u); lss('itq_user', u);
+        setScreen(SCREENS.HOME);
       } else {
-        if (isLogin) {
-          alert('Hráč "' + username + '" neexistuje. Zkus se nejdřív zaregistrovat.');
+        // Registrace — zahashuj heslo přes DB
+        const { data: existing } = await db.from('users').select('id').ilike('name', username).maybeSingle();
+        if (existing) {
+          alert('Jméno "' + username + '" je již obsazeno. Zvol jiné.');
           setLoading(false); return;
         }
-        const { data, error } = await db.from('users').insert({
-          id: Date.now().toString(), name: username, password: pwd, ...(profile||{})
-        }).select().single();
-        if (error) { alert('Chyba: ' + error.message); setLoading(false); return; }
-        u = data;
+        const { data, error } = await db.rpc('register_user', {
+          p_name: username,
+          p_password: pwd,
+          p_profile: profile || {},
+        });
+        if (error || !data || data.length === 0) {
+          alert('Chyba registrace: ' + (error?.message || 'neznámá chyba'));
+          setLoading(false); return;
+        }
+        const u = {...data[0], premium: false};
+        setUser(u); lss('itq_user', u);
+        setScreen(SCREENS.HOME);
       }
-      setUser(u); lss('itq_user', u);
-      setScreen(SCREENS.HOME);
     } catch(e) { alert('Chyba připojení k databázi'); }
     setLoading(false);
   }
@@ -1261,6 +1271,29 @@ function ProfileScreen({ user, onSave, onBack, loading }) {
   const [avatarSize, setAvatarSize] = useState('');       // info o velikosti pro UI
   const fileRef = useRef(null);
 
+  // Změna hesla
+  const [showPwd, setShowPwd] = useState(false);
+  const [oldPwd, setOldPwd] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [newPwd2, setNewPwd2] = useState('');
+  const [pwdMsg, setPwdMsg] = useState('');
+  const [pwdLoading, setPwdLoading] = useState(false);
+
+  async function changePassword() {
+    if (!oldPwd) { setPwdMsg('Zadej staré heslo.'); return; }
+    if (newPwd.length < 4) { setPwdMsg('Nové heslo musí mít aspoň 4 znaky.'); return; }
+    if (newPwd !== newPwd2) { setPwdMsg('Nová hesla se neshodují.'); return; }
+    setPwdLoading(true); setPwdMsg('');
+    try {
+      const { data: ok } = await db.rpc('verify_password', { p_name: user.name, p_password: oldPwd });
+      if (!ok || ok.length === 0) { setPwdMsg('❌ Staré heslo je špatně.'); setPwdLoading(false); return; }
+      const { error } = await db.rpc('change_password', { p_user_id: user.id, p_new_password: newPwd });
+      if (error) { setPwdMsg('❌ Chyba: ' + error.message); }
+      else { setPwdMsg('✅ Heslo bylo změněno!'); setOldPwd(''); setNewPwd(''); setNewPwd2(''); setShowPwd(false); }
+    } catch(e) { setPwdMsg('❌ Chyba připojení.'); }
+    setPwdLoading(false);
+  }
+
   function pickFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1352,6 +1385,31 @@ function ProfileScreen({ user, onSave, onBack, loading }) {
             {avatarUploading ? '📤 NAHRÁVÁM FOTKU...' : loading ? 'UKLÁDÁM...' : '💾 ULOŽIT PROFIL'}
           </button>
         </div>
+
+        {/* Změna hesla */}
+        <div style={{background:'rgba(20,35,80,0.4)',border:'1px solid #2a3a6a',borderRadius:12,padding:20,textAlign:'left',marginTop:12}}>
+          <button onClick={()=>{setShowPwd(v=>!v);setPwdMsg('');}} style={{
+            background:'transparent',border:'none',color:'#88aaff',
+            fontSize:13,cursor:'pointer',letterSpacing:1,padding:0,
+          }}>🔑 {showPwd ? '▲ Skrýt změnu hesla' : '▼ Změnit heslo'}</button>
+
+          {showPwd && (
+            <div style={{marginTop:14}}>
+              <div className="field-label">Staré heslo</div>
+              <input type="password" value={oldPwd} onChange={e=>setOldPwd(e.target.value)} placeholder="Tvé současné heslo..." maxLength={50}/>
+              <div className="field-label" style={{marginTop:10}}>Nové heslo</div>
+              <input type="password" value={newPwd} onChange={e=>setNewPwd(e.target.value)} placeholder="Min. 4 znaky..." maxLength={50}/>
+              <div className="field-label" style={{marginTop:10}}>Nové heslo znovu</div>
+              <input type="password" value={newPwd2} onChange={e=>setNewPwd2(e.target.value)} onKeyDown={e=>e.key==='Enter'&&changePassword()} placeholder="Zopakuj nové heslo..." maxLength={50}/>
+              {pwdMsg && <div style={{fontSize:12,marginTop:8,color:pwdMsg.startsWith('✅')?'#44ffaa':'#ff6666'}}>{pwdMsg}</div>}
+              <button className="btn" onClick={changePassword} disabled={pwdLoading}
+                style={{marginTop:14,width:'100%',background:'linear-gradient(135deg,#1a2a5a,#2244aa)',padding:'11px',borderRadius:8,fontSize:13,color:'#fff',letterSpacing:2}}>
+                {pwdLoading ? 'MĚNÍM...' : '🔑 ZMĚNIT HESLO'}
+              </button>
+            </div>
+          )}
+        </div>
+
         <button onClick={onBack} style={{marginTop:14,background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1}}>← ZPĚT</button>
       </div>
     </div>

@@ -2926,13 +2926,125 @@ function ResultScreen({ quiz, timeSaved, onHome, onBoard }) {
   );
 }
 
+// ─── ARCHIVE ROW ─────────────────────────────────────────
+function ArchiveRow({ s, pct, col }) {
+  const [open, setOpen] = useState(false);
+  const isPerfect = s.perfect;
+  const hasLog = s.play_log && s.play_log.length > 0;
+
+  return (
+    <div style={{marginBottom:6}}>
+      {/* Hlavička řádku — klikatelná */}
+      <div onClick={()=>setOpen(o=>!o)} style={{
+        display:'flex',alignItems:'center',gap:10,
+        padding:'10px 14px',cursor:'pointer',
+        background: open ? 'rgba(20,35,80,0.9)' : 'rgba(12,18,52,0.8)',
+        border:`1px solid ${open?'#4488ff':'#2a3a6a'}`,
+        borderRadius: open ? '8px 8px 0 0' : 8,
+        transition:'all 0.15s',
+      }}>
+        {/* Datum */}
+        <div style={{fontSize:11,color:'#445566',minWidth:72,flexShrink:0}}>{s.date}</div>
+        {/* Výsledek */}
+        <div style={{flex:1,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+          <span style={{fontSize:11,fontWeight:700,color:col}}>{s.correct}/{s.total} správně ({pct}%)</span>
+          {isPerfect && <span style={{fontSize:9,color:'#ffd700',background:'rgba(255,215,0,0.1)',border:'1px solid #ffd70044',borderRadius:10,padding:'1px 7px'}}>💎 PERFECT</span>}
+          {s.time_saved>0 && <span style={{fontSize:9,color:'#44ffaa',background:'rgba(0,80,50,0.2)',border:'1px solid #44ffaa33',borderRadius:10,padding:'1px 7px'}}>⏰ +{s.time_saved}s</span>}
+        </div>
+        {/* Skóre */}
+        <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:13,fontWeight:900,color:'#4488ff',flexShrink:0}}>
+          {s.score.toLocaleString()}
+        </div>
+        {/* Rozbalovací šipka */}
+        <div style={{fontSize:10,color:'#445566',transition:'transform 0.2s',transform:open?'rotate(180deg)':'none',flexShrink:0}}>▼</div>
+      </div>
+
+      {/* Detail — odpovědi */}
+      {open && (
+        <div style={{
+          background:'rgba(8,12,35,0.95)',
+          border:'1px solid #4488ff',borderTop:'none',
+          borderRadius:'0 0 8px 8px',
+          padding:'10px 14px',
+        }}>
+          {hasLog ? (
+            <div>
+              {s.play_log.map((entry, idx) => {
+                const q = ALL_QUESTIONS.find(q=>String(q.id)===String(entry.qId));
+                const isLucky = entry.qId === 'lucky';
+                return (
+                  <div key={idx} style={{
+                    display:'flex',alignItems:'flex-start',gap:8,
+                    padding:'5px 0',
+                    borderBottom:'1px solid #121830',
+                    fontSize:11,
+                  }}>
+                    {/* Ikona */}
+                    <span style={{flexShrink:0,fontSize:13}}>{isLucky?'🎲':entry.correct?'✅':'❌'}</span>
+                    {/* Otázka + kategorie */}
+                    <div style={{flex:1,minWidth:0}}>
+                      {isLucky ? (
+                        <span style={{color:'#8866aa'}}>Lucky Box — {entry.chosen>0?'+':''}{entry.chosen} bodů</span>
+                      ) : q ? (
+                        <>
+                          <div style={{color:'#7788aa',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{q.q}</div>
+                          <div style={{fontSize:9,color:'#334466',marginTop:1}}>
+                            {q.cat}
+                            {entry.correct ? (
+                              <span style={{color:'#44aa44'}}> · správně</span>
+                            ) : (
+                              <span style={{color:'#aa4444'}}> · správně: {q.opts[q.a]}</span>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <span style={{color:'#445566'}}>Otázka #{entry.qId}</span>
+                      )}
+                    </div>
+                    {/* Čas + body */}
+                    <div style={{textAlign:'right',flexShrink:0}}>
+                      {!isLucky && <div style={{fontSize:9,color:'#334466'}}>{entry.time_spent||0}s</div>}
+                      <div style={{
+                        fontWeight:700,
+                        color: entry.correct||isLucky ? (entry.pts>0||entry.chosen>0?'#44ff44':'#ff8844') : '#ff4444',
+                        fontSize:11,
+                      }}>
+                        {isLucky
+                          ? (entry.chosen>0?`+${entry.chosen}`:entry.chosen===0?'0':String(entry.chosen))
+                          : entry.correct?`+${entry.pts}`:'0'
+                        }
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{
+              display:'flex',alignItems:'center',gap:8,padding:'6px 0',
+            }}>
+              {/* Bez play_log — zobrazíme aspoň souhrnný výsledek */}
+              <span style={{color:'#445566',fontSize:11}}>
+                Tento kvíz byl odehrán před zavedením detailního záznamu odpovědí.
+                Výsledek: {s.correct}/{s.total} správně, {s.score.toLocaleString()} bodů.
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── BOARD SCREEN ─────────────────────────────────────────
 function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
   const [tab, setTab] = useState('today');
   const [profileView, setProfileView] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [avatarCache, setAvatarCache] = useState({});
   const [cheaterCache, setCheaterCache] = useState({});
-  const [profileScores, setProfileScores] = useState([]); // scores otevřeného hráče
+  const [profileScores, setProfileScores] = useState([]);
+  const [profileTab, setProfileTab] = useState('stats'); // 'stats' | 'archive'
 
   const currentMonth = getCurrentMonthKey();
   const todayList = scores.filter(s=>s.date===todayKey).sort((a,b)=>b.score-a.score);
@@ -2991,6 +3103,7 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
   async function openProfile(userId) {
     setProfileLoading(true);
     setProfileScores([]);
+    setProfileTab('stats');
     try {
       const [{ data: userData }, { data: scoresData }] = await Promise.all([
         db.from('users').select('*').eq('id', userId).single(),
@@ -3019,7 +3132,7 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
 
             {/* Zpět */}
             <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:20,paddingTop:12}}>
-              <button onClick={()=>{setProfileView(null);setProfileScores([]);}}
+              <button onClick={()=>{setProfileView(null);setProfileScores([]);setProfileTab('stats');}}
                 style={{background:'transparent',border:'none',color:'#4488ff',fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}>
                 ← ZPĚT DO ŽEBŘÍČKU
               </button>
@@ -3061,8 +3174,45 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
               <div style={{fontSize:12,color:'#556688',lineHeight:1.55,fontStyle:'italic'}}>{getPlayerFact(profileView.name)}</div>
             </div>
 
-            {/* Statistiky */}
-            {profileLoading ? (
+            {/* Tabs — Statistiky / Archiv */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:20,background:'rgba(10,15,40,0.6)',borderRadius:10,padding:4,border:'1px solid #1e2a4a'}}>
+              {[{k:'stats',l:'📊 Statistiky'},{k:'archive',l:'📋 Archiv kvízů'}].map(t=>(
+                <button key={t.k} onClick={()=>setProfileTab(t.k)} style={{
+                  padding:'9px',borderRadius:8,border:'none',cursor:'pointer',
+                  fontFamily:'inherit',fontSize:12,fontWeight:700,letterSpacing:0.5,
+                  transition:'all 0.2s',
+                  background: profileTab===t.k ? 'linear-gradient(135deg,#1a3a8a,#2255cc)' : 'transparent',
+                  color: profileTab===t.k ? '#fff' : '#4a5a7a',
+                  boxShadow: profileTab===t.k ? '0 0 15px rgba(68,136,255,0.3)' : 'none',
+                }}>{t.l}</button>
+              ))}
+            </div>
+
+            {/* ARCHIV TAB */}
+            {profileTab==='archive' && (
+              profileLoading ? (
+                <div style={{textAlign:'center',padding:'40px 0',color:'#445566'}}>⏳ Načítám...</div>
+              ) : profileScores.length===0 ? (
+                <div style={{textAlign:'center',padding:'40px 0',color:'#334455'}}>Žádné záznamy.</div>
+              ) : (
+                <div>
+                  <div style={{fontSize:11,color:'#445566',marginBottom:12,textAlign:'center'}}>
+                    Celkem {profileScores.length} {profileScores.length===1?'kvíz':'kvízů'} · seřazeno od nejnovějšího
+                  </div>
+                  {[...profileScores].reverse().map((s,i)=>{
+                    const [expanded, setExpanded] = [false, ()=>{}]; // stateless — použijeme click handler níže
+                    const pct = s.total ? Math.round((s.correct/s.total)*100) : 0;
+                    const col = pct>=80 ? '#44ffaa' : pct>=60 ? '#ffd700' : '#ff8844';
+                    return (
+                      <ArchiveRow key={s.id||i} s={s} pct={pct} col={col}/>
+                    );
+                  })}
+                </div>
+              )
+            )}
+
+            {/* STATS TAB */}
+            {profileTab==='stats' && (
               <div style={{textAlign:'center',padding:'60px 0',color:'#445566',fontSize:14}}>
                 <div style={{fontSize:32,marginBottom:12}}>⏳</div>
                 Načítám statistiky...
@@ -3461,6 +3611,7 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
                 </div>
               );
             })()}
+            )} {/* konec profileTab==='stats' */}
           </div>
         </div>
       )}

@@ -2717,11 +2717,18 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
   function answerLucky(pts) {
     if (locked) return;
     setLocked(true);
-    // Zastavíme timer hned — hráč si může přečíst výsledek v klidu
     clearInterval(timer.current);
     comboCountRef.current = 0;
     setComboCount(0);
-    // Krátká animace flashe pak finišujeme
+    // Zapiš Lucky Box do play logu
+    playLogRef.current.push({
+      qId: 'lucky',
+      chosen: pts,
+      correct: pts > 0,
+      time_spent: questionStartTimeRef.current - timeLeftRef.current,
+      time_left: timeLeftRef.current,
+      pts: Math.max(pts, 0),
+    });
     setTimeout(() => {
       setFlash(null);
       const newAns = [...quiz.answers, {q: 'lucky', chosen: pts, correct: pts > 0, pts: Math.max(pts, 0), luckyPts: pts, comboBonus: 0}];
@@ -3538,7 +3545,7 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, onBack }) {
                   })()}
 
                   {/* Lucky Box */}
-                  {lTot>=2 && (
+                  {lTot>=1 && (
                     <div style={{background:'rgba(12,18,50,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:16}}>
                       <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,color:'#4488ff',letterSpacing:2,marginBottom:12}}>🎲 LUCKY BOX PROFIL</div>
                       <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:10}}>
@@ -4150,7 +4157,7 @@ function StatsScreen({ user, scores, onBack }) {
           })()}
 
           {/* ── LUCKY BOX ── */}
-          {lucky.total >= 2 && (
+          {lucky.total >= 1 && (
             <div style={{background:'rgba(12,18,50,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:16}}>
               <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,color:'#4488ff',letterSpacing:2,marginBottom:12}}>🎲 LUCKY BOX PROFIL</div>
               <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:10}}>

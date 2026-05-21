@@ -216,7 +216,7 @@ const QUIZ_DURATION = 120;
 const QUESTIONS_PER_QUIZ = 15;
 const MAX_PTS = 1000;
 const MIN_PTS = 100;
-const SCREENS = { HOME:'home', REGISTER:'register', LOGIN:'login', PROFILE:'profile', QUIZ:'quiz', RESULT:'result', BOARD:'board', STATS:'stats' };
+const SCREENS = { HOME:'home', REGISTER:'register', LOGIN:'login', PROFILE:'profile', QUIZ:'quiz', RESULT:'result', BOARD:'board', STATS:'stats', MINIGAMES:'minigames' };
 const QUIZ_MODES = { IT: 'it', GENERAL: 'general', FILM: 'film' };
 
 // Kombo konstanty
@@ -847,6 +847,9 @@ function App() {
         .btn:active{transform:translateY(0)}
         .glow{text-shadow:0 0 20px #4488ff,0 0 40px #2255cc}
         @keyframes progressBar{0%{width:0%;margin-left:0}50%{width:60%;margin-left:20%}100%{width:0%;margin-left:100%}}
+        @keyframes targetPop{0%{transform:translate(-50%,-50%) scale(0.3);opacity:0}100%{transform:translate(-50%,-50%) scale(1);opacity:1}}
+        @keyframes floatUp{0%{opacity:1;transform:translate(-50%,-50%)}100%{opacity:0;transform:translate(-50%,-200%)}}
+        @keyframes pulse{0%,100%{box-shadow:0 0 20px rgba(255,50,50,0.3)}50%{box-shadow:0 0 40px rgba(255,50,50,0.6)}}
         @keyframes slideIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
         .slide-in{animation:slideIn 0.4s ease}
         @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-12px)}75%{transform:translateX(12px)}}
@@ -1003,6 +1006,7 @@ function App() {
           }}
           onBoard={()=>setScreen(SCREENS.BOARD)}
           onStats={()=>setScreen(SCREENS.STATS)}
+          onMinigames={()=>setScreen(SCREENS.MINIGAMES)}
           onLogout={()=>{setUser(null);lss('itq_user',null);}}
           loading={loading}/>}
         {screen===SCREENS.REGISTER && <RegisterScreen onRegister={registerUser} onBack={()=>setScreen(SCREENS.HOME)} loading={loading} initialTab="register"/>}
@@ -1025,6 +1029,7 @@ function App() {
         {screen===SCREENS.RESULT && currentQuiz && <ResultScreen quiz={currentQuiz} timeSaved={currentQuiz.timeSaved||0} onHome={()=>setScreen(SCREENS.HOME)} onBoard={()=>setScreen(SCREENS.BOARD)}/>}
         {screen===SCREENS.BOARD && <BoardScreen scores={scores} user={user} todayKey={todayKey} monthlyChampions={monthlyChampions} quizMode={quizMode} onBack={()=>setScreen(SCREENS.HOME)}/>}
         {screen===SCREENS.STATS && user && <StatsScreen user={user} scores={scores} quizMode={quizMode} onBack={()=>setScreen(SCREENS.HOME)}/>}
+        {screen===SCREENS.MINIGAMES && <MinigamesScreen user={user} onBack={()=>setScreen(SCREENS.HOME)} onScoreSaved={loadScores}/>}
         </>)}
       </div>
     </div>
@@ -1032,7 +1037,7 @@ function App() {
 }
 
 // ─── HOME ─────────────────────────────────────────────
-function HomeScreen({ user, hasPlayedToday, hasPlayedOtherMode, todayKey, todayQuestions, timeBonusToday, resumableQuiz, quizMode, onSwitchMode, onResume, onRegister, onLogin, onStart, onBoard, onStats, onLogout, onProfile, loading }) {
+function HomeScreen({ user, hasPlayedToday, hasPlayedOtherMode, todayKey, todayQuestions, timeBonusToday, resumableQuiz, quizMode, onSwitchMode, onResume, onRegister, onLogin, onStart, onBoard, onStats, onMinigames, onLogout, onProfile, loading }) {
   const cats = todayQuestions && todayQuestions.length > 0
     ? [...new Set(todayQuestions.map(q=>q.cat).filter(c=>c!=='🎲 Lucky Box'))]
     : [];
@@ -1274,6 +1279,9 @@ function HomeScreen({ user, hasPlayedToday, hasPlayedOtherMode, todayKey, todayQ
           {user && <button className="btn" onClick={onStats} style={{background:'transparent',border:'1px solid #2a3a6a',padding:'13px 40px',borderRadius:10,fontSize:13,color:'#88aaff',letterSpacing:2}}>
             📊 MÉ STATISTIKY
           </button>}
+          <button className="btn" onClick={onMinigames} style={{background:'linear-gradient(135deg,rgba(180,0,100,0.15),rgba(100,0,180,0.15))',border:'1px solid #6a1a8a',padding:'13px 40px',borderRadius:10,fontSize:13,color:'#ff88cc',letterSpacing:2}}>
+            🎮 MINIHRY
+          </button>
         </div>
 
         {/* Upozornění na druhý kvíz */}
@@ -3631,6 +3639,365 @@ function StatsScreen({ user, scores, quizMode, onBack }) {
   );
 }
 
+
+// ─── MINIHRY ─────────────────────────────────────────
+function MinigamesScreen({ user, onBack, onScoreSaved }) {
+  const [gameScreen, setGameScreen] = useState('menu'); // menu | stopwatch | targets | result
+  const [gameResult, setGameResult] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  async function saveMinigameScore(game, pts, detail) {
+    if (!user) return;
+    setSaving(true);
+    try {
+      await db.from('minigame_scores').insert({
+        id: Date.now().toString(),
+        user_id: user.id,
+        user_name: user.name,
+        game,
+        score: pts,
+        detail,
+        played_at: new Date().toISOString(),
+      });
+      if (onScoreSaved) onScoreSaved();
+    } catch(e) { console.error('Minigame save error:', e); }
+    setSaving(false);
+  }
+
+  return (
+    <div className="slide-in" style={{width:'100%',maxWidth:480,textAlign:'center'}}>
+      <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,color:'#bb44ff',letterSpacing:4,marginBottom:6}}>BONUS</div>
+      <h2 className="glow" style={{fontFamily:"'Orbitron',sans-serif",fontSize:28,fontWeight:900,color:'#fff',marginBottom:4}}>MINIHRY</h2>
+      <div style={{fontSize:12,color:'#445566',marginBottom:24}}>Získej bonusové body za postřeh</div>
+
+      {gameScreen === 'menu' && (
+        <div style={{display:'flex',flexDirection:'column',gap:12,marginBottom:24}}>
+          <div onClick={()=>setGameScreen('stopwatch')} style={{
+            background:'rgba(0,100,200,0.1)',border:'1px solid #1a3a6a',borderRadius:14,
+            padding:'18px 20px',cursor:'pointer',textAlign:'left',transition:'all 0.2s',
+          }}
+          onMouseEnter={e=>e.currentTarget.style.borderColor='#4488ff'}
+          onMouseLeave={e=>e.currentTarget.style.borderColor='#1a3a6a'}>
+            <div style={{fontSize:28,marginBottom:6}}>⏱</div>
+            <div style={{fontSize:16,fontWeight:700,color:'#fff',marginBottom:4}}>Zastavte čas</div>
+            <div style={{fontSize:12,color:'#445566',marginBottom:8}}>Zastavte stopky přesně na 10.000 sekund</div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              {['±0.010s → 1000 b','±0.050s → 800 b','±0.100s → 600 b'].map(t=>(
+                <span key={t} style={{fontSize:10,color:'#4488ff',background:'rgba(68,136,255,0.1)',border:'1px solid #1a3a6a',borderRadius:10,padding:'2px 8px'}}>{t}</span>
+              ))}
+            </div>
+          </div>
+
+          <div onClick={()=>setGameScreen('targets')} style={{
+            background:'rgba(200,50,100,0.1)',border:'1px solid #6a1a3a',borderRadius:14,
+            padding:'18px 20px',cursor:'pointer',textAlign:'left',transition:'all 0.2s',
+          }}
+          onMouseEnter={e=>e.currentTarget.style.borderColor='#ff4488'}
+          onMouseLeave={e=>e.currentTarget.style.borderColor='#6a1a3a'}>
+            <div style={{fontSize:28,marginBottom:6}}>🎯</div>
+            <div style={{fontSize:16,fontWeight:700,color:'#fff',marginBottom:4}}>Terčová střelnice</div>
+            <div style={{fontSize:12,color:'#445566',marginBottom:8}}>Zasáhni co nejvíc terčů za 20 sekund</div>
+            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+              {['Malý terč → 180 b','Velký terč → 100 b','Minutí → -50 b'].map(t=>(
+                <span key={t} style={{fontSize:10,color:'#ff4488',background:'rgba(255,68,136,0.1)',border:'1px solid #6a1a3a',borderRadius:10,padding:'2px 8px'}}>{t}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {gameScreen === 'stopwatch' && (
+        <StopwatchGame onResult={(pts, detail) => {
+          setGameResult({game:'stopwatch', pts, detail});
+          setGameScreen('result');
+          saveMinigameScore('stopwatch', pts, detail);
+        }} onBack={()=>setGameScreen('menu')}/>
+      )}
+
+      {gameScreen === 'targets' && (
+        <TargetsGame onResult={(pts, detail) => {
+          setGameResult({game:'targets', pts, detail});
+          setGameScreen('result');
+          saveMinigameScore('targets', pts, detail);
+        }} onBack={()=>setGameScreen('menu')}/>
+      )}
+
+      {gameScreen === 'result' && gameResult && (
+        <div style={{animation:'slideIn 0.3s ease'}}>
+          <div style={{fontSize:64,marginBottom:12}}>{gameResult.pts>=800?'🏆':gameResult.pts>=400?'🥈':'🥉'}</div>
+          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:32,fontWeight:900,color:'#ffd700',marginBottom:4}}>
+            {gameResult.pts.toLocaleString()}
+          </div>
+          <div style={{fontSize:13,color:'#445566',marginBottom:16}}>bonusových bodů</div>
+          <div style={{background:'rgba(12,18,52,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:20,textAlign:'left'}}>
+            {Object.entries(gameResult.detail).map(([k,v])=>(
+              <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'4px 0',fontSize:13,borderBottom:'1px solid #121830'}}>
+                <span style={{color:'#445566'}}>{k}</span>
+                <span style={{color:'#88aaff',fontWeight:700}}>{v}</span>
+              </div>
+            ))}
+            {saving && <div style={{fontSize:11,color:'#445566',marginTop:8,textAlign:'center'}}>Ukládám...</div>}
+          </div>
+          <div style={{display:'flex',gap:10,justifyContent:'center'}}>
+            <button className="btn" onClick={()=>setGameScreen('menu')} style={{background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'12px 28px',borderRadius:10,fontSize:13,color:'#fff',letterSpacing:2}}>
+              DALŠÍ HRA
+            </button>
+            <button className="btn" onClick={onBack} style={{background:'transparent',border:'1px solid #2a3a6a',padding:'12px 28px',borderRadius:10,fontSize:13,color:'#88aaff',letterSpacing:2}}>
+              ← DOMŮ
+            </button>
+          </div>
+        </div>
+      )}
+
+      {gameScreen === 'menu' && (
+        <button onClick={onBack} style={{background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1}}>← ZPĚT</button>
+      )}
+    </div>
+  );
+}
+
+// ─── STOPWATCH GAME ──────────────────────────────────
+function StopwatchGame({ onResult, onBack }) {
+  const [state, setState] = useState('idle'); // idle | running | done
+  const [display, setDisplay] = useState('0.000');
+  const [barW, setBarW] = useState(0);
+  const startRef = useRef(0);
+  const rafRef = useRef(0);
+  const valRef = useRef(0);
+
+  function tick() {
+    const v = (Date.now() - startRef.current) / 1000;
+    valRef.current = v;
+    setDisplay(v.toFixed(3));
+    setBarW(Math.min(v / 10 * 100, 100));
+    if (v < 20) rafRef.current = requestAnimationFrame(tick);
+    else handleStop();
+  }
+
+  function handleClick() {
+    if (state === 'idle') {
+      startRef.current = Date.now();
+      setState('running');
+      rafRef.current = requestAnimationFrame(tick);
+    } else if (state === 'running') {
+      handleStop();
+    }
+  }
+
+  function handleStop() {
+    cancelAnimationFrame(rafRef.current);
+    setState('done');
+    const stopped = valRef.current;
+    const diff = Math.abs(stopped - 10);
+    let pts = 0;
+    if (diff < 0.010) pts = 1000;
+    else if (diff < 0.050) pts = 800;
+    else if (diff < 0.100) pts = 600;
+    else if (diff < 0.200) pts = 400;
+    else if (diff < 0.500) pts = 200;
+    else if (diff < 1.000) pts = 100;
+    const verdict = diff < 0.010 ? '🎯 Neuvěřitelné!' : diff < 0.050 ? '⚡ Skvělý postřeh!' : diff < 0.200 ? '👍 Dobrý pokus' : '😅 Zkus to znovu';
+    setTimeout(() => onResult(pts, {
+      'Zastavil jsi na': stopped.toFixed(3) + ' s',
+      'Odchylka od 10.000': (diff < 0 ? '' : '+') + (stopped - 10).toFixed(3) + ' s',
+      'Přesnost': verdict,
+    }), 600);
+  }
+
+  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
+
+  const barColor = barW < 80 ? '#4488ff' : barW < 95 ? '#ffd700' : '#ff4444';
+
+  return (
+    <div style={{animation:'slideIn 0.3s ease'}}>
+      <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:11,color:'#4488ff',letterSpacing:3,marginBottom:8}}>CÍL: 10.000</div>
+      <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:56,fontWeight:900,color:'#fff',letterSpacing:2,marginBottom:4,fontVariantNumeric:'tabular-nums'}}>
+        {display}
+        <span style={{fontSize:20,color:'#445566'}}> s</span>
+      </div>
+      <div style={{marginBottom:24,padding:'0 8px'}}>
+        <div style={{height:8,background:'rgba(20,30,70,0.8)',borderRadius:4,overflow:'hidden',border:'1px solid #1e2a4a',marginBottom:4}}>
+          <div style={{height:'100%',width:barW+'%',background:barColor,borderRadius:4,transition:'width 0.05s linear'}}/>
+        </div>
+        <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'#334455'}}>
+          <span>0</span><span>5 s</span><span>10 s</span><span>15 s</span><span>20 s</span>
+        </div>
+      </div>
+      {state !== 'done' && (
+        <button className="btn" onClick={handleClick} style={{
+          background: state === 'idle' ? 'linear-gradient(135deg,#1a3a8a,#2255cc)' : 'linear-gradient(135deg,#8a1a1a,#cc2222)',
+          padding:'16px 48px',borderRadius:12,fontSize:16,color:'#fff',letterSpacing:3,
+          fontFamily:"'Orbitron',sans-serif",fontWeight:900,marginBottom:16,
+          boxShadow: state === 'running' ? '0 0 30px rgba(255,50,50,0.4)' : '0 0 20px rgba(68,136,255,0.3)',
+          animation: state === 'running' ? 'pulse 1s ease infinite' : 'none',
+        }}>
+          {state === 'idle' ? '▶ START' : '⏹ STOP'}
+        </button>
+      )}
+      {state === 'done' && <div style={{fontSize:14,color:'#445566',marginBottom:16}}>Počítám výsledek...</div>}
+      <br/>
+      <button onClick={onBack} style={{background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1}}>← ZPĚT</button>
+    </div>
+  );
+}
+
+// ─── TARGETS GAME ────────────────────────────────────
+function TargetsGame({ onResult, onBack }) {
+  const [gameState, setGameState] = useState('waiting'); // waiting | playing | done
+  const [score, setScore] = useState(0);
+  const [hits, setHits] = useState(0);
+  const [misses, setMisses] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(20);
+  const [targets, setTargets] = useState([]);
+  const [floats, setFloats] = useState([]);
+  const scoreRef = useRef(0);
+  const hitsRef = useRef(0);
+  const missesRef = useRef(0);
+  const timerRef = useRef(null);
+  const spawnRef = useRef(null);
+  const nextIdRef = useRef(0);
+  const COLORS = ['#4488ff','#ff4488','#44cc88','#ffd700','#ff9944','#bb44ff'];
+
+  function startGame() {
+    setGameState('playing');
+    scoreRef.current = 0; hitsRef.current = 0; missesRef.current = 0;
+    setScore(0); setHits(0); setMisses(0); setTimeLeft(20); setTargets([]);
+    timerRef.current = setInterval(() => {
+      setTimeLeft(t => {
+        if (t <= 1) { endGame(); return 0; }
+        return t - 1;
+      });
+    }, 1000);
+    scheduleSpawn();
+  }
+
+  function scheduleSpawn() {
+    const delay = 300 + Math.random() * 600;
+    spawnRef.current = setTimeout(() => {
+      spawnTarget();
+      scheduleSpawn();
+    }, delay);
+  }
+
+  function spawnTarget() {
+    const size = 30 + Math.random() * 26;
+    const x = size / 2 + Math.random() * (320 - size);
+    const y = size / 2 + Math.random() * (190 - size);
+    const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+    const id = nextIdRef.current++;
+    const pts = Math.round(180 - ((size - 30) / 26) * 80);
+    setTargets(prev => [...prev, { id, x, y, size, color, pts }]);
+    setTimeout(() => setTargets(prev => prev.filter(t => t.id !== id)), 1400);
+  }
+
+  function hitTarget(id, pts, x, y, e) {
+    e.stopPropagation();
+    if (gameState !== 'playing') return;
+    setTargets(prev => prev.filter(t => t.id !== id));
+    scoreRef.current += pts; hitsRef.current++;
+    setScore(scoreRef.current); setHits(hitsRef.current);
+    const fid = nextIdRef.current++;
+    setFloats(prev => [...prev, { id: fid, x, y, pts }]);
+    setTimeout(() => setFloats(prev => prev.filter(f => f.id !== fid)), 700);
+  }
+
+  function missClick() {
+    if (gameState !== 'playing') return;
+    scoreRef.current = Math.max(0, scoreRef.current - 50);
+    missesRef.current++;
+    setScore(scoreRef.current); setMisses(missesRef.current);
+  }
+
+  function endGame() {
+    clearInterval(timerRef.current);
+    clearTimeout(spawnRef.current);
+    setGameState('done');
+    setTargets([]);
+    const total = hitsRef.current + missesRef.current;
+    const acc = total > 0 ? Math.round(hitsRef.current / total * 100) : 0;
+    const finalPts = scoreRef.current + Math.round(acc * 3);
+    const verdict = acc >= 90 ? '🎯 Ostrostřelec!' : acc >= 70 ? '💪 Dobrý střelec' : acc >= 50 ? '🙂 Průměrný výkon' : '😅 Více tréninku!';
+    setTimeout(() => onResult(finalPts, {
+      'Zásahy': hitsRef.current,
+      'Minutí': missesRef.current,
+      'Přesnost': acc + '%',
+      'Bonus za přesnost': '+' + Math.round(acc * 3) + ' b',
+      'Hodnocení': verdict,
+    }), 300);
+  }
+
+  useEffect(() => () => { clearInterval(timerRef.current); clearTimeout(spawnRef.current); }, []);
+
+  const timeColor = timeLeft > 10 ? '#44ffaa' : timeLeft > 5 ? '#ffd700' : '#ff4444';
+
+  return (
+    <div style={{animation:'slideIn 0.3s ease'}}>
+      {/* HUD */}
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10,padding:'0 4px'}}>
+        <div style={{textAlign:'left'}}>
+          <div style={{fontSize:9,color:'#445566',letterSpacing:1}}>SKÓRE</div>
+          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:20,fontWeight:900,color:'#4488ff'}}>{score.toLocaleString()}</div>
+        </div>
+        <div style={{textAlign:'center'}}>
+          <div style={{fontSize:9,color:'#445566',letterSpacing:1}}>ČAS</div>
+          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:28,fontWeight:900,color:timeColor}}>{timeLeft}</div>
+        </div>
+        <div style={{textAlign:'right'}}>
+          <div style={{fontSize:9,color:'#445566',letterSpacing:1}}>ZÁSAHY</div>
+          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:20,fontWeight:900,color:'#44ffaa'}}>{hits}</div>
+        </div>
+      </div>
+
+      {/* Aréna */}
+      <div onClick={gameState === 'waiting' ? startGame : missClick} style={{
+        position:'relative',width:'100%',maxWidth:340,height:200,margin:'0 auto',
+        background:'rgba(8,12,35,0.9)',border:'1px solid #1e2a4a',borderRadius:12,
+        overflow:'hidden',cursor: gameState === 'waiting' ? 'pointer' : 'crosshair',
+      }}>
+        {gameState === 'waiting' && (
+          <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8}}>
+            <div style={{fontSize:32}}>🎯</div>
+            <div style={{fontSize:14,color:'#88aaff',fontWeight:700}}>Klikni pro start</div>
+          </div>
+        )}
+        {targets.map(t => (
+          <div key={t.id} onClick={e=>hitTarget(t.id,t.pts,t.x,t.y,e)} style={{
+            position:'absolute',
+            left:t.x,top:t.y,
+            width:t.size,height:t.size,
+            borderRadius:'50%',
+            background:t.color,
+            border:'2px solid rgba(255,255,255,0.4)',
+            transform:'translate(-50%,-50%)',
+            cursor:'pointer',
+            display:'flex',alignItems:'center',justifyContent:'center',
+            animation:'targetPop 0.15s ease',
+          }}>
+            <div style={{width:'35%',height:'35%',borderRadius:'50%',background:'rgba(255,255,255,0.3)'}}/>
+          </div>
+        ))}
+        {floats.map(f => (
+          <div key={f.id} style={{
+            position:'absolute',left:f.x,top:f.y,
+            color:'#44ffaa',fontWeight:900,fontSize:14,
+            fontFamily:"'Orbitron',sans-serif",
+            transform:'translate(-50%,-50%)',
+            pointerEvents:'none',
+            animation:'floatUp 0.7s ease forwards',
+          }}>+{f.pts}</div>
+        ))}
+      </div>
+
+      {gameState === 'playing' && (
+        <div style={{fontSize:11,color:'#334455',marginTop:8}}>Klikni mimo terč = −50 bodů</div>
+      )}
+      {gameState === 'done' && <div style={{fontSize:13,color:'#445566',marginTop:8}}>Vyhodnocuji...</div>}
+
+      <br/>
+      <button onClick={onBack} style={{background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1,marginTop:8}}>← ZPĚT</button>
+    </div>
+  );
+}
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<ErrorBoundary><App/></ErrorBoundary>);

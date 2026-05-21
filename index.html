@@ -850,6 +850,10 @@ function App() {
         @keyframes targetPop{0%{transform:translate(-50%,-50%) scale(0.3);opacity:0}100%{transform:translate(-50%,-50%) scale(1);opacity:1}}
         @keyframes floatUp{0%{opacity:1;transform:translate(-50%,-50%)}100%{opacity:0;transform:translate(-50%,-200%)}}
         @keyframes pulse{0%,100%{box-shadow:0 0 20px rgba(255,50,50,0.3)}50%{box-shadow:0 0 40px rgba(255,50,50,0.6)}}
+        @keyframes scoreReveal{0%{opacity:0;transform:scale(.7) translateY(20px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+        @keyframes scorePulse{0%{transform:scale(.8);opacity:0}60%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+        @keyframes fadeIn{0%{opacity:0}100%{opacity:1}}
+        @keyframes scanLine{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
         @keyframes slideIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
         .slide-in{animation:slideIn 0.4s ease}
         @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-12px)}75%{transform:translateX(12px)}}
@@ -3641,311 +3645,505 @@ function StatsScreen({ user, scores, quizMode, onBack }) {
 
 
 // ─── MINIHRY ─────────────────────────────────────────
-function MinigamesScreen({ user, onBack, onScoreSaved }) {
-  const [phase, setPhase] = useState('menu'); // menu | stopwatch | transition | targets | result | board
-  const [swPts, setSwPts] = useState(0);
-  const swPtsRef = useRef(0); // ref pro okamžité čtení bez stale closure
-  const [swDetail, setSwDetail] = useState({});
-  const [tgPts, setTgPts] = useState(0);
-  const [tgDetail, setTgDetail] = useState({});
+
+async function loadMiniBoard(game, setter) {
+  try {
+    const { data, error } = await db.from('minigame_scores')
+      .select('user_id,user_name,score').eq('game', game)
+      .order('score',{ascending:false}).limit(100);
+    if (error) return;
+    const best = {};
+    (data||[]).forEach(r => { if (!best[r.user_id] || r.score > best[r.user_id].score) best[r.user_id]=r; });
+    setter(Object.values(best).sort((a,b)=>b.score-a.score).slice(0,10));
+  } catch(e) {}
+}
+
+async function saveMiniScore(user, game, score, detail, onScoreSaved) {
+  if (!user) return;
+  try {
+    const { error } = await db.from('minigame_scores').insert({
+      id: Date.now().toString(), user_id: user.id, user_name: user.name,
+      game, score, detail: detail || null, played_at: new Date().toISOString(),
+    });
+    if (error) console.error('saveMini:', error.message);
+    if (onScoreSaved) onScoreSaved();
+  } catch(e) { console.error(e); }
+}
+
+function MiniBoard({ game, title, color, onBack }) {
   const [board, setBoard] = useState([]);
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(null);
 
-  async function loadBoard() {
-    try {
-      const { data, error } = await db.from('minigame_scores')
-        .select('user_id,user_name,score')
-        .eq('game', 'combined')
-        .order('score', { ascending: false })
-        .limit(100);
-      if (error) { console.error('loadBoard:', error.message); return; }
-      if (data) {
-        // Deduplikuj — nejlepší skóre každého hráče
+  useEffect(() => {
+    async function load() {
+      try {
+        const { data, error } = await db.from('minigame_scores')
+          .select('user_id,user_name,score,detail').eq('game', game)
+          .order('score',{ascending:false}).limit(200);
+        if (error) return;
         const best = {};
-        data.forEach(r => {
-          if (!best[r.user_id] || r.score > best[r.user_id].score) {
-            best[r.user_id] = r;
-          }
+        (data||[]).forEach(r => {
+          if (!best[r.user_id] || r.score > best[r.user_id].score) best[r.user_id]=r;
         });
-        setBoard(Object.values(best).sort((a,b) => b.score - a.score).slice(0, 10));
-      }
-    } catch(e) { console.error('loadBoard:', e); }
-  }
+        setBoard(Object.values(best).sort((a,b)=>b.score-a.score).slice(0,10));
+      } catch(e) {}
+      setLoading(false);
+    }
+    load();
+  }, [game]);
 
-  async function saveScore(total) {
-    if (!user) return;
+  return (
+    <div style={{animation:'slideIn .3s ease'}}>
+      <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:11,color:color,letterSpacing:3,marginBottom:16}}>{title}</div>
+      {loading
+        ? <div style={{color:'#445566',fontSize:13,padding:'20px 0'}}>Načítám...</div>
+        : board.length===0
+          ? <div style={{color:'#445566',fontSize:13,padding:'30px 0'}}>Zatím žádné záznamy</div>
+          : board.map((e,i)=>{
+              const isOpen = expanded === i;
+              // Parsuj detail pro stopky — klíče "Kolo X — cíl Y s"
+              const rounds = e.detail ? Object.entries(e.detail).filter(([k])=>k.startsWith('Kolo')) : [];
+              const hasDetail = game === 'stopwatch' && rounds.length > 0;
+              return (
+                <div key={i} style={{background:'rgba(12,18,52,.8)',border:`1px solid ${isOpen?color+'44':'#1e2a4a'}`,borderRadius:10,marginBottom:6,overflow:'hidden',transition:'border-color .2s'}}>
+                  {/* Hlavní řádek */}
+                  <div
+                    onClick={()=>hasDetail&&setExpanded(isOpen?null:i)}
+                    style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',cursor:hasDetail?'pointer':'default'}}
+                  >
+                    <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:14,fontWeight:900,color:i===0?'#ffd700':i===1?'#cccccc':i===2?'#cd7f32':'#334455',minWidth:24}}>{i+1}.</div>
+                    <div style={{flex:1,fontSize:13,color:'#88aaff',fontWeight:700,textAlign:'left'}}>{e.user_name}</div>
+                    <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:14,fontWeight:900,color:'#ffd700'}}>{e.score.toLocaleString()}</div>
+                    {hasDetail && <div style={{fontSize:11,color:'#334455',marginLeft:4}}>{isOpen?'▲':'▼'}</div>}
+                  </div>
+                  {/* Detail kol — jen stopky */}
+                  {isOpen && hasDetail && (
+                    <div style={{padding:'0 14px 12px',borderTop:'1px solid #151f3a'}}>
+                      {rounds.map(([k,v],ri)=>{
+                        // "Kolo 1 — cíl 5 s" → "5.000000 s → +12 345 b"
+                        const cil = k.match(/cíl (\d+)/)?.[1];
+                        const parts = v.split(' → ');
+                        const time = parts[0];
+                        const pts  = parts[1];
+                        // Odchylka z času
+                        const t = parseFloat(time);
+                        const target = parseInt(cil||'0');
+                        const diff = Math.abs(t - target);
+                        const diffCol = diff<0.001?'#44ffaa':diff<0.1?'#ffd700':'#ff6644';
+                        return (
+                          <div key={ri} style={{display:'flex',alignItems:'center',gap:8,padding:'5px 0',borderBottom:ri<rounds.length-1?'1px solid #0e1428':'none'}}>
+                            <div style={{width:28,height:28,borderRadius:'50%',background:'rgba(68,136,255,.15)',border:'1px solid #2a4a9a',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                              <span style={{fontSize:11,fontWeight:900,color:'#88aaff'}}>{cil}s</span>
+                            </div>
+                            <div style={{flex:1}}>
+                              <div style={{fontSize:11,color:'#88aaff',fontFamily:"'Courier New',monospace",fontWeight:700}}>{time}</div>
+                              <div style={{fontSize:10,color:diffCol}}>± {diff.toFixed(6)} s od cíle</div>
+                            </div>
+                            <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:12,fontWeight:900,color:'#ffd700'}}>{pts}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+      }
+      <button onClick={onBack} style={{background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1,marginTop:16}}>← ZPĚT</button>
+    </div>
+  );
+}
+
+function MinigamesScreen({ user, onBack, onScoreSaved }) {
+  const [screen, setScreen] = useState('menu'); // menu | sw | tg | bl | board_sw | board_tg | board_bl
+  const [swResult, setSwResult] = useState(null);
+  const [tgResult, setTgResult] = useState(null);
+  const [blResult, setBlResult] = useState(null);
+  const [saving, setSaving]     = useState(false);
+
+  async function handleSave(game, pts, detail) {
     setSaving(true);
-    try {
-      const { error } = await db.from('minigame_scores').insert({
-        id: Date.now().toString(),
-        user_id: user.id,
-        user_name: user.name,
-        game: 'combined',
-        score: total,
-        played_at: new Date().toISOString(),
-      });
-      if (error) console.error('minigame insert:', error.message);
-      await loadBoard();
-      if (onScoreSaved) onScoreSaved();
-    } catch(e) { console.error('saveScore:', e); }
+    await saveMiniScore(user, game, pts, detail, onScoreSaved);
     setSaving(false);
   }
 
-  function startGame() { setPhase('stopwatch'); }
-
-  function onSwDone(pts, detail) {
-    swPtsRef.current = pts;
-    setSwPts(pts); setSwDetail(detail);
-    setPhase('transition');
-    setTimeout(() => setPhase('targets'), 2000);
-  }
-
-  function onTgDone(pts, detail) {
-    setTgPts(pts); setTgDetail(detail);
-    const total = swPtsRef.current + pts; // použij ref — ne stale state
-    saveScore(total);
-    setPhase('result');
-  }
-
-  function showBoard() { loadBoard(); setPhase('board'); }
-
-  const total = swPts + tgPts;
+  const GAMES = [
+    { key:'sw',  emoji:'⏱', title:'Zastavte čas',     desc:'Trefte 5 s a pak 10 s',       color:'#4488ff', boardKey:'board_sw', game:'stopwatch'  },
+    { key:'tg',  emoji:'🎯', title:'Terčová střelnice',desc:'Zasáhni terče za 20 s',        color:'#ff4488', boardKey:'board_tg', game:'targets'    },
+    { key:'bl',  emoji:'⚖️', title:'Rovnováha',        desc:'Udrž tyč co nejdéle',          color:'#44ffaa', boardKey:'board_bl', game:'balance'    },
+  ];
 
   return (
     <div className="slide-in" style={{width:'100%',maxWidth:480,textAlign:'center'}}>
       <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,color:'#bb44ff',letterSpacing:4,marginBottom:6}}>BONUS</div>
-      <h2 className="glow" style={{fontFamily:"'Orbitron',sans-serif",fontSize:28,fontWeight:900,color:'#fff',marginBottom:4}}>MINIHRA</h2>
+      <h2 className="glow" style={{fontFamily:"'Orbitron',sans-serif",fontSize:28,fontWeight:900,color:'#fff',marginBottom:16}}>MINIHRY</h2>
 
-      {phase==='menu' && (
-        <div style={{animation:'slideIn 0.3s ease'}}>
-          <div style={{fontSize:12,color:'#445566',marginBottom:24}}>Dvě hry za sebou — body se sčítají</div>
-          <div style={{background:'rgba(12,18,52,0.8)',border:'1px solid #1e2a4a',borderRadius:14,padding:20,marginBottom:16,textAlign:'left'}}>
-            <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
-              <span style={{fontSize:28}}>⏱</span>
-              <div>
-                <div style={{fontSize:15,fontWeight:700,color:'#fff'}}>1. Zastavte čas</div>
-                <div style={{fontSize:12,color:'#445566'}}>Zastavte na přesně 10.000 s</div>
+      {/* MENU */}
+      {screen==='menu' && (
+        <div style={{animation:'slideIn .3s ease'}}>
+          {GAMES.map(g=>(
+            <div key={g.key} style={{background:'rgba(12,18,52,.8)',border:'1px solid #1e2a4a',borderRadius:14,padding:16,marginBottom:10,textAlign:'left',display:'flex',alignItems:'center',gap:14}}>
+              <span style={{fontSize:32,flexShrink:0}}>{g.emoji}</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:15,fontWeight:700,color:'#fff',marginBottom:2}}>{g.title}</div>
+                <div style={{fontSize:11,color:'#445566'}}>{g.desc}</div>
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                <button onClick={()=>setScreen(g.key)} style={{background:`linear-gradient(135deg,${g.color}33,${g.color}55)`,border:`1px solid ${g.color}66`,borderRadius:8,padding:'7px 14px',fontSize:12,color:g.color,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>▶ Hrát</button>
+                <button onClick={()=>setScreen(g.boardKey)} style={{background:'transparent',border:'1px solid #1e2a4a',borderRadius:8,padding:'7px 14px',fontSize:11,color:'#445566',cursor:'pointer',whiteSpace:'nowrap'}}>🏆 Žebříček</button>
               </div>
             </div>
-            <div style={{width:'100%',height:1,background:'#1e2a4a',marginBottom:12}}/>
-            <div style={{display:'flex',alignItems:'center',gap:12}}>
-              <span style={{fontSize:28}}>🎯</span>
-              <div>
-                <div style={{fontSize:15,fontWeight:700,color:'#fff'}}>2. Terčová střelnice</div>
-                <div style={{fontSize:12,color:'#445566'}}>Zasáhni co nejvíc terčů za 20 s</div>
-              </div>
-            </div>
-          </div>
-          <div style={{display:'flex',gap:10,justifyContent:'center',marginBottom:16}}>
-            <button className="btn" onClick={startGame} style={{background:'linear-gradient(135deg,#4a1a8a,#8822cc)',padding:'14px 36px',borderRadius:10,fontSize:14,color:'#fff',letterSpacing:2,boxShadow:'0 0 20px rgba(136,34,204,0.3)'}}>
-              ▶ SPUSTIT
-            </button>
-            <button className="btn" onClick={showBoard} style={{background:'transparent',border:'1px solid #2a3a6a',padding:'14px 20px',borderRadius:10,fontSize:13,color:'#88aaff',letterSpacing:1}}>
-              🏆 Žebříček
-            </button>
-          </div>
-          <button onClick={onBack} style={{background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1}}>← ZPĚT</button>
+          ))}
+          <button onClick={onBack} style={{background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1,marginTop:8}}>← ZPĚT</button>
         </div>
       )}
 
-      {phase==='stopwatch' && (
-        <StopwatchGame onResult={onSwDone} phase={1}/>
+      {/* STOPKY */}
+      {screen==='sw' && !swResult && <StopwatchGame onResult={(pts,detail)=>{setSwResult({pts,detail});handleSave('stopwatch',pts,detail);}}/>}
+      {screen==='sw' && swResult && (
+        <MiniResult emoji="⏱" title="ZASTAVTE ČAS" result={swResult} color="#4488ff" saving={saving}
+          onRetry={()=>setSwResult(null)}
+          onBoard={()=>setScreen('board_sw')}
+          onBack={()=>{setSwResult(null);setScreen('menu');}}/>
       )}
 
-      {phase==='transition' && (
-        <div style={{animation:'slideIn 0.3s ease',padding:'40px 0'}}>
-          <div style={{fontSize:48,marginBottom:12}}>🎯</div>
-          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:14,color:'#bb44ff',letterSpacing:3,marginBottom:8}}>FÁZE 1 HOTOVA</div>
-          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:28,fontWeight:900,color:'#ffd700',marginBottom:4}}>+{swPts.toLocaleString()} b</div>
-          <div style={{fontSize:13,color:'#445566',marginBottom:20}}>Připrav se na střelnici...</div>
-          <div style={{width:200,height:4,background:'rgba(20,30,70,0.8)',borderRadius:2,overflow:'hidden',margin:'0 auto'}}>
-            <div style={{height:'100%',background:'#bb44ff',borderRadius:2,animation:'progressBar 2s linear forwards'}}/>
-          </div>
-        </div>
+      {/* TERČE */}
+      {screen==='tg' && !tgResult && <TargetsGame onResult={(pts,detail)=>{setTgResult({pts,detail});handleSave('targets',pts);}} swPts={0} phase={1}/>}
+      {screen==='tg' && tgResult && (
+        <MiniResult emoji="🎯" title="TERČOVÁ STŘELNICE" result={tgResult} color="#ff4488" saving={saving}
+          onRetry={()=>setTgResult(null)}
+          onBoard={()=>setScreen('board_tg')}
+          onBack={()=>{setTgResult(null);setScreen('menu');}}/>
       )}
 
-      {phase==='targets' && (
-        <TargetsGame onResult={onTgDone} swPts={swPts} phase={2}/>
+      {/* ROVNOVÁHA */}
+      {screen==='bl' && !blResult && <BalanceGame onResult={(pts,detail)=>{setBlResult({pts,detail});handleSave('balance',pts);}} prevPts={0} phase={1}/>}
+      {screen==='bl' && blResult && (
+        <MiniResult emoji="⚖️" title="ROVNOVÁHA" result={blResult} color="#44ffaa" saving={saving}
+          onRetry={()=>setBlResult(null)}
+          onBoard={()=>setScreen('board_bl')}
+          onBack={()=>{setBlResult(null);setScreen('menu');}}/>
       )}
 
-      {phase==='result' && (
-        <div style={{animation:'slideIn 0.3s ease'}}>
-          <div style={{fontSize:56,marginBottom:8}}>{total>=1500?'🏆':total>=800?'🥈':'🥉'}</div>
-          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:42,fontWeight:900,color:'#ffd700',marginBottom:2}}>{total.toLocaleString()}</div>
-          <div style={{fontSize:13,color:'#445566',marginBottom:20}}>celkových bodů</div>
-          <div style={{background:'rgba(12,18,52,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:12,textAlign:'left'}}>
-            <div style={{fontSize:10,color:'#4488ff',letterSpacing:2,marginBottom:10,fontFamily:"'Orbitron',sans-serif"}}>⏱ ZASTAVTE ČAS</div>
-            {Object.entries(swDetail).map(([k,v])=>(
-              <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'3px 0',fontSize:12,borderBottom:'1px solid #121830'}}>
-                <span style={{color:'#445566'}}>{k}</span><span style={{color:'#88aaff',fontWeight:700}}>{v}</span>
-              </div>
-            ))}
-            <div style={{display:'flex',justifyContent:'space-between',padding:'4px 0',fontSize:13}}>
-              <span style={{color:'#556688'}}>Body</span><span style={{color:'#ffd700',fontWeight:700}}>+{swPts.toLocaleString()}</span>
-            </div>
-          </div>
-          <div style={{background:'rgba(12,18,52,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:16,textAlign:'left'}}>
-            <div style={{fontSize:10,color:'#ff4488',letterSpacing:2,marginBottom:10,fontFamily:"'Orbitron',sans-serif"}}>🎯 TERČOVÁ STŘELNICE</div>
-            {Object.entries(tgDetail).map(([k,v])=>(
-              <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'3px 0',fontSize:12,borderBottom:'1px solid #121830'}}>
-                <span style={{color:'#445566'}}>{k}</span><span style={{color:'#88aaff',fontWeight:700}}>{v}</span>
-              </div>
-            ))}
-            <div style={{display:'flex',justifyContent:'space-between',padding:'4px 0',fontSize:13}}>
-              <span style={{color:'#556688'}}>Body</span><span style={{color:'#ffd700',fontWeight:700}}>+{tgPts.toLocaleString()}</span>
-            </div>
-          </div>
-          {saving && <div style={{fontSize:11,color:'#445566',marginBottom:8}}>Ukládám skóre...</div>}
-          <div style={{display:'flex',gap:10,justifyContent:'center'}}>
-            <button className="btn" onClick={()=>{setSwPts(0);setTgPts(0);swPtsRef.current=0;startGame();}} style={{background:'linear-gradient(135deg,#4a1a8a,#8822cc)',padding:'12px 24px',borderRadius:10,fontSize:13,color:'#fff',letterSpacing:2}}>
-              HRÁT ZNOVU
-            </button>
-            <button className="btn" onClick={showBoard} style={{background:'transparent',border:'1px solid #2a3a6a',padding:'12px 20px',borderRadius:10,fontSize:13,color:'#88aaff'}}>
-              🏆 Žebříček
-            </button>
-            <button className="btn" onClick={onBack} style={{background:'transparent',border:'1px solid #2a3a6a',padding:'12px 20px',borderRadius:10,fontSize:13,color:'#445566'}}>
-              ← Domů
-            </button>
-          </div>
-        </div>
-      )}
+      {/* ŽEBŘÍČKY */}
+      {screen==='board_sw' && <MiniBoard game="stopwatch" title="⏱ ZASTAVTE ČAS"     color="#4488ff" onBack={()=>setScreen('menu')}/>}
+      {screen==='board_tg' && <MiniBoard game="targets"   title="🎯 TERČOVÁ STŘELNICE" color="#ff4488" onBack={()=>setScreen('menu')}/>}
+      {screen==='board_bl' && <MiniBoard game="balance"   title="⚖️ ROVNOVÁHA"         color="#44ffaa" onBack={()=>setScreen('menu')}/>}
+    </div>
+  );
+}
 
-      {phase==='board' && (
-        <div style={{animation:'slideIn 0.3s ease'}}>
-          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:11,color:'#bb44ff',letterSpacing:3,marginBottom:16}}>ŽEBŘÍČEK MINIHER</div>
-          {board.length===0
-            ? <div style={{color:'#445566',fontSize:13,padding:'30px 0'}}>Zatím žádné záznamy</div>
-            : board.map((e,i)=>(
-              <div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'rgba(12,18,52,0.8)',border:'1px solid #1e2a4a',borderRadius:8,marginBottom:6}}>
-                <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:14,fontWeight:900,color:i===0?'#ffd700':i===1?'#cccccc':i===2?'#cd7f32':'#334455',minWidth:24}}>{i+1}.</div>
-                <div style={{flex:1,fontSize:13,color:'#88aaff',fontWeight:700,textAlign:'left'}}>{e.user_name}</div>
-                <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:14,fontWeight:900,color:'#ffd700'}}>{e.score.toLocaleString()}</div>
-              </div>
-            ))
-          }
-          <button className="btn" onClick={()=>setPhase('menu')} style={{background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1,marginTop:16}}>← ZPĚT</button>
-        </div>
-      )}
+function MiniResult({ emoji, title, result, color, saving, onRetry, onBoard, onBack }) {
+  const { pts, detail } = result;
+  return (
+    <div style={{animation:'slideIn .3s ease'}}>
+      <div style={{fontSize:52,marginBottom:8}}>{pts>=4000?'🏆':pts>=2000?'🥈':'🥉'}</div>
+      <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:38,fontWeight:900,color:'#ffd700',marginBottom:2}}>{pts.toLocaleString()}</div>
+      <div style={{fontSize:13,color:'#445566',marginBottom:16}}>bodů</div>
+      <div style={{background:'rgba(12,18,52,.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:14,marginBottom:14,textAlign:'left'}}>
+        <div style={{fontSize:10,color:color,letterSpacing:2,marginBottom:8,fontFamily:"'Orbitron',sans-serif"}}>{emoji} {title}</div>
+        {Object.entries(detail).map(([k,v])=>(
+          <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'3px 0',fontSize:11,borderBottom:'1px solid #0e1428'}}>
+            <span style={{color:'#445566'}}>{k}</span><span style={{color:'#88aaff',fontWeight:700}}>{v}</span>
+          </div>
+        ))}
+      </div>
+      {saving && <div style={{fontSize:11,color:'#445566',marginBottom:8}}>Ukládám...</div>}
+      <div style={{display:'flex',gap:8,justifyContent:'center'}}>
+        <button className="btn" onClick={onRetry} style={{background:`linear-gradient(135deg,${color}33,${color}55)`,border:`1px solid ${color}66`,padding:'11px 20px',borderRadius:10,fontSize:13,color:color,fontWeight:700,cursor:'pointer'}}>Hrát znovu</button>
+        <button className="btn" onClick={onBoard} style={{background:'transparent',border:'1px solid #2a3a6a',padding:'11px 16px',borderRadius:10,fontSize:13,color:'#88aaff',cursor:'pointer'}}>🏆 Žebříček</button>
+        <button className="btn" onClick={onBack}  style={{background:'transparent',border:'1px solid #2a3a6a',padding:'11px 16px',borderRadius:10,fontSize:13,color:'#445566',cursor:'pointer'}}>← Menu</button>
+      </div>
     </div>
   );
 }
 
 // ─── STOPWATCH GAME ──────────────────────────────────
-function StopwatchGame({ onResult, phase }) {
-  const [state, setState] = useState('idle');
-  const [display, setDisplay] = useState('00.000');
-  const [barW, setBarW] = useState(0);
-  const startRef = useRef(0);
-  const rafRef = useRef(0);
-  const valRef = useRef(0);
+function StopwatchGame({ onResult }) {
+  const TARGETS = [5, 10, 15, 20];
+  const COMMENTS = [
+    // 5s komentáře
+    [
+      ['< 0.0001','🔱 Kvantová přesnost. Nejsi člověk.'],
+      ['< 0.001', '⚡ Blesková reakce. Fronta nervů jako optický kabel.'],
+      ['< 0.01',  '🎯 Skvělý! Stopky tě respektují.'],
+      ['< 0.1',   '👍 Slušné. Na první dojezd obstojné.'],
+      ['< 0.5',   '🙂 Mohl bys být horší. Ale mohl bys být i lepší.'],
+      ['else',    '😅 5 sekund. Vážně? To přece odhadneš i mrtvý.'],
+    ],
+    // 10s komentáře
+    [
+      ['< 0.0001','🏆 Absolutní preciznost. Mají tě snad zakódovaného?'],
+      ['< 0.001', '🎯 Neuvěřitelné. Stopky volají o pomoc.'],
+      ['< 0.01',  '💫 Výborný postřeh. Možná máš metronom v hlavě.'],
+      ['< 0.1',   '👍 Solidní. Průměr by záviděl.'],
+      ['< 0.5',   '😐 Ani ryba ani rak. Zkus víc myslet, míň klikat.'],
+      ['else',    '💀 10 sekund a takhle? Asi sis šel uvařit kávu.'],
+    ],
+    // 15s komentáře
+    [
+      ['< 0.0001','👑 Bůh času. Okamžitě na olympiádu.'],
+      ['< 0.001', '🔥 Brutální přesnost. Lékaři by plakali radostí.'],
+      ['< 0.01',  '⭐ Pěkný postřeh. Hodiny by tě přijaly mezi své.'],
+      ['< 0.1',   '🤷 Ujde. Jako většina věcí v tvém životě.'],
+      ['< 0.5',   '😬 Snad se zlepšíš na 20s. I když pochybujeme.'],
+      ['else',    '🐢 15 sekund ti trvá déle než vstát ráno. Smutné.'],
+    ],
+    // 20s komentáře
+    [
+      ['< 0.0001','🌌 Transcendentální. Vesmír je hrdý.'],
+      ['< 0.001', '🏅 Mistr stopek. Zarámuj to.'],
+      ['< 0.01',  '🎖 Výborně! Na 20s máš fakt cit.'],
+      ['< 0.1',   '😑 No... aspoň jsi to dokončil. Bravo?'],
+      ['< 0.5',   '🥱 Unaveně průměrné. Jak tvůj pondělní výkon.'],
+      ['else',    '☕ 20 sekund a taková odchylka? Vrať se po kávě.'],
+    ],
+  ];
 
-  function tick() {
-    const v = (Date.now() - startRef.current) / 1000;
-    // Vizuální čas = 2× rychlejší
-    const vDisplay = v * 2;
-    valRef.current = vDisplay; // ukládáme vizuální čas — to je co hráč vidí
-    const secs = Math.floor(vDisplay);
-    const frac = Math.floor((vDisplay - secs) * 10000);
-    setDisplay(`${String(secs).padStart(2,'0')}.${String(frac).padStart(4,'0')}`);
-    // Progress bar: 0→100% když vizuální čas 0→10s
-    setBarW(Math.min(vDisplay / 10 * 100, 100));
-    if (vDisplay < 20) rafRef.current = requestAnimationFrame(tick);
-    else handleStop();
+  function getComment(round, diff) {
+    const tiers = COMMENTS[round];
+    for (const [cond, msg] of tiers) {
+      if (cond === 'else') return msg;
+      const val = parseFloat(cond.replace('< ',''));
+      if (diff < val) return msg;
+    }
+    return tiers[tiers.length-1][1];
   }
 
-  function handleClick() {
-    if (state === 'idle') {
-      startRef.current = Date.now();
-      setState('running');
-      rafRef.current = requestAnimationFrame(tick);
-    } else if (state === 'running') {
-      handleStop();
-    }
+  const [round, setRound]       = useState(0);
+  const [phase, setPhase]       = useState('idle'); // idle|running|paused|done
+  const [display, setDisplay]   = useState('00.000000');
+  const [barW, setBarW]         = useState(0);
+  const [hits, setHits]         = useState([]);  // [{pts,diff,stopped,comment}]
+  const [showHit, setShowHit]   = useState(false);
+  const startRef  = useRef(0);
+  const offsetRef = useRef(0);
+  const rafRef    = useRef(0);
+  const valRef    = useRef(0);
+  const hitsRef   = useRef([]);
+  const roundRef  = useRef(0);
+
+  function calcPts(diff) {
+    // Lineární škála: 0.000000s = 50 000, 0.500000s = 0
+    // Každých 0.00001s (10 mikrosekund) = 1 bod ztráty
+    const loss = Math.round(diff * 100000); // 1 bod za 10 mikrosekund
+    return Math.max(0, 50000 - loss);
+  }
+
+  function tick() {
+    const v  = offsetRef.current + (Date.now() - startRef.current) / 1000;
+    const vd = v * 2;
+    valRef.current = vd;
+    const secs = Math.floor(vd);
+    const frac = Math.floor((vd - secs) * 1000000);
+    setDisplay(`${String(secs).padStart(2,'0')}.${String(frac).padStart(6,'0')}`);
+    const target = TARGETS[roundRef.current];
+    setBarW(Math.min(vd / target * 100, 100));
+    if (vd < target * 3) rafRef.current = requestAnimationFrame(tick);
+  }
+
+  function handleStart() {
+    offsetRef.current = 0; roundRef.current = 0;
+    hitsRef.current = [];
+    setHits([]); setRound(0); setShowHit(false);
+    setDisplay('00.000000'); setBarW(0);
+    startRef.current = Date.now();
+    setPhase('running');
+    rafRef.current = requestAnimationFrame(tick);
   }
 
   function handleStop() {
     cancelAnimationFrame(rafRef.current);
-    setState('done');
     const stopped = valRef.current;
-    const diff = Math.abs(stopped - 10);
-    // Exponenciální křivka max 5000b — každá mikro setina rozhoduje
-    let pts = Math.round(5000 * Math.exp(-8 * diff));
-    pts = Math.max(0, Math.min(5000, pts));
-    // Bonus za extrémní přesnost
-    let bonus = 0;
-    if (diff < 0.0001)      bonus = 1000;
-    else if (diff < 0.0005) bonus = 750;
-    else if (diff < 0.001)  bonus = 500;
-    else if (diff < 0.002)  bonus = 250;
-    else if (diff < 0.005)  bonus = 100;
-    const total_pts = Math.min(5000, pts + bonus);
+    const target  = TARGETS[roundRef.current];
+    const diff    = Math.abs(stopped - target);
+    const pts     = calcPts(diff);
+    const comment = getComment(roundRef.current, diff);
+    const hit = { pts, diff, stopped, target, comment };
+    hitsRef.current = [...hitsRef.current, hit];
+    setHits([...hitsRef.current]);
+    offsetRef.current = stopped / 2;
 
-    const verdict = diff < 0.0001 ? '🏆 Absolutní preciznost!'
-      : diff < 0.001  ? '🎯 Neuvěřitelné!'
-      : diff < 0.005  ? '⚡ Blesková reakce!'
-      : diff < 0.020  ? '💫 Skvělý postřeh!'
-      : diff < 0.100  ? '👍 Dobrý pokus'
-      : diff < 0.500  ? '🙂 Slušný výkon'
-      : '😅 Zkus příště';
+    const isLastRound = roundRef.current >= TARGETS.length - 1;
+    setPhase('paused');
+    setShowHit(true);
 
-    setTimeout(() => onResult(total_pts, {
-      'Zastavil jsi na': stopped.toFixed(4) + ' s',
-      'Odchylka': (stopped >= 10 ? '+' : '') + (stopped - 10).toFixed(4) + ' s',
-      'Základ': pts + ' b',
-      'Bonus za přesnost': bonus > 0 ? '+' + bonus + ' b' : '—',
-      'Výsledek': verdict,
-    }), 800);
+    if (isLastRound) {
+      // Poslední kolo — po zobrazení výsledku automaticky pokračuj
+      const total = hitsRef.current.reduce((s,h)=>s+h.pts, 0);
+      setTimeout(() => {
+        setPhase('done');
+        const detail = {};
+        hitsRef.current.forEach((h,i) => {
+          detail[`Kolo ${i+1} — cíl ${h.target} s`] = `${h.stopped.toFixed(6)} s → +${h.pts.toLocaleString()} b`;
+        });
+        // Drzý komentář na základě celkového skóre
+        const total = hitsRef.current.reduce((s,h)=>s+h.pts,0);
+        const maxPossible = 50000 * TARGETS.length;
+        const pct = total / maxPossible;
+        const worstComment = hitsRef.current.reduce((w,h)=>h.diff>w.diff?h:w, hitsRef.current[0]);
+        detail['💬'] = pct > 0.9 ? '🔱 Transcendentální. Patříš do muzea přesnosti.'
+          : pct > 0.7 ? '⚡ Solidní výkon. Hodiny by tě vzaly mezi sebe.'
+          : pct > 0.5 ? `🤔 Ušlo by to. Hlavně to kolo ${hitsRef.current.indexOf(worstComment)+1} bylo… tragické.`
+          : pct > 0.3 ? '😬 Průměr jako tvůj ranní nálada. Lze zlepšit.'
+          : '🐌 I slepá kura zrno najde. Ty zatím ne.';
+        onResult(total, detail);
+      }, 2500);
+    }
+  }
+
+  function handleResume() {
+    const nextRound = roundRef.current + 1;
+    roundRef.current = nextRound;
+    setRound(nextRound);
+    setShowHit(false);
+    startRef.current = Date.now();
+    setPhase('running');
+    rafRef.current = requestAnimationFrame(tick);
   }
 
   useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
 
+  const target   = TARGETS[round];
+  const running  = phase === 'running';
+  const isClose  = running && barW >= 88 && barW <= 112;
   const barColor = barW < 70 ? '#4488ff' : barW < 90 ? '#ffd700' : '#ff4444';
-  const isClose = barW >= 85 && barW <= 115;
+  const totalSoFar = hitsRef.current.reduce((s,h)=>s+h.pts,0);
+  const lastHit  = hits[hits.length-1];
 
   return (
-    <div style={{animation:'slideIn 0.3s ease'}}>
-      <div style={{fontSize:10,color:'#bb44ff',letterSpacing:3,fontFamily:"'Orbitron',sans-serif",marginBottom:4}}>FÁZE 1 / 2</div>
-      <div style={{fontSize:11,color:'#445566',marginBottom:16}}>Zastavte přesně na <span style={{color:'#ffd700',fontWeight:700}}>10.0000</span></div>
+    <div style={{animation:'slideIn .3s ease'}}>
+      <div style={{fontSize:10,color:'#bb44ff',letterSpacing:3,fontFamily:"'Orbitron',sans-serif",marginBottom:8}}>ZASTAVTE ČAS</div>
 
-      {/* Velký displej — monospace font */}
-      <div style={{
-        fontFamily:"'Courier New', 'Lucida Console', monospace",
-        fontSize:64,fontWeight:900,
-        color: state==='running' ? (isClose?'#ff4444':'#fff') : '#888',
-        letterSpacing:2,lineHeight:1,marginBottom:8,
-        textShadow: state==='running'&&isClose ? '0 0 20px rgba(255,50,50,0.5)' : 'none',
-        transition:'color 0.1s',
-      }}>
-        {display}
+      {/* Krok indikátor — větší */}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:0,marginBottom:16}}>
+        {TARGETS.map((t,i)=>{
+          const done   = i < round || phase==='done';
+          const active = i === round && phase !== 'done';
+          return (
+            <div key={i} style={{display:'flex',alignItems:'center',flexShrink:0}}>
+              {i>0 && <div style={{width:22,height:2,background:done?'#ffd700':'#1e2a4a',transition:'background .4s'}}/>}
+              <div style={{textAlign:'center'}}>
+                <div style={{
+                  width:52,height:52,borderRadius:'50%',
+                  background: done?'rgba(255,215,0,.18)': active?'rgba(68,136,255,.18)':'rgba(20,30,70,.8)',
+                  border:`2px solid ${done?'#ffd700':active?'#4488ff':'#1e2a4a'}`,
+                  display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',
+                  transition:'all .3s',
+                }}>
+                  {done
+                    ? <span style={{fontSize:18,color:'#ffd700'}}>✓</span>
+                    : <><span style={{fontSize:15,fontWeight:900,color:active?'#fff':'#334455',lineHeight:1}}>{t}</span>
+                       <span style={{fontSize:9,color:active?'#88aaff':'#334455'}}>s</span></>
+                  }
+                </div>
+                {done&&hits[i] && (
+                  <div style={{fontSize:9,color:'#886600',marginTop:3,fontFamily:"'Orbitron',sans-serif",animation:'fadeIn .4s ease'}}>
+                    +{hits[i].pts.toLocaleString()}
+                  </div>
+                )}
+                {active && <div style={{fontSize:9,color:'#4488ff',marginTop:3,letterSpacing:.5}}>← cíl</div>}
+              </div>
+            </div>
+          );
+        })}
       </div>
-      <div style={{fontSize:11,color:'#334455',marginBottom:4}}>s</div>
-      <div style={{fontSize:10,color:'#334455',marginBottom:16}}>každá mikro setina rozhoduje · max 1000 b</div>
+
+      {/* Displej */}
+      <div style={{
+        background:'rgba(4,8,25,.95)',
+        border:`2px solid ${isClose?'rgba(255,50,50,.8)':running?'rgba(68,136,255,.3)':'rgba(255,215,0,.3)'}`,
+        borderRadius:16,padding:'20px 10px 12px',marginBottom:14,position:'relative',overflow:'hidden',
+        boxShadow:isClose?'0 0 30px rgba(255,50,50,.25)':running?'0 0 20px rgba(68,136,255,.1)':'none',
+        transition:'border-color .1s,box-shadow .1s',
+      }}>
+        {/* Animovaná čára nahoře */}
+        {running && <div style={{position:'absolute',top:0,left:0,right:0,height:2,background:`linear-gradient(90deg,transparent,${isClose?'#ff4444':'#4488ff'},transparent)`,animation:'scanLine 1.5s linear infinite'}}/>}
+        <div style={{
+          fontFamily:"'Courier New',monospace",
+          fontSize:50,fontWeight:900,letterSpacing:2,lineHeight:1,
+          color: running?(isClose?'#ff4444':'#fff'):phase==='paused'?'#ffd700':'#555',
+          transition:'color .08s',
+        }}>{display}</div>
+        <div style={{fontSize:10,color:'#334455',marginTop:5,letterSpacing:1}}>SEKUND · přesnost 0.000001</div>
+        {running && totalSoFar > 0 && (
+          <div style={{fontSize:11,color:'#334455',marginTop:4}}>Průběžně: <span style={{color:'#ffd700',fontWeight:700}}>{totalSoFar.toLocaleString()} b</span></div>
+        )}
+      </div>
 
       {/* Progress bar */}
-      <div style={{padding:'0 8px',marginBottom:24}}>
-        <div style={{height:8,background:'rgba(20,30,70,0.8)',borderRadius:4,overflow:'hidden',border:'1px solid #1e2a4a',marginBottom:6,position:'relative'}}>
-          <div style={{height:'100%',width:barW+'%',background:barColor,borderRadius:4,transition:'width 0.03s linear'}}/>
-          {/* Cílová čára na 10s */}
-          <div style={{position:'absolute',left:'50%',top:0,bottom:0,width:2,background:'rgba(255,215,0,0.8)',transform:'translateX(-50%)'}}/>
+      <div style={{padding:'0 4px',marginBottom:16}}>
+        <div style={{height:8,background:'rgba(20,30,70,.8)',borderRadius:4,overflow:'hidden',border:'1px solid #1e2a4a',position:'relative',marginBottom:4}}>
+          <div style={{height:'100%',width:Math.min(barW,100)+'%',background:barColor,borderRadius:4,transition:'width .02s linear'}}/>
+          <div style={{position:'absolute',left:'50%',top:0,bottom:0,width:2,background:'rgba(255,215,0,.5)',transform:'translateX(-50%)'}}/>
         </div>
-        <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'#334455'}}>
-          <span>0 s</span><span style={{color:'#ffd700'}}>⬆ 10 s</span><span>20 s</span>
+        <div style={{display:'flex',justifyContent:'space-between',fontSize:9,color:'#334455'}}>
+          <span>0</span>
+          <span style={{color:'#ffd700'}}>⬆ {target} s</span>
+          <span>{target*2} s</span>
         </div>
       </div>
 
-      {state !== 'done' ? (
-        <button onClick={handleClick} style={{
-          background: state==='idle' ? 'linear-gradient(135deg,#1a3a8a,#2255cc)' : 'linear-gradient(135deg,#8a1a1a,#cc2222)',
-          border:'none',padding:'18px 56px',borderRadius:12,fontSize:18,color:'#fff',
-          letterSpacing:4,fontFamily:"'Orbitron',sans-serif",fontWeight:900,cursor:'pointer',
-          boxShadow: state==='running' ? '0 0 30px rgba(255,50,50,0.4)' : '0 0 20px rgba(68,136,255,0.3)',
-          animation: state==='running' ? 'pulse 1s ease infinite' : 'none',
-        }}>
-          {state==='idle' ? '▶ START' : '⏹ STOP'}
-        </button>
-      ) : (
-        <div style={{fontSize:14,color:'#bb44ff',fontFamily:"'Orbitron',sans-serif",letterSpacing:2}}>Načítám střelnici...</div>
+      {/* Výsledek posledního kola */}
+      {showHit && lastHit && phase === 'paused' && (
+        <div style={{animation:'scoreReveal .5s cubic-bezier(.175,.885,.32,1.275)',marginBottom:14}}>
+          <div style={{
+            background:'linear-gradient(135deg,rgba(255,215,0,.1),rgba(255,180,0,.05))',
+            border:'1px solid rgba(255,215,0,.4)',borderRadius:14,
+            padding:'14px',textAlign:'center',position:'relative',overflow:'hidden',
+          }}>
+            <div style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',
+              width:140,height:140,borderRadius:'50%',
+              background:'radial-gradient(circle,rgba(255,215,0,.1) 0%,transparent 70%)',
+              pointerEvents:'none'}}/>
+            <div style={{fontSize:10,color:'#886600',letterSpacing:2,fontFamily:"'Orbitron',sans-serif",marginBottom:4}}>KOLO {round} — CÍL {lastHit.target} s</div>
+            <div style={{
+              fontFamily:"'Orbitron',sans-serif",fontSize:40,fontWeight:900,
+              color:'#ffd700',lineHeight:1,marginBottom:4,
+              textShadow:'0 0 24px rgba(255,215,0,.5)',
+              animation:'scorePulse .6s ease .1s both',
+            }}>+{lastHit.pts.toLocaleString()}</div>
+            <div style={{fontSize:10,color:'#886600',marginBottom:10}}>bodů</div>
+            <div style={{display:'flex',justifyContent:'center',gap:20,marginBottom:10}}>
+              <div style={{textAlign:'center'}}>
+                <div style={{fontSize:9,color:'#554400',letterSpacing:1}}>ZASTAVIL JSI</div>
+                <div style={{fontSize:12,color:'#88aaff',fontWeight:700,fontFamily:"'Courier New',monospace"}}>{lastHit.stopped.toFixed(6)} s</div>
+              </div>
+              <div style={{textAlign:'center'}}>
+                <div style={{fontSize:9,color:'#554400',letterSpacing:1}}>ODCHYLKA</div>
+                <div style={{fontSize:12,fontWeight:700,fontFamily:"'Courier New',monospace",
+                  color:lastHit.diff<0.001?'#44ffaa':lastHit.diff<0.1?'#ffd700':'#ff6644'}}>
+                  {(lastHit.stopped>=lastHit.target?'+':'')+(lastHit.stopped-lastHit.target).toFixed(6)} s
+                </div>
+              </div>
+            </div>
+            {round < TARGETS.length - 1 && (
+              <div style={{fontSize:10,color:'#445566',marginTop:4,animation:'fadeIn .4s ease .3s both'}}>
+                Čas pokračuje → trefi <span style={{color:'#ffd700'}}>{TARGETS[round+1]}.000000 s</span>
+              </div>
+            )}
+          </div>
+        </div>
       )}
+
+      {/* Tlačítko */}
+      {phase !== 'done' && (
+        <button onClick={phase==='idle'?handleStart:running?handleStop:handleResume} style={{
+          background: running?'linear-gradient(135deg,#8a1a1a,#cc2222)':'linear-gradient(135deg,#1a3a8a,#2255cc)',
+          border:'none',padding:'16px 52px',borderRadius:12,fontSize:17,color:'#fff',
+          letterSpacing:3,fontFamily:"'Orbitron',sans-serif",fontWeight:900,cursor:'pointer',
+          boxShadow:running?'0 0 28px rgba(255,50,50,.4)':'0 0 18px rgba(68,136,255,.3)',
+          animation:running?'pulse 1s ease infinite':'none',
+          transition:'background .2s',
+        }}>
+          {phase==='idle'   ? '▶ START'
+          :running          ? '⏹ STOP'
+          :round < TARGETS.length - 1 ? `▶ KOLO ${round+2}`
+          :'▶ KOLO 4'}
+        </button>
+      )}
+      {phase==='done' && <div style={{fontSize:13,color:'#bb44ff',fontFamily:"'Orbitron',sans-serif",letterSpacing:2,marginTop:8}}>Načítám střelnici...</div>}
     </div>
   );
 }
@@ -3953,18 +4151,18 @@ function StopwatchGame({ onResult, phase }) {
 // ─── TARGETS GAME ────────────────────────────────────
 function TargetsGame({ onResult, swPts, phase }) {
   const [gameState, setGameState] = useState('waiting');
-  const [score, setScore] = useState(0);
-  const [hits, setHits] = useState(0);
+  const [score, setScore]   = useState(0);
+  const [hits, setHits]     = useState(0);
   const [misses, setMisses] = useState(0);
   const [timeLeft, setTimeLeft] = useState(20);
-  const [targets, setTargets] = useState([]);
-  const [floats, setFloats] = useState([]);
-  const scoreRef = useRef(0);
-  const hitsRef = useRef(0);
-  const missesRef = useRef(0);
-  const timerRef = useRef(null);
-  const spawnRef = useRef(null);
-  const nextIdRef = useRef(0);
+  const [targets, setTargets]   = useState([]);
+  const [floats, setFloats]     = useState([]);
+  const scoreRef   = useRef(0);
+  const hitsRef    = useRef(0);
+  const missesRef  = useRef(0);
+  const timerRef   = useRef(null);
+  const spawnRef   = useRef(null);
+  const nextIdRef  = useRef(0);
   const COLORS = ['#4488ff','#ff4488','#44cc88','#ffd700','#ff9944','#bb44ff'];
 
   function startGame() {
@@ -3972,79 +4170,71 @@ function TargetsGame({ onResult, swPts, phase }) {
     scoreRef.current=0; hitsRef.current=0; missesRef.current=0;
     setScore(0); setHits(0); setMisses(0); setTimeLeft(20); setTargets([]);
     timerRef.current = setInterval(() => {
-      setTimeLeft(t => {
-        if (t <= 1) { endGame(); return 0; }
-        return t - 1;
-      });
+      setTimeLeft(t => { if (t<=1){endGame();return 0;} return t-1; });
     }, 1000);
     scheduleSpawn();
   }
 
   function scheduleSpawn() {
-    const delay = 250 + Math.random() * 500;
+    const delay = 250 + Math.random()*500;
     spawnRef.current = setTimeout(() => { spawnTarget(); scheduleSpawn(); }, delay);
   }
 
   function spawnTarget() {
-    const size = 28 + Math.random() * 28;
-    const x = size/2 + Math.random()*(390-size);
-    const y = size/2 + Math.random()*(270-size);
+    const size  = 28+Math.random()*28;
+    const x     = size/2+Math.random()*(390-size);
+    const y     = size/2+Math.random()*(270-size);
     const color = COLORS[Math.floor(Math.random()*COLORS.length)];
-    const id = nextIdRef.current++;
-    const pts = Math.round(180 - ((size-28)/28)*80);
-    setTargets(prev => [...prev, {id,x,y,size,color,pts}]);
-    setTimeout(() => setTargets(prev => prev.filter(t=>t.id!==id)), 1400);
+    const id    = nextIdRef.current++;
+    const pts   = Math.round(180-((size-28)/28)*80);
+    setTargets(prev=>[...prev,{id,x,y,size,color,pts}]);
+    setTimeout(()=>setTargets(prev=>prev.filter(t=>t.id!==id)),1400);
   }
 
-  function hitTarget(id, pts, x, y, e) {
+  function hitTarget(id,pts,x,y,e) {
     e.stopPropagation();
-    if (gameState !== 'playing') return;
-    setTargets(prev => prev.filter(t=>t.id!==id));
+    if (gameState!=='playing') return;
+    setTargets(prev=>prev.filter(t=>t.id!==id));
     scoreRef.current+=pts; hitsRef.current++;
     setScore(scoreRef.current); setHits(hitsRef.current);
-    const fid = nextIdRef.current++;
-    setFloats(prev => [...prev, {id:fid,x,y,pts,miss:false}]);
-    setTimeout(() => setFloats(prev => prev.filter(f=>f.id!==fid)), 700);
+    const fid=nextIdRef.current++;
+    setFloats(prev=>[...prev,{id:fid,x,y,pts,miss:false}]);
+    setTimeout(()=>setFloats(prev=>prev.filter(f=>f.id!==fid)),700);
   }
 
   function missClick(e) {
-    if (gameState !== 'playing') return;
-    if (e.target !== e.currentTarget && e.target.parentElement !== e.currentTarget) return;
-    scoreRef.current = Math.max(0, scoreRef.current-50);
+    if (gameState!=='playing') return;
+    if (e.target!==e.currentTarget && e.target.parentElement!==e.currentTarget) return;
+    scoreRef.current=Math.max(0,scoreRef.current-50);
     missesRef.current++;
     setScore(scoreRef.current); setMisses(missesRef.current);
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const fid = nextIdRef.current++;
-    setFloats(prev => [...prev, {id:fid,x,y,pts:-50,miss:true}]);
-    setTimeout(() => setFloats(prev => prev.filter(f=>f.id!==fid)), 600);
+    const rect=e.currentTarget.getBoundingClientRect();
+    const x=e.clientX-rect.left, y=e.clientY-rect.top;
+    const fid=nextIdRef.current++;
+    setFloats(prev=>[...prev,{id:fid,x,y,pts:-50,miss:true}]);
+    setTimeout(()=>setFloats(prev=>prev.filter(f=>f.id!==fid)),600);
   }
 
   function endGame() {
     clearInterval(timerRef.current); clearTimeout(spawnRef.current);
     setGameState('done'); setTargets([]);
-    const total = hitsRef.current + missesRef.current;
-    const acc = total>0 ? Math.round(hitsRef.current/total*100) : 0;
-    const finalPts = scoreRef.current + Math.round(acc*3);
-    const verdict = acc>=90?'🎯 Ostrostřelec!':acc>=70?'💪 Dobrý střelec':acc>=50?'🙂 Průměrný výkon':'😅 Více tréninku!';
-    setTimeout(() => onResult(finalPts, {
-      'Zásahy': hitsRef.current,
-      'Minutí': missesRef.current,
-      'Přesnost': acc+'%',
-      'Bonus za přesnost': '+'+Math.round(acc*3)+' b',
-      'Hodnocení': verdict,
-    }), 400);
+    const total=hitsRef.current+missesRef.current;
+    const acc=total>0?Math.round(hitsRef.current/total*100):0;
+    const finalPts=scoreRef.current+Math.round(acc*3);
+    const verdict=acc>=90?'🎯 Ostrostřelec!':acc>=70?'💪 Dobrý střelec':acc>=50?'🙂 Průměrný výkon':'😅 Více tréninku!';
+    setTimeout(()=>onResult(finalPts,{
+      'Zásahy':hitsRef.current,'Minutí':missesRef.current,
+      'Přesnost':acc+'%','Bonus za přesnost':'+'+Math.round(acc*3)+' b','Hodnocení':verdict,
+    }),400);
   }
 
-  useEffect(() => () => { clearInterval(timerRef.current); clearTimeout(spawnRef.current); }, []);
+  useEffect(()=>()=>{clearInterval(timerRef.current);clearTimeout(spawnRef.current);},[]);
 
-  const timeColor = timeLeft>10?'#44ffaa':timeLeft>5?'#ffd700':'#ff4444';
+  const timeColor=timeLeft>10?'#44ffaa':timeLeft>5?'#ffd700':'#ff4444';
 
   return (
-    <div style={{animation:'slideIn 0.3s ease'}}>
-      <div style={{fontSize:10,color:'#bb44ff',letterSpacing:3,fontFamily:"'Orbitron',sans-serif",marginBottom:4}}>FÁZE 2 / 2</div>
-      {/* HUD */}
+    <div style={{animation:'slideIn .3s ease'}}>
+      <div style={{fontSize:10,color:'#bb44ff',letterSpacing:3,fontFamily:"'Orbitron',sans-serif",marginBottom:4}}>TERČOVÁ STŘELNICE</div>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8,padding:'0 4px'}}>
         <div style={{textAlign:'left'}}>
           <div style={{fontSize:9,color:'#445566',letterSpacing:1}}>SKÓRE</div>
@@ -4060,15 +4250,13 @@ function TargetsGame({ onResult, swPts, phase }) {
         </div>
       </div>
       {swPts>0 && (
-        <div style={{background:'rgba(255,215,0,0.08)',border:'1px solid rgba(255,215,0,0.2)',borderRadius:8,padding:'6px 12px',marginBottom:8,fontSize:12,color:'#ffd700',fontFamily:"'Orbitron',sans-serif",fontWeight:700,letterSpacing:1}}>
+        <div style={{background:'rgba(255,215,0,.08)',border:'1px solid rgba(255,215,0,.2)',borderRadius:8,padding:'5px 12px',marginBottom:8,fontSize:12,color:'#ffd700',fontFamily:"'Orbitron',sans-serif",fontWeight:700,letterSpacing:1}}>
           ⏱ Fáze 1: +{swPts.toLocaleString()} b
         </div>
       )}
-
-      {/* Aréna */}
       <div onClick={gameState==='waiting'?startGame:missClick} style={{
         position:'relative',width:'100%',maxWidth:400,height:280,margin:'0 auto 10px',
-        background:'rgba(8,12,35,0.9)',border:'1px solid #1e2a4a',borderRadius:12,
+        background:'rgba(8,12,35,.9)',border:'1px solid #1e2a4a',borderRadius:12,
         overflow:'hidden',cursor:gameState==='waiting'?'pointer':'crosshair',
       }}>
         {gameState==='waiting' && (
@@ -4080,12 +4268,12 @@ function TargetsGame({ onResult, swPts, phase }) {
         {targets.map(t=>(
           <div key={t.id} onClick={e=>hitTarget(t.id,t.pts,t.x,t.y,e)} style={{
             position:'absolute',left:t.x,top:t.y,width:t.size,height:t.size,
-            borderRadius:'50%',background:t.color,border:'2px solid rgba(255,255,255,0.3)',
+            borderRadius:'50%',background:t.color,border:'2px solid rgba(255,255,255,.3)',
             transform:'translate(-50%,-50%)',cursor:'pointer',
             display:'flex',alignItems:'center',justifyContent:'center',
-            animation:'targetPop 0.15s ease',
+            animation:'targetPop .15s ease',
           }}>
-            <div style={{width:'35%',height:'35%',borderRadius:'50%',background:'rgba(255,255,255,0.25)'}}/>
+            <div style={{width:'35%',height:'35%',borderRadius:'50%',background:'rgba(255,255,255,.25)'}}/>
           </div>
         ))}
         {floats.map(f=>(
@@ -4094,12 +4282,271 @@ function TargetsGame({ onResult, swPts, phase }) {
             color:f.miss?'#ff4444':'#44ffaa',fontWeight:900,fontSize:f.miss?12:13,
             fontFamily:"'Orbitron',sans-serif",
             transform:'translate(-50%,-50%)',pointerEvents:'none',
-            animation:'floatUp 0.7s ease forwards',
+            animation:'floatUp .7s ease forwards',
           }}>{f.miss?'−50':'+'+f.pts}</div>
         ))}
       </div>
       {gameState==='playing' && <div style={{fontSize:10,color:'#334455'}}>Klikni mimo terč = −50 bodů</div>}
       {gameState==='done' && <div style={{fontSize:13,color:'#445566',padding:'10px 0'}}>Vyhodnocuji...</div>}
+    </div>
+  );
+}
+
+// ─── BALANCE GAME ────────────────────────────────────
+function BalanceGame({ onResult, prevPts, phase }) {
+  const [gState, setGState]   = useState('waiting');
+  const [elapsed, setElapsed] = useState(0);
+  const [pts, setPts]         = useState(0);
+  const [maxW, setMaxW]       = useState(0);
+  const [maxTilt, setMaxTilt] = useState(0);
+  const canvasRef  = useRef(null);
+  const stateRef   = useRef('waiting');
+  const angleRef   = useRef(0);
+  const omegaRef   = useRef(0);
+  const weightsRef = useRef([]);
+  const elapsedRef = useRef(0);
+  const maxWRef    = useRef(0);
+  const maxTiltRef = useRef(0);
+  const dragRef    = useRef(null);
+  const timerRef   = useRef(null);
+  const spawnRef   = useRef(null);
+  const rafRef     = useRef(0);
+  const lastTRef   = useRef(0);
+  const spawnDelay = useRef(4000);
+
+  const W=360,H=240,PX=180,PY=100,BARLEN=290,MAXANG=Math.PI/4;
+  const WCOLS=[
+    {top:'#7ab8ff',mid:'#2266dd',rim:'#1a44aa'},
+    {top:'#ff8ab8',mid:'#cc3366',rim:'#aa1144'},
+    {top:'#70ddaa',mid:'#1d9e75',rim:'#0f6e56'},
+    {top:'#ffdd66',mid:'#cc8800',rim:'#996600'},
+    {top:'#cc99ff',mid:'#7744cc',rim:'#5522aa'},
+    {top:'#ffaa66',mid:'#cc5500',rim:'#993300'},
+  ];
+
+  function lerp(a,b,t){
+    const p=s=>parseInt(s,16);
+    const ah=[p(a.slice(1,3)),p(a.slice(3,5)),p(a.slice(5,7))];
+    const bh=[p(b.slice(1,3)),p(b.slice(3,5)),p(b.slice(5,7))];
+    return '#'+ah.map((v,i)=>Math.round(v+(bh[i]-v)*t).toString(16).padStart(2,'0')).join('');
+  }
+
+  function draw(cv) {
+    const cx=cv.getContext('2d');
+    cx.clearRect(0,0,W,H);
+
+    // Pozadí
+    cx.fillStyle='#0a0d1e';
+    cx.beginPath(); cx.roundRect(0,0,W,H,10); cx.fill();
+
+    // Jemná mřížka
+    cx.strokeStyle='rgba(255,255,255,.025)'; cx.lineWidth=1;
+    for(let x=0;x<W;x+=28){cx.beginPath();cx.moveTo(x,0);cx.lineTo(x,H);cx.stroke();}
+    for(let y=0;y<H;y+=28){cx.beginPath();cx.moveTo(0,y);cx.lineTo(W,y);cx.stroke();}
+
+    const ang=angleRef.current;
+
+    // Limit čáry
+    cx.save(); cx.translate(PX,PY);
+    const lx=Math.cos(MAXANG)*BARLEN/2,ly=Math.sin(MAXANG)*BARLEN/2;
+    cx.strokeStyle='rgba(255,60,60,.2)'; cx.lineWidth=1.5; cx.setLineDash([5,5]);
+    cx.beginPath();cx.moveTo(0,0);cx.lineTo(lx,ly);cx.stroke();
+    cx.beginPath();cx.moveTo(0,0);cx.lineTo(-lx,ly);cx.stroke();
+    cx.setLineDash([]); cx.restore();
+
+    // Stojan
+    cx.save(); cx.translate(PX,PY);
+    const sg=cx.createLinearGradient(-14,6,14,6);
+    sg.addColorStop(0,'#1a1a2e'); sg.addColorStop(.5,'#3a3a5a'); sg.addColorStop(1,'#1a1a2e');
+    cx.fillStyle=sg;
+    cx.beginPath();cx.moveTo(0,7);cx.lineTo(-17,44);cx.lineTo(17,44);cx.closePath();cx.fill();
+    const bg=cx.createLinearGradient(-28,44,28,52);
+    bg.addColorStop(0,'#1a1a2e'); bg.addColorStop(.5,'#4a4a6a'); bg.addColorStop(1,'#1a1a2e');
+    cx.fillStyle=bg; cx.beginPath(); cx.roundRect(-28,44,56,8,3); cx.fill();
+    cx.restore();
+
+    cx.save(); cx.translate(PX,PY); cx.rotate(ang);
+
+    // Tyč — čistý gradient bez blur
+    const tiltF=Math.min(1,Math.abs(ang)/MAXANG);
+    const c1=tiltF<.5?lerp('#1d9e75','#ba7517',tiltF*2):lerp('#ba7517','#ee3333',(tiltF-.5)*2);
+    const c2=tiltF<.5?lerp('#2aaa80','#ddaa00',tiltF*2):lerp('#ddaa00','#ff5555',(tiltF-.5)*2);
+    const barG=cx.createLinearGradient(0,-5,0,5);
+    barG.addColorStop(0,'rgba(255,255,255,.18)');
+    barG.addColorStop(.35,c2); barG.addColorStop(.7,c1);
+    barG.addColorStop(1,'rgba(0,0,0,.45)');
+    cx.fillStyle=barG;
+    cx.beginPath(); cx.roundRect(-BARLEN/2,-5,BARLEN,10,5); cx.fill();
+    // Rýhy
+    cx.strokeStyle='rgba(255,255,255,.07)'; cx.lineWidth=1;
+    for(let x=-BARLEN/2+24;x<BARLEN/2;x+=24){cx.beginPath();cx.moveTo(x,-4);cx.lineTo(x,4);cx.stroke();}
+
+    // Závaží — bez shadowBlur, čistá grafika
+    weightsRef.current.forEach(w=>{
+      const r=9+w.mass*.2;
+      const wy=w.dropping?w.dy:0;
+      const wx=w.pos;
+
+      // Těleso — radiální gradient
+      const wg=cx.createRadialGradient(wx-r*.28,wy+r*.28,r*.05,wx,wy+r,r);
+      wg.addColorStop(0,w.col.top);
+      wg.addColorStop(.55,w.col.mid);
+      wg.addColorStop(1,w.col.rim);
+      cx.fillStyle=wg;
+      cx.beginPath(); cx.arc(wx,wy+r,r,0,Math.PI*2); cx.fill();
+
+      // Tenký lem
+      cx.strokeStyle=w.col.rim; cx.lineWidth=1.2;
+      cx.beginPath(); cx.arc(wx,wy+r,r,0,Math.PI*2); cx.stroke();
+
+      // Lesk — malý kruhový highlight
+      const sg2=cx.createRadialGradient(wx-r*.32,wy+r*.28,0,wx-r*.32,wy+r*.28,r*.45);
+      sg2.addColorStop(0,'rgba(255,255,255,.38)');
+      sg2.addColorStop(1,'rgba(255,255,255,0)');
+      cx.fillStyle=sg2;
+      cx.beginPath(); cx.arc(wx,wy+r,r,0,Math.PI*2); cx.fill();
+
+      // Hmotnost
+      cx.fillStyle='rgba(255,255,255,.88)';
+      cx.font=`700 ${Math.max(9,Math.round(r*.58))}px system-ui`;
+      cx.textAlign='center'; cx.textBaseline='middle';
+      cx.fillText(Math.round(w.mass)+'g',wx,wy+r);
+    });
+
+    cx.restore();
+
+    // Pivot — chromový
+    const pvG=cx.createRadialGradient(PX-2,PY-2,0,PX,PY,8);
+    pvG.addColorStop(0,'#999'); pvG.addColorStop(.5,'#444'); pvG.addColorStop(1,'#111');
+    cx.fillStyle=pvG; cx.beginPath(); cx.arc(PX,PY,7,0,Math.PI*2); cx.fill();
+    cx.fillStyle='rgba(255,255,255,.55)';
+    cx.beginPath(); cx.arc(PX-2,PY-2,2.5,0,Math.PI*2); cx.fill();
+  }
+
+  function gameLoop(now) {
+    if (stateRef.current!=='playing') return;
+    const dt=Math.min((now-lastTRef.current)/1000,.05);
+    lastTRef.current=now;
+
+    weightsRef.current.forEach(w=>{if(w.dropping){w.dy+=190*dt;if(w.dy>=0){w.dy=0;w.dropping=false;}}});
+    let torque=0;
+    weightsRef.current.forEach(w=>{if(!w.dropping)torque+=w.mass*w.pos*Math.cos(angleRef.current)*.000065;});
+    omegaRef.current=(omegaRef.current+torque*dt)*.988;
+    angleRef.current+=omegaRef.current*dt;
+
+    const deg=Math.abs(angleRef.current*180/Math.PI);
+    if(deg>maxTiltRef.current){maxTiltRef.current=deg;setMaxTilt(Math.round(deg));}
+
+    if(Math.abs(angleRef.current)>MAXANG){endGame();return;}
+    if(canvasRef.current) draw(canvasRef.current);
+    rafRef.current=requestAnimationFrame(gameLoop);
+  }
+
+  function startGame() {
+    stateRef.current='playing'; setGState('playing');
+    angleRef.current=0; omegaRef.current=0;
+    weightsRef.current=[]; elapsedRef.current=0;
+    maxWRef.current=0; maxTiltRef.current=0;
+    spawnDelay.current=4000;
+    clearInterval(timerRef.current); clearTimeout(spawnRef.current); cancelAnimationFrame(rafRef.current);
+    timerRef.current=setInterval(()=>{
+      elapsedRef.current++;
+      setElapsed(elapsedRef.current);
+      const p=Math.round(elapsedRef.current*40+maxWRef.current*15);
+      setPts(p);
+      if(elapsedRef.current%8===0&&spawnDelay.current>1400) spawnDelay.current=Math.max(1400,spawnDelay.current-350);
+    },1000);
+    setTimeout(()=>{if(stateRef.current==='playing'){spawnWeight();scheduleSpawn();}},2000);
+    lastTRef.current=performance.now();
+    rafRef.current=requestAnimationFrame(gameLoop);
+  }
+
+  function scheduleSpawn(){
+    spawnRef.current=setTimeout(()=>{
+      if(stateRef.current!=='playing') return;
+      spawnWeight(); scheduleSpawn();
+    },spawnDelay.current+(Math.random()-.5)*600);
+  }
+
+  function spawnWeight(){
+    const side=Math.random()<.5?1:-1;
+    const pos=side*(55+Math.random()*75);
+    const mass=18+Math.random()*30+elapsedRef.current*.4;
+    const col=WCOLS[weightsRef.current.length%WCOLS.length];
+    weightsRef.current.push({pos,mass,col,dropping:true,dy:-70});
+    const wc=weightsRef.current.length;
+    maxWRef.current=Math.max(maxWRef.current,wc);
+    setMaxW(wc);
+  }
+
+  function endGame(){
+    stateRef.current='done'; setGState('done');
+    clearInterval(timerRef.current); clearTimeout(spawnRef.current); cancelAnimationFrame(rafRef.current);
+    const finalPts=Math.round(elapsedRef.current*40+maxWRef.current*15);
+    const verdict=elapsedRef.current>=40?'Mistr rovnováhy 🏆':elapsedRef.current>=20?'Skvělý výkon ⭐':elapsedRef.current>=10?'Dobrý pokus 👍':'Zkus znovu 💪';
+    setTimeout(()=>onResult(finalPts,{
+      'Vydržel jsi':elapsedRef.current+' s',
+      'Max závaží':maxWRef.current,
+      'Max náklon':Math.round(maxTiltRef.current)+'°',
+      'Hodnocení':verdict,
+    }),400);
+  }
+
+  useEffect(()=>{
+    if(canvasRef.current) draw(canvasRef.current);
+  },[]);
+  useEffect(()=>()=>{clearInterval(timerRef.current);clearTimeout(spawnRef.current);cancelAnimationFrame(rafRef.current);},[]);
+
+  function handlePointerDown(e){
+    if(stateRef.current==='waiting'){startGame();return;}
+    if(stateRef.current!=='playing') return;
+    const rect=canvasRef.current.getBoundingClientRect();
+    const mx=(e.clientX-rect.left)*(W/rect.width)-PX;
+    const my=(e.clientY-rect.top)*(H/rect.height)-PY;
+    let best=null,bestD=40;
+    weightsRef.current.forEach(w=>{
+      if(w.dropping) return;
+      const r=9+w.mass*.2;
+      const bx=w.pos*Math.cos(angleRef.current), by=w.pos*Math.sin(angleRef.current)+r;
+      const d=Math.hypot(mx-bx,my-by);
+      if(d<bestD+r*.5){bestD=d;best=w;}
+    });
+    if(best){dragRef.current={w:best,x0:mx,p0:best.pos};}
+    canvasRef.current.setPointerCapture(e.pointerId);
+  }
+  function handlePointerMove(e){
+    if(!dragRef.current||stateRef.current!=='playing') return;
+    const rect=canvasRef.current.getBoundingClientRect();
+    const mx=(e.clientX-rect.left)*(W/rect.width)-PX;
+    dragRef.current.w.pos=Math.max(-BARLEN/2+15,Math.min(BARLEN/2-15,dragRef.current.p0+(mx-dragRef.current.x0)));
+  }
+  function handlePointerUp(){dragRef.current=null;}
+
+  const tiltColor=maxTilt>28?'#ff4444':maxTilt>16?'#ffaa00':'#44ffaa';
+
+  return (
+    <div style={{animation:'slideIn .3s ease'}}>
+      <div style={{fontSize:10,color:'#bb44ff',letterSpacing:3,fontFamily:"'Orbitron',sans-serif",marginBottom:4}}>ROVNOVÁHA</div>
+      <div style={{display:'flex',justifyContent:'space-between',marginBottom:8,padding:'0 2px'}}>
+        {[{l:'ČAS',v:elapsed+' s',c:'#fff'},{l:'NÁKLON',v:Math.round(maxTilt)+'°',c:tiltColor},{l:'BODY',v:pts.toLocaleString(),c:'#4488ff'}].map(x=>(
+          <div key={x.l} style={{background:'rgba(12,18,52,.8)',border:'1px solid #1a2448',borderRadius:8,padding:'7px 12px',textAlign:'center',flex:1,margin:'0 3px'}}>
+            <div style={{fontSize:9,color:'#334455',letterSpacing:1}}>{x.l}</div>
+            <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:16,fontWeight:900,color:x.c}}>{x.v}</div>
+          </div>
+        ))}
+      </div>
+      {prevPts>0 && <div style={{background:'rgba(255,215,0,.08)',border:'1px solid rgba(255,215,0,.2)',borderRadius:8,padding:'5px 12px',marginBottom:8,fontSize:12,color:'#ffd700',fontFamily:"'Orbitron',sans-serif",fontWeight:700}}>
+        Fáze 1+2: +{prevPts.toLocaleString()} b
+      </div>}
+      <canvas ref={canvasRef} width={W} height={H}
+        style={{width:'100%',borderRadius:12,touchAction:'none',cursor:gState==='waiting'?'pointer':'grab',display:'block'}}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+      />
+      <div style={{marginTop:6,fontSize:11,color:'rgba(255,255,255,.25)',textAlign:'center'}}>
+        {gState==='waiting'?'Klikni pro start':gState==='playing'?'Táhni závaží · Limit 45°':'Vyhodnocuji...'}
+      </div>
     </div>
   );
 }

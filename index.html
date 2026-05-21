@@ -966,8 +966,8 @@ function App() {
       <div style={S.content}>
         {/* Loading dokud se nenačtou otázky */}
         {!questionsLoaded ? (
-          <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'#0a0a0f',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16}}>
-            <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:24,color:'#4488ff',letterSpacing:4}}>IT QUIZ</div>
+          <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'#0a0a0f',zIndex:999,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:16}}>
+            <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:24,color:'#4488ff',letterSpacing:4}}>INDYQ</div>
             <div style={{fontSize:13,color:'#445566'}}>Načítám otázky...</div>
             <div style={{width:200,height:3,background:'#1a2040',borderRadius:2,overflow:'hidden',marginTop:8}}>
               <div style={{height:'100%',background:'#4488ff',borderRadius:2,animation:'progressBar 1.5s ease infinite'}}/>
@@ -1040,6 +1040,16 @@ function HomeScreen({ user, hasPlayedToday, hasPlayedOtherMode, todayKey, todayQ
   const isGeneral = quizMode === QUIZ_MODES.GENERAL;
   const isFilm = quizMode === QUIZ_MODES.FILM;
   const otherMode = quizMode === QUIZ_MODES.IT ? QUIZ_MODES.GENERAL : QUIZ_MODES.IT;
+
+  // Pokud otázky ještě nejsou načteny pro tento mód
+  if (todayQuestions.length === 0) {
+    return (
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'60vh',gap:12}}>
+        <div style={{fontSize:32}}>⏳</div>
+        <div style={{fontSize:13,color:'#445566'}}>Načítám otázky pro {isFilm?'filmový':isGeneral?'obecný':'IT'} kvíz...</div>
+      </div>
+    );
+  }
   const modeColor = isFilm ? '#cc44ff' : isGeneral ? '#44cc88' : '#88aaff';
   const modeBorder = isFilm ? '#6a1a8a' : isGeneral ? '#226644' : '#1e3a6a';
   const modeBg = isFilm ? 'rgba(100,0,150,0.15)' : isGeneral ? 'rgba(0,80,40,0.15)' : 'rgba(30,60,160,0.15)';

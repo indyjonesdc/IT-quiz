@@ -3644,6 +3644,7 @@ function StatsScreen({ user, scores, quizMode, onBack }) {
 function MinigamesScreen({ user, onBack, onScoreSaved }) {
   const [phase, setPhase] = useState('menu'); // menu | stopwatch | transition | targets | result | board
   const [swPts, setSwPts] = useState(0);
+  const swPtsRef = useRef(0); // ref pro okamžité čtení bez stale closure
   const [swDetail, setSwDetail] = useState({});
   const [tgPts, setTgPts] = useState(0);
   const [tgDetail, setTgDetail] = useState({});
@@ -3709,6 +3710,7 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
   function startGame() { setPhase('stopwatch'); }
 
   function onSwDone(pts, detail) {
+    swPtsRef.current = pts;
     setSwPts(pts); setSwDetail(detail);
     setPhase('transition');
     setTimeout(() => setPhase('targets'), 2000);
@@ -3716,7 +3718,7 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
 
   function onTgDone(pts, detail) {
     setTgPts(pts); setTgDetail(detail);
-    const total = swPts + pts;
+    const total = swPtsRef.current + pts; // použij ref — ne stale state
     saveScore(total);
     setPhase('result');
   }
@@ -3811,7 +3813,7 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
           </div>
           {saving && <div style={{fontSize:11,color:'#445566',marginBottom:8}}>Ukládám skóre...</div>}
           <div style={{display:'flex',gap:10,justifyContent:'center'}}>
-            <button className="btn" onClick={()=>{setSwPts(0);setTgPts(0);startGame();}} style={{background:'linear-gradient(135deg,#4a1a8a,#8822cc)',padding:'12px 24px',borderRadius:10,fontSize:13,color:'#fff',letterSpacing:2}}>
+            <button className="btn" onClick={()=>{setSwPts(0);setTgPts(0);swPtsRef.current=0;startGame();}} style={{background:'linear-gradient(135deg,#4a1a8a,#8822cc)',padding:'12px 24px',borderRadius:10,fontSize:13,color:'#fff',letterSpacing:2}}>
               HRÁT ZNOVU
             </button>
             <button className="btn" onClick={showBoard} style={{background:'transparent',border:'1px solid #2a3a6a',padding:'12px 20px',borderRadius:10,fontSize:13,color:'#88aaff'}}>
@@ -3881,23 +3883,17 @@ function StopwatchGame({ onResult, phase }) {
     setState('done');
     const stopped = valRef.current;
     const diff = Math.abs(stopped - 10);
-    // Plynulé bodování — každá mikro setina rozhoduje
-    // Maximální odchylka pro body = 2.000s, pak 0
-    let pts = 0;
-    if (diff < 2.0) {
-      // Exponenciální křivka: perfektní = 1000, každá odchylka rapidně klesá
-      // pts = 1000 × e^(-k × diff) kde k = 8 pro strmý pokles
-      pts = Math.round(1000 * Math.exp(-8 * diff));
-      pts = Math.max(0, Math.min(1000, pts));
-    }
-    // Bonusy za extrémní přesnost
+    // Exponenciální křivka max 5000b — každá mikro setina rozhoduje
+    let pts = Math.round(5000 * Math.exp(-8 * diff));
+    pts = Math.max(0, Math.min(5000, pts));
+    // Bonus za extrémní přesnost
     let bonus = 0;
-    if (diff < 0.0001) bonus = 200;      // absolutní preciznost
-    else if (diff < 0.0005) bonus = 150;
-    else if (diff < 0.001)  bonus = 100;
-    else if (diff < 0.002)  bonus = 50;
-    else if (diff < 0.005)  bonus = 20;
-    const total_pts = Math.min(1000, pts + bonus);
+    if (diff < 0.0001)      bonus = 1000;
+    else if (diff < 0.0005) bonus = 750;
+    else if (diff < 0.001)  bonus = 500;
+    else if (diff < 0.002)  bonus = 250;
+    else if (diff < 0.005)  bonus = 100;
+    const total_pts = Math.min(5000, pts + bonus);
 
     const verdict = diff < 0.0001 ? '🏆 Absolutní preciznost!'
       : diff < 0.001  ? '🎯 Neuvěřitelné!'
@@ -4078,7 +4074,11 @@ function TargetsGame({ onResult, swPts, phase }) {
           <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:18,fontWeight:900,color:'#44ffaa'}}>{hits}</div>
         </div>
       </div>
-      {swPts>0 && <div style={{fontSize:11,color:'#556688',marginBottom:6}}>+ {swPts.toLocaleString()} b z fáze 1</div>}
+      {swPts>0 && (
+        <div style={{background:'rgba(255,215,0,0.08)',border:'1px solid rgba(255,215,0,0.2)',borderRadius:8,padding:'6px 12px',marginBottom:8,fontSize:12,color:'#ffd700',fontFamily:"'Orbitron',sans-serif",fontWeight:700,letterSpacing:1}}>
+          ⏱ Fáze 1: +{swPts.toLocaleString()} b
+        </div>
+      )}
 
       {/* Aréna */}
       <div onClick={gameState==='waiting'?startGame:missClick} style={{

@@ -3673,29 +3673,36 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
         .limit(1)
         .maybeSingle();
 
-      if (selErr) console.error('minigame select err:', selErr.message);
-
       if (!existing) {
-        // První záznam — vždy vlož
         const { error } = await db.from('minigame_scores').insert({
-          id: Date.now().toString(),
+          id: user.id + '_minigame',
           user_id: user.id,
           user_name: user.name,
           game: 'combined',
           score: total,
           played_at: new Date().toISOString(),
         });
-        if (error) console.error('minigame insert err:', error.message);
-        else if (onScoreSaved) onScoreSaved();
+        if (error) {
+          // Fallback — zkus bez pevného ID
+          await db.from('minigame_scores').insert({
+            id: Date.now().toString() + '_' + user.id.slice(-4),
+            user_id: user.id,
+            user_name: user.name,
+            game: 'combined',
+            score: total,
+            played_at: new Date().toISOString(),
+          });
+        }
+        if (onScoreSaved) onScoreSaved();
       } else if (total > existing.score) {
-        // Lepší výsledek — aktualizuj
-        const { error } = await db.from('minigame_scores')
+        await db.from('minigame_scores')
           .update({ score: total, user_name: user.name, played_at: new Date().toISOString() })
           .eq('id', existing.id);
-        if (error) console.error('minigame update err:', error.message);
-        else if (onScoreSaved) onScoreSaved();
+        if (onScoreSaved) onScoreSaved();
       }
-    } catch(e) { console.error('saveScore exception:', e); }
+      // Znovu načti žebříček
+      loadBoard();
+    } catch(e) { console.error('saveScore:', e); }
     setSaving(false);
   }
 
@@ -3849,9 +3856,10 @@ function StopwatchGame({ onResult, phase }) {
   function tick() {
     const v = (Date.now() - startRef.current) / 1000;
     valRef.current = v;
-    // Zobraz na 4 desetinná místa — setiny sekundy viditelné
-    const secs = Math.floor(v);
-    const frac = Math.floor((v - secs) * 10000);
+    // Zobraz 2× zrychlený čas — vizuálně běží rychleji
+    const vDisplay = v * 2;
+    const secs = Math.floor(vDisplay);
+    const frac = Math.floor((vDisplay - secs) * 10000);
     setDisplay(`${String(secs).padStart(2,'0')}.${String(frac).padStart(4,'0')}`);
     setBarW(Math.min(v / 10 * 100, 100));
     if (v < 20) rafRef.current = requestAnimationFrame(tick);
@@ -3998,8 +4006,8 @@ function TargetsGame({ onResult, swPts, phase }) {
 
   function spawnTarget() {
     const size = 28 + Math.random() * 28;
-    const x = size/2 + Math.random()*(320-size);
-    const y = size/2 + Math.random()*(190-size);
+    const x = size/2 + Math.random()*(390-size);
+    const y = size/2 + Math.random()*(270-size);
     const color = COLORS[Math.floor(Math.random()*COLORS.length)];
     const id = nextIdRef.current++;
     const pts = Math.round(180 - ((size-28)/28)*80);
@@ -4014,15 +4022,22 @@ function TargetsGame({ onResult, swPts, phase }) {
     scoreRef.current+=pts; hitsRef.current++;
     setScore(scoreRef.current); setHits(hitsRef.current);
     const fid = nextIdRef.current++;
-    setFloats(prev => [...prev, {id:fid,x,y,pts}]);
+    setFloats(prev => [...prev, {id:fid,x,y,pts,miss:false}]);
     setTimeout(() => setFloats(prev => prev.filter(f=>f.id!==fid)), 700);
   }
 
-  function missClick() {
+  function missClick(e) {
     if (gameState !== 'playing') return;
+    if (e.target !== e.currentTarget && e.target.parentElement !== e.currentTarget) return;
     scoreRef.current = Math.max(0, scoreRef.current-50);
     missesRef.current++;
     setScore(scoreRef.current); setMisses(missesRef.current);
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const fid = nextIdRef.current++;
+    setFloats(prev => [...prev, {id:fid,x,y,pts:-50,miss:true}]);
+    setTimeout(() => setFloats(prev => prev.filter(f=>f.id!==fid)), 600);
   }
 
   function endGame() {
@@ -4067,7 +4082,7 @@ function TargetsGame({ onResult, swPts, phase }) {
 
       {/* Aréna */}
       <div onClick={gameState==='waiting'?startGame:missClick} style={{
-        position:'relative',width:'100%',maxWidth:340,height:200,margin:'0 auto 10px',
+        position:'relative',width:'100%',maxWidth:400,height:280,margin:'0 auto 10px',
         background:'rgba(8,12,35,0.9)',border:'1px solid #1e2a4a',borderRadius:12,
         overflow:'hidden',cursor:gameState==='waiting'?'pointer':'crosshair',
       }}>
@@ -4091,11 +4106,11 @@ function TargetsGame({ onResult, swPts, phase }) {
         {floats.map(f=>(
           <div key={f.id} style={{
             position:'absolute',left:f.x,top:f.y,
-            color:'#44ffaa',fontWeight:900,fontSize:13,
+            color:f.miss?'#ff4444':'#44ffaa',fontWeight:900,fontSize:f.miss?12:13,
             fontFamily:"'Orbitron',sans-serif",
             transform:'translate(-50%,-50%)',pointerEvents:'none',
             animation:'floatUp 0.7s ease forwards',
-          }}>+{f.pts}</div>
+          }}>{f.miss?'−50':'+'+f.pts}</div>
         ))}
       </div>
       {gameState==='playing' && <div style={{fontSize:10,color:'#334455'}}>Klikni mimo terč = −50 bodů</div>}

@@ -452,7 +452,21 @@ function seededShuffle(arr, seed) {
 function getDailyQuestions(dateKey, mode) {
   const pool = mode === QUIZ_MODES.GENERAL ? ALL_GENERAL_QUESTIONS : ALL_QUESTIONS;
   const seed = dateKey.split('-').reduce((a,b) => a*31+parseInt(b), 0);
-  const selectedQs = seededShuffle(pool, seed).slice(0, QUESTIONS_PER_QUIZ);
+
+  // Vyloučíme otázky z posledních 6 dní aby se neopakovaly
+  const usedIds = new Set();
+  for (let i = 1; i <= 6; i++) {
+    const d = new Date(dateKey);
+    d.setDate(d.getDate() - i);
+    const pastKey = d.toISOString().slice(0, 10);
+    const pastSeed = pastKey.split('-').reduce((a,b) => a*31+parseInt(b), 0);
+    seededShuffle(pool, pastSeed).slice(0, QUESTIONS_PER_QUIZ).forEach(q => usedIds.add(q.id));
+  }
+
+  const available = pool.filter(q => !usedIds.has(q.id));
+  // Pokud je málo dostupných otázek, použij celý pool
+  const pickFrom = available.length >= QUESTIONS_PER_QUIZ ? available : pool;
+  const selectedQs = seededShuffle(pickFrom, seed).slice(0, QUESTIONS_PER_QUIZ);
 
   selectedQs.push({
     id: 'lucky', type: 'lucky', cat: '🎲 Lucky Box',
@@ -1911,10 +1925,10 @@ function QuizScreen({ quiz: initQuiz, onFinish, onWrong, onCombo }) {
         ? <LuckyBoxSlot prizes={q.prizes} onPick={answerLucky} locked={locked}/>
         : <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:9,flex:1}}>
             {q.opts.map((opt,i)=>{
-              let bg='rgba(12,20,52,0.85)',br='#2a3a6a',col='#bbc8ee';
-              if(selected!==null){ if(i===q.a){bg='rgba(0,70,0,0.55)';br='#22aa22';col='#88ff88';} else if(i===selected&&selected!==q.a){bg='rgba(70,0,0,0.55)';br='#aa2222';col='#ff8888';} }
+              let bg='rgba(12,20,52,0.85)',br='#2a3a6a',col='#dde8ff';
+              if(selected!==null){ if(i===q.a){bg='rgba(0,70,0,0.55)';br='#22aa22';col='#aaffaa';} else if(i===selected&&selected!==q.a){bg='rgba(70,0,0,0.55)';br='#aa2222';col='#ffaaaa';} }
               return (
-                <button key={i} onClick={()=>answer(i)} disabled={locked} style={{background:bg,border:`1px solid ${br}`,borderRadius:10,padding:'13px 11px',cursor:locked?'default':'pointer',color:col,fontFamily:'inherit',textAlign:'left',transition:'all 0.2s',fontSize:'clamp(12px,1.7vw,14px)',fontWeight:500,letterSpacing:0.3,lineHeight:1.45,display:'flex',alignItems:'center',gap:9}}
+                <button key={i} onClick={()=>answer(i)} disabled={locked} style={{background:bg,border:`1px solid ${br}`,borderRadius:10,padding:'13px 11px',cursor:locked?'default':'pointer',color:col,fontFamily:'inherit',textAlign:'left',transition:'all 0.2s',fontSize:'clamp(13px,1.9vw,15px)',fontWeight:600,letterSpacing:0.3,lineHeight:1.45,display:'flex',alignItems:'center',gap:9}}
                   onMouseEnter={e=>{if(!locked)e.currentTarget.style.borderColor='#4488ff';}}
                   onMouseLeave={e=>{if(!locked)e.currentTarget.style.borderColor=br;}}>
                   <span style={{minWidth:22,height:22,background:'rgba(68,136,255,0.18)',borderRadius:5,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'#4488ff',flexShrink:0}}>{labels[i]}</span>
@@ -2074,7 +2088,9 @@ function ArchiveRow({ s }) {
   // Lucky Box se nepočítá do otázek — odfiltruj ho
   const normalLog   = hasLog ? s.play_log.filter(e => e.qId !== 'lucky') : [];
   const luckyLog    = hasLog ? s.play_log.filter(e => e.qId === 'lucky')  : [];
-  const totalNormal = hasLog ? normalLog.length : (s.total > 0 ? s.total : 15);
+  // Použij uložený total z DB jako základ, play_log jako doplněk
+  const storedTotal = s.total > 0 ? s.total : 15;
+  const totalNormal = hasLog ? Math.max(normalLog.length, storedTotal) : storedTotal;
   const correctN    = hasLog ? normalLog.filter(e => e.correct).length : s.correct;
   const pct         = totalNormal > 0 ? Math.round((correctN / totalNormal) * 100) : 0;
   const col         = pct >= 80 ? '#44ffaa' : pct >= 60 ? '#ffd700' : '#ff8844';

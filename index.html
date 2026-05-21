@@ -217,7 +217,7 @@ const QUESTIONS_PER_QUIZ = 15;
 const MAX_PTS = 1000;
 const MIN_PTS = 100;
 const SCREENS = { HOME:'home', REGISTER:'register', LOGIN:'login', PROFILE:'profile', QUIZ:'quiz', RESULT:'result', BOARD:'board', STATS:'stats' };
-const QUIZ_MODES = { IT: 'it', GENERAL: 'general' };
+const QUIZ_MODES = { IT: 'it', GENERAL: 'general', FILM: 'film' };
 
 // Kombo konstanty
 const COMBO_TIME_LIMIT = 3; // sekund od zobrazení otázky
@@ -450,7 +450,9 @@ function seededShuffle(arr, seed) {
 }
 
 function getDailyQuestions(dateKey, mode) {
-  const pool = mode === QUIZ_MODES.GENERAL ? ALL_GENERAL_QUESTIONS : ALL_QUESTIONS;
+  const pool = mode === QUIZ_MODES.GENERAL ? ALL_GENERAL_QUESTIONS
+             : mode === QUIZ_MODES.FILM    ? ALL_FILM_QUESTIONS
+             : ALL_QUESTIONS;
   const seed = dateKey.split('-').reduce((a,b) => a*31+parseInt(b), 0);
 
   // Vyloučíme otázky z posledních 6 dní aby se neopakovaly
@@ -539,6 +541,7 @@ function loadActiveQuiz(todayKey, mode) {
 // (načteno přes loadQuestionsFromDB při startu aplikace)
 let ALL_QUESTIONS = [];
 let ALL_GENERAL_QUESTIONS = [];
+let ALL_FILM_QUESTIONS = [];
 
 // ─── NAČÍTÁNÍ OTÁZEK Z DB ────────────────────────────
 async function loadQuestionsFromDB() {
@@ -551,7 +554,8 @@ async function loadQuestionsFromDB() {
     const parse = q => ({...q, opts: Array.isArray(q.opts) ? q.opts : JSON.parse(q.opts)});
     ALL_QUESTIONS         = data.filter(q => q.mode === 'it').map(parse);
     ALL_GENERAL_QUESTIONS = data.filter(q => q.mode === 'general').map(parse);
-    console.log(`Loaded ${ALL_QUESTIONS.length} IT + ${ALL_GENERAL_QUESTIONS.length} general questions`);
+    ALL_FILM_QUESTIONS    = data.filter(q => q.mode === 'film').map(parse);
+    console.log(`Loaded ${ALL_QUESTIONS.length} IT + ${ALL_GENERAL_QUESTIONS.length} general + ${ALL_FILM_QUESTIONS.length} film questions`);
     return true;
   } catch(e) { console.error('Questions load exception:', e); return false; }
 }
@@ -1012,7 +1016,13 @@ function App() {
 function HomeScreen({ user, hasPlayedToday, hasPlayedOtherMode, todayKey, todayQuestions, timeBonusToday, resumableQuiz, quizMode, onSwitchMode, onResume, onRegister, onLogin, onStart, onBoard, onStats, onLogout, onProfile, loading }) {
   const cats = [...new Set(todayQuestions.map(q=>q.cat).filter(c=>c!=='🎲 Lucky Box'))];
   const isGeneral = quizMode === QUIZ_MODES.GENERAL;
+  const isFilm = quizMode === QUIZ_MODES.FILM;
   const otherMode = quizMode === QUIZ_MODES.IT ? QUIZ_MODES.GENERAL : QUIZ_MODES.IT;
+  const modeColor = isFilm ? '#cc44ff' : isGeneral ? '#44cc88' : '#88aaff';
+  const modeBorder = isFilm ? '#6a1a8a' : isGeneral ? '#226644' : '#1e3a6a';
+  const modeBg = isFilm ? 'rgba(100,0,150,0.15)' : isGeneral ? 'rgba(0,80,40,0.15)' : 'rgba(30,60,160,0.15)';
+  const modeTagBg = isFilm ? 'rgba(120,0,180,0.25)' : isGeneral ? 'rgba(0,100,50,0.25)' : 'rgba(40,80,200,0.25)';
+  const modeTagBorder = isFilm ? '#6a1a8a' : isGeneral ? '#226644' : '#2a4a9a';
   const OS_LABELS = {linux:'🐧 Linux', windows:'🪟 Windows', macos:' macOS', bsd:'👹 BSD', arch:'💀 Arch (btw)'};
   const totalTime = QUIZ_DURATION + (timeBonusToday||0);
   const resumeProgress = resumableQuiz ? resumableQuiz.answers.length : 0;
@@ -1090,8 +1100,8 @@ function HomeScreen({ user, hasPlayedToday, hasPlayedOtherMode, todayKey, todayQ
         <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:13,letterSpacing:2,color:'#7799cc',marginTop:8,marginBottom:20,fontWeight:600}}>KAŽDÝ DEN NOVÝ KVÍZ · NOVÉ OTÁZKY</div>
 
         {/* Přepínač módu */}
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:24,background:'rgba(10,15,40,0.6)',borderRadius:10,padding:4,border:'1px solid #1e2a4a',maxWidth:400,margin:'0 auto 24px'}}>
-          {[{m:QUIZ_MODES.IT,l:'💻 IT Kvíz'},{m:QUIZ_MODES.GENERAL,l:'🌍 Obecný kvíz'}].map(({m,l})=>(
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:24,background:'rgba(10,15,40,0.6)',borderRadius:10,padding:4,border:'1px solid #1e2a4a',maxWidth:400,margin:'0 auto 24px'}}>
+          {[{m:QUIZ_MODES.IT,l:'💻 IT'},{m:QUIZ_MODES.GENERAL,l:'🌍 Obecný'},{m:QUIZ_MODES.FILM,l:'🎬 Film'}].map(({m,l})=>(
             <button key={m} onClick={()=>onSwitchMode(m)} style={{
               padding:'11px',borderRadius:8,border:'none',cursor:'pointer',
               fontFamily:'inherit',fontSize:13,fontWeight:700,
@@ -1103,13 +1113,13 @@ function HomeScreen({ user, hasPlayedToday, hasPlayedOtherMode, todayKey, todayQ
           ))}
         </div>
 
-        <div style={{background:'rgba(10,15,40,0.8)',border:`1px solid ${isGeneral?'#226644':'#1e3a6a'}`,borderRadius:16,overflow:'hidden',marginBottom:timeBonusToday>0?12:28}}>
+        <div style={{background:'rgba(10,15,40,0.8)',border:`1px solid ${modeBorder}`,borderRadius:16,overflow:'hidden',marginBottom:timeBonusToday>0?12:28}}>
 
           {/* Header — 15 otázek + celkový limit v jednom řádku */}
           <div style={{
             padding:'12px 14px',
-            borderBottom:`1px solid ${isGeneral?'#1a4030':'#1a2a4a'}`,
-            background:isGeneral?'rgba(0,80,40,0.15)':'rgba(30,60,160,0.15)',
+            borderBottom:`1px solid ${modeBorder}`,
+            background:modeBg,
             display:'flex',alignItems:'center',justifyContent:'center',gap:8,flexWrap:'wrap',
           }}>
             <span style={{
@@ -1125,16 +1135,16 @@ function HomeScreen({ user, hasPlayedToday, hasPlayedOtherMode, todayKey, todayQ
 
           {/* Témata — vycentrovaná */}
           <div style={{padding:'14px',borderBottom:'1px solid #1a2040',textAlign:'center'}}>
-            <div style={{fontSize:11,fontWeight:700,color:isGeneral?'#44cc88':'#88aaff',marginBottom:8,letterSpacing:1}}>
-              {isGeneral?'🌍':'💻'} TÉMATA
+            <div style={{fontSize:11,fontWeight:700,color:modeColor,marginBottom:8,letterSpacing:1}}>
+              {isFilm?'🎬':isGeneral?'🌍':'💻'} TÉMATA
             </div>
             <div style={{display:'flex',flexWrap:'wrap',gap:5,justifyContent:'center'}}>
               {cats.map(c=>(
                 <span key={c} style={{
                   fontSize:12,padding:'4px 11px',borderRadius:20,fontWeight:600,
-                  background:isGeneral?'rgba(0,100,50,0.25)':'rgba(40,80,200,0.25)',
-                  color:isGeneral?'#44ffaa':'#88ccff',
-                  border:`1px solid ${isGeneral?'#226644':'#2a4a9a'}`,
+                  background:modeTagBg,
+                  color:modeColor,
+                  border:`1px solid ${modeTagBorder}`,
                 }}>{c}</span>
               ))}
             </div>
@@ -2083,9 +2093,9 @@ function ArchiveRow({ s }) {
   const hasLog = s.play_log && s.play_log.length > 0;
 
   // Vyber správný pool podle módu záznamu
-  const qPool = (s.quiz_mode || QUIZ_MODES.IT) === QUIZ_MODES.GENERAL
-    ? ALL_GENERAL_QUESTIONS
-    : ALL_QUESTIONS;
+  const qPool = (s.quiz_mode || QUIZ_MODES.IT) === QUIZ_MODES.GENERAL ? ALL_GENERAL_QUESTIONS
+              : (s.quiz_mode || QUIZ_MODES.IT) === QUIZ_MODES.FILM    ? ALL_FILM_QUESTIONS
+              : ALL_QUESTIONS;
 
   // Lucky Box se nepočítá do otázek — odfiltruj ho
   const normalLog   = hasLog ? s.play_log.filter(e => e.qId !== 'lucky') : [];
@@ -2401,7 +2411,8 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, quizMode, onBac
               const ps = profileScores;
               const pMode = (ps[0]?.quiz_mode || QUIZ_MODES.IT);
               const pIsGeneral = pMode === QUIZ_MODES.GENERAL;
-              const qPool = pIsGeneral ? ALL_GENERAL_QUESTIONS : ALL_QUESTIONS;
+              const pIsFilm    = pMode === QUIZ_MODES.FILM;
+              const qPool = pIsFilm ? ALL_FILM_QUESTIONS : pIsGeneral ? ALL_GENERAL_QUESTIONS : ALL_QUESTIONS;
 
               const totalPlayed = ps.length;
               const totalScore2 = ps.reduce((s,r)=>s+r.score,0);
@@ -2473,7 +2484,8 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, quizMode, onBac
               // Odvětvová analýza — IT vs Obecný
               const SECTORS_IT={'Sítě & Infrastruktura':['Sítě','WiFi','Konektory','Telco','DC'],'Bezpečnost':['Bezpečnost','Šifrování'],'Cloud & DevOps':['Cloud','Virtualizace','Správa'],'Systémy & OS':['OS','Linux','Windows'],'Data & Protokoly':['Databáze','Protokoly','Email'],'Hardware':['Hardware','Periferie','Úložiště','Zálohy'],'AI & Moderní tech':['AI/ML','IoT','Telco']};
               const SECTORS_GEN={'Geografie':['🌍 Geografie'],'Historie':['🏛️ Historie'],'Věda':['🔬 Věda'],'Film & TV':['🎬 Film & TV'],'Hudba':['🎵 Hudba'],'Sport':['⚽ Sport'],'Jídlo':['🍕 Jídlo'],'Příroda':['🐾 Příroda'],'Logika':['🧠 Logika'],'Zajímavosti':['💡 Zajímavosti']};
-              const SECTORS = pIsGeneral ? SECTORS_GEN : SECTORS_IT;
+              const SECTORS_FILM = {'Citáty':['🎬 Citáty'],'České filmy':['🇨🇿 Česko'],'Ocenění':['🏆 Ocenění'],'Režie':['🎬 Režie'],'Klasika':['🌍 Klasika'],'Marvel':['🦸 Marvel'],'Komedie':['😂 Komedie'],'Horor':['👻 Horor'],'Sci-Fi':['🚀 Sci-Fi'],'Drama':['💕 Drama'],'Thriller':['🔍 Thriller'],'Animace':['🌟 Animace'],'Herci':['🎭 Herci'],'Záludnosti':['🧠 Záludnosti']};
+              const SECTORS = pIsFilm ? SECTORS_FILM : pIsGeneral ? SECTORS_GEN : SECTORS_IT;
               const sectorData=Object.entries(SECTORS).map(([sector,cats])=>{
                 let cor=0,tot=0;
                 if(pIsGeneral){
@@ -3011,9 +3023,8 @@ function StatsScreen({ user, scores, quizMode, onBack }) {
   const [localMode, setLocalMode] = useState(quizMode || QUIZ_MODES.IT);
   const mode = localMode;
   const isGeneral = mode === QUIZ_MODES.GENERAL;
-
-  // Filtruj podle módu
-  const myScores = scores
+  const isFilm    = mode === QUIZ_MODES.FILM;
+  const qPool = isFilm ? ALL_FILM_QUESTIONS : isGeneral ? ALL_GENERAL_QUESTIONS : ALL_QUESTIONS;
     .filter(s => s.user_id === user.id && (s.quiz_mode || QUIZ_MODES.IT) === mode)
     .sort((a,b) => a.date.localeCompare(b.date));
 
@@ -3045,7 +3056,7 @@ function StatsScreen({ user, scores, quizMode, onBack }) {
   }
 
   // Analýza play_log — použij správný pool otázek
-  const questionPool = isGeneral ? ALL_GENERAL_QUESTIONS : ALL_QUESTIONS;
+  const questionPool = isFilm ? ALL_FILM_QUESTIONS : isGeneral ? ALL_GENERAL_QUESTIONS : ALL_QUESTIONS;
   const catData = {};
   let totalAnswers=0, totalAnswerTime=0, fastAnswers=0, slowAnswers=0;
   let maxAnswerStreak=0, curAnswerStreak=0;
@@ -3109,7 +3120,13 @@ function StatsScreen({ user, scores, quizMode, onBack }) {
     'Logika': ['🧠 Logika'],
     'Zajímavosti': ['💡 Zajímavosti'],
   };
-  const SECTORS = isGeneral ? SECTORS_GENERAL : SECTORS_IT;
+  const SECTORS_FILM_S = {
+    'Citáty': ['🎬 Citáty'], 'České filmy': ['🇨🇿 Česko'], 'Ocenění': ['🏆 Ocenění'],
+    'Režie': ['🎬 Režie'], 'Klasika': ['🌍 Klasika'], 'Marvel': ['🦸 Marvel'],
+    'Komedie': ['😂 Komedie'], 'Horor': ['👻 Horor'], 'Sci-Fi': ['🚀 Sci-Fi'],
+    'Drama': ['💕 Drama'], 'Thriller': ['🔍 Thriller'], 'Animace': ['🌟 Animace'],
+  };
+  const SECTORS = isFilm ? SECTORS_FILM_S : isGeneral ? SECTORS_GENERAL : SECTORS_IT;
   const sectorData = Object.entries(SECTORS).map(([sector, cats]) => {
     let correct=0, total=0;
     cats.forEach(c => {
@@ -3232,8 +3249,8 @@ function StatsScreen({ user, scores, quizMode, onBack }) {
         </div>
 
         {/* Přepínač módu */}
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:20,background:'rgba(10,15,40,0.6)',borderRadius:10,padding:4,border:'1px solid #1e2a4a'}}>
-          {[{m:QUIZ_MODES.IT,l:'💻 IT Kvíz'},{m:QUIZ_MODES.GENERAL,l:'🌍 Obecný kvíz'}].map(({m,l})=>(
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:20,background:'rgba(10,15,40,0.6)',borderRadius:10,padding:4,border:'1px solid #1e2a4a'}}>
+          {[{m:QUIZ_MODES.IT,l:'💻 IT'},{m:QUIZ_MODES.GENERAL,l:'🌍 Obecný'},{m:QUIZ_MODES.FILM,l:'🎬 Film'}].map(({m,l})=>(
             <button key={m} onClick={()=>setLocalMode(m)} style={{
               padding:'10px',borderRadius:8,border:'none',cursor:'pointer',
               fontFamily:'inherit',fontSize:13,fontWeight:700,

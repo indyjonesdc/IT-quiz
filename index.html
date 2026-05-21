@@ -1372,7 +1372,9 @@ function ProfileScreen({ user, onSave, onBack, loading }) {
     try {
       const { data: ok } = await db.rpc('verify_password', { p_name: user.name, p_password: oldPwd });
       if (!ok || ok.length === 0) { setPwdMsg('❌ Staré heslo je špatně.'); setPwdLoading(false); return; }
-      const { error } = await db.rpc('change_password', { p_user_id: user.id, p_new_password: newPwd });
+      // Použij ID z verify_password výsledku (ne z localStorage — může být zastaralé)
+      const userId = ok[0].id || user.id;
+      const { error } = await db.rpc('change_password', { p_user_id: userId, p_new_password: newPwd });
       if (error) { setPwdMsg('❌ Chyba: ' + error.message); }
       else { setPwdMsg('✅ Heslo bylo změněno!'); setOldPwd(''); setNewPwd(''); setNewPwd2(''); setShowPwd(false); }
     } catch(e) { setPwdMsg('❌ Chyba připojení.'); }

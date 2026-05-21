@@ -860,6 +860,9 @@ function App() {
         @keyframes fadeIn{0%{opacity:0}100%{opacity:1}}
         @keyframes scanLine{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
         @keyframes dotPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(1.5)}}
+        @keyframes recordReveal{0%{opacity:0;transform:scale(.5)}100%{opacity:1;transform:scale(1)}}
+        @keyframes confettiFall{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(720deg);opacity:0}}
+        @keyframes spin{0%{transform:scale(0) rotate(-180deg)}100%{transform:scale(1) rotate(0deg)}}
         @keyframes slideIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
         .slide-in{animation:slideIn 0.4s ease}
         @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-12px)}75%{transform:translateX(12px)}}
@@ -3784,43 +3787,63 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
   const [blResult, setBlResult] = useState(null);
   const [saving, setSaving]     = useState(false);
   const [leaders, setLeaders]   = useState({});
+  const [newRecord, setNewRecord] = useState(null); // {game, pts, prev}
+  const myBestRef = useRef({});
 
   useEffect(() => {
     async function loadLeaders() {
       const games = ['stopwatch','targets','balance'];
       const result = {};
+      const myBest = {};
       for (const game of games) {
         try {
           const { data } = await db.from('minigame_scores')
             .select('user_id,user_name,score').eq('game', game)
-            .order('score',{ascending:false}).limit(50);
+            .order('score',{ascending:false}).limit(100);
           if (data && data.length > 0) {
             const best = {};
             data.forEach(r => { if (!best[r.user_id] || r.score > best[r.user_id].score) best[r.user_id]=r; });
             const sorted = Object.values(best).sort((a,b)=>b.score-a.score);
             result[game] = sorted[0];
+            // Osobní rekord hráče
+            if (user && best[user.id]) myBest[game] = best[user.id].score;
           }
         } catch(e) {}
       }
       setLeaders(result);
+      myBestRef.current = myBest;
     }
     loadLeaders();
   }, []);
 
   async function handleSave(game, pts, detail) {
     setSaving(true);
+    // Zkontroluj osobní rekord a světový rekord PŘED uložením
+    const prevPersonal = myBestRef.current[game] || 0;
+    const prevWorld    = leaders[game]?.score || 0;
+    const isPersonalRecord = pts > prevPersonal;
+    const isWorldRecord    = pts > prevWorld;
+
     await saveMiniScore(user, game, pts, detail, onScoreSaved);
     setSaving(false);
-    // Refresh leaderů po uložení
+
+    // Zobraz animaci rekordu
+    if (isPersonalRecord || isWorldRecord) {
+      setNewRecord({ game, pts, prev: prevPersonal, isWorld: isWorldRecord });
+      setTimeout(() => setNewRecord(null), 5000);
+    }
+
+    // Refresh leaderů
     try {
       const { data } = await db.from('minigame_scores')
         .select('user_id,user_name,score').eq('game', game)
-        .order('score',{ascending:false}).limit(50);
+        .order('score',{ascending:false}).limit(100);
       if (data) {
         const best = {};
         data.forEach(r => { if (!best[r.user_id] || r.score > best[r.user_id].score) best[r.user_id]=r; });
         const sorted = Object.values(best).sort((a,b)=>b.score-a.score);
         setLeaders(prev => ({...prev, [game]: sorted[0]}));
+        if (user && best[user.id]) myBestRef.current[game] = best[user.id].score;
       }
     } catch(e) {}
   }
@@ -3832,9 +3855,72 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
   ];
 
   return (
-    <div className="slide-in" style={{width:'100%',maxWidth:480,textAlign:'center'}}>
+    <div className="slide-in" style={{width:'100%',maxWidth:480,textAlign:'center',position:'relative'}}>
       <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,color:'#bb44ff',letterSpacing:4,marginBottom:6}}>BONUS</div>
       <h2 className="glow" style={{fontFamily:"'Orbitron',sans-serif",fontSize:28,fontWeight:900,color:'#fff',marginBottom:16}}>MINIHRY</h2>
+
+      {/* REKORD OVERLAY */}
+      {newRecord && (
+        <div style={{
+          position:'fixed',top:0,left:0,right:0,bottom:0,
+          zIndex:999,pointerEvents:'none',
+          display:'flex',alignItems:'center',justifyContent:'center',
+        }}>
+          {/* Konfety efekt */}
+          <div style={{position:'absolute',inset:0,overflow:'hidden'}}>
+            {Array.from({length:newRecord.isWorld?24:16}).map((_,i)=>(
+              <div key={i} style={{
+                position:'absolute',
+                left: (i*37+13)%100+'%',
+                top:'-10px',
+                width: 8+i%4,
+                height: 8+i%3,
+                background:['#ffd700','#ff4488','#44ffaa','#4488ff','#bb44ff','#ff9944'][i%6],
+                borderRadius: i%2?'50%':'2px',
+                animation:`confettiFall ${1.5+i%3*0.4}s ease-in ${i*0.08}s forwards`,
+                transform:`rotate(${i*47}deg)`,
+              }}/>
+            ))}
+          </div>
+          {/* Hlavní karta */}
+          <div style={{
+            background:'linear-gradient(135deg,rgba(10,15,40,.97),rgba(20,10,50,.97))',
+            border:`2px solid ${newRecord.isWorld?'#ffd700':'#44ffaa'}`,
+            borderRadius:20,padding:'28px 32px',textAlign:'center',
+            boxShadow:`0 0 60px ${newRecord.isWorld?'rgba(255,215,0,.5)':'rgba(68,255,170,.4)'}`,
+            animation:'recordReveal .4s cubic-bezier(.175,.885,.32,1.275)',
+            maxWidth:320,
+          }}>
+            <div style={{fontSize:52,marginBottom:8,animation:'spin 1s ease'}}>
+              {newRecord.isWorld ? '🏆' : '🥇'}
+            </div>
+            <div style={{
+              fontFamily:"'Orbitron',sans-serif",fontSize:11,letterSpacing:4,
+              color:newRecord.isWorld?'#ffd700':'#44ffaa',marginBottom:6,
+            }}>
+              {newRecord.isWorld ? 'SVĚTOVÝ REKORD' : 'OSOBNÍ REKORD'}
+            </div>
+            <div style={{
+              fontFamily:"'Orbitron',sans-serif",fontSize:38,fontWeight:900,
+              color:'#fff',marginBottom:4,
+              textShadow:`0 0 20px ${newRecord.isWorld?'rgba(255,215,0,.6)':'rgba(68,255,170,.6)'}`,
+              animation:'scorePulse .6s ease .2s both',
+            }}>{newRecord.pts.toLocaleString()}</div>
+            {newRecord.prev > 0 && (
+              <div style={{fontSize:12,color:'#445566',marginBottom:4}}>
+                Předchozí: {newRecord.prev.toLocaleString()} b
+                <span style={{color:'#44ffaa',marginLeft:6}}>+{(newRecord.pts-newRecord.prev).toLocaleString()}</span>
+              </div>
+            )}
+            <div style={{fontSize:13,color:'#886600',fontStyle:'italic',marginTop:8}}>
+              {newRecord.isWorld
+                ? ['Uchyl od klávesnice. Rekordman.','Vesmír si o tobě povídá.','Zarámuj si to, přijdou hosté.','Ostatní mohou přestat zkoušet.'][newRecord.pts%4]
+                : ['Lepšíš se. Nebo máš štěstí.','Nový osobní rekord. Skromně.','Píšeš historii. Svoji.','Progress je reálný.'][newRecord.pts%4]
+              }
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MENU */}
       {screen==='menu' && (

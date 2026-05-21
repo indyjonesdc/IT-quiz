@@ -75,9 +75,9 @@
   });
 })();
 </script>
-<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -453,8 +453,6 @@ function getDailyQuestions(dateKey, mode) {
   const pool = mode === QUIZ_MODES.GENERAL ? ALL_GENERAL_QUESTIONS
              : mode === QUIZ_MODES.FILM    ? ALL_FILM_QUESTIONS
              : ALL_QUESTIONS;
-
-  // Pokud pool je prázdný (otázky se ještě načítají), vrať prázdné pole
   if (!pool || pool.length < QUESTIONS_PER_QUIZ) return [];
   const seed = dateKey.split('-').reduce((a,b) => a*31+parseInt(b), 0);
 
@@ -546,6 +544,7 @@ let ALL_QUESTIONS = [];
 let ALL_GENERAL_QUESTIONS = [];
 let ALL_FILM_QUESTIONS = [];
 
+
 // ─── NAČÍTÁNÍ OTÁZEK Z DB ────────────────────────────
 async function loadQuestionsFromDB() {
   try {
@@ -558,7 +557,7 @@ async function loadQuestionsFromDB() {
     ALL_QUESTIONS         = data.filter(q => q.mode === 'it').map(parse);
     ALL_GENERAL_QUESTIONS = data.filter(q => q.mode === 'general').map(parse);
     ALL_FILM_QUESTIONS    = data.filter(q => q.mode === 'film').map(parse);
-    console.log(`Loaded ${ALL_QUESTIONS.length} IT + ${ALL_GENERAL_QUESTIONS.length} general + ${ALL_FILM_QUESTIONS.length} film questions`);
+    console.log(`Loaded ${ALL_QUESTIONS.length} IT + ${ALL_GENERAL_QUESTIONS.length} general + ${ALL_FILM_QUESTIONS.length} film`);
     return true;
   } catch(e) { console.error('Questions load exception:', e); return false; }
 }
@@ -1038,23 +1037,15 @@ function HomeScreen({ user, hasPlayedToday, hasPlayedOtherMode, todayKey, todayQ
     ? [...new Set(todayQuestions.map(q=>q.cat).filter(c=>c!=='🎲 Lucky Box'))]
     : [];
   const isGeneral = quizMode === QUIZ_MODES.GENERAL;
-  const isFilm = quizMode === QUIZ_MODES.FILM;
+  const isFilm    = quizMode === QUIZ_MODES.FILM;
   const otherMode = quizMode === QUIZ_MODES.IT ? QUIZ_MODES.GENERAL : QUIZ_MODES.IT;
 
-  // Pokud otázky ještě nejsou načteny pro tento mód
-  if (todayQuestions.length === 0) {
-    return (
-      <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'60vh',gap:12}}>
-        <div style={{fontSize:32}}>⏳</div>
-        <div style={{fontSize:13,color:'#445566'}}>Načítám otázky pro {isFilm?'filmový':isGeneral?'obecný':'IT'} kvíz...</div>
-      </div>
-    );
-  }
-  const modeColor = isFilm ? '#cc44ff' : isGeneral ? '#44cc88' : '#88aaff';
-  const modeBorder = isFilm ? '#6a1a8a' : isGeneral ? '#226644' : '#1e3a6a';
-  const modeBg = isFilm ? 'rgba(100,0,150,0.15)' : isGeneral ? 'rgba(0,80,40,0.15)' : 'rgba(30,60,160,0.15)';
-  const modeTagBg = isFilm ? 'rgba(120,0,180,0.25)' : isGeneral ? 'rgba(0,100,50,0.25)' : 'rgba(40,80,200,0.25)';
-  const modeTagBorder = isFilm ? '#6a1a8a' : isGeneral ? '#226644' : '#2a4a9a';
+
+  const modeColor = isFilm ? '#ff88cc' : isGeneral ? '#44cc88' : '#88aaff';
+  const modeBorder = isFilm ? '#8a1a5a' : isGeneral ? '#226644' : '#1e3a6a';
+  const modeBg = isFilm ? 'rgba(150,0,80,0.15)' : isGeneral ? 'rgba(0,80,40,0.15)' : 'rgba(30,60,160,0.15)';
+  const modeTagBg = isFilm ? 'rgba(180,0,100,0.2)' : isGeneral ? 'rgba(0,100,50,0.25)' : 'rgba(40,80,200,0.25)';
+  const modeTagBorder = isFilm ? '#8a1a5a' : isGeneral ? '#226644' : '#2a4a9a';
   const OS_LABELS = {linux:'🐧 Linux', windows:'🪟 Windows', macos:' macOS', bsd:'👹 BSD', arch:'💀 Arch (btw)'};
   const totalTime = QUIZ_DURATION + (timeBonusToday||0);
   const resumeProgress = resumableQuiz ? resumableQuiz.answers.length : 0;
@@ -1132,7 +1123,7 @@ function HomeScreen({ user, hasPlayedToday, hasPlayedOtherMode, todayKey, todayQ
         <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:13,letterSpacing:2,color:'#7799cc',marginTop:8,marginBottom:20,fontWeight:600}}>KAŽDÝ DEN NOVÝ KVÍZ · NOVÉ OTÁZKY</div>
 
         {/* Přepínač módu */}
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:24,background:'rgba(10,15,40,0.6)',borderRadius:10,padding:4,border:'1px solid #1e2a4a',maxWidth:400,margin:'0 auto 24px'}}>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:6,marginBottom:24,background:'rgba(10,15,40,0.6)',borderRadius:10,padding:4,border:'1px solid #1e2a4a',maxWidth:440,margin:'0 auto 24px'}}>
           {[{m:QUIZ_MODES.IT,l:'💻 IT'},{m:QUIZ_MODES.GENERAL,l:'🌍 Obecný'},{m:QUIZ_MODES.FILM,l:'🎬 Film'}].map(({m,l})=>(
             <button key={m} onClick={()=>onSwitchMode(m)} style={{
               padding:'11px',borderRadius:8,border:'none',cursor:'pointer',
@@ -2252,6 +2243,7 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, quizMode, onBac
   const mode = quizMode || QUIZ_MODES.IT;
   // Filtruj podle módu — starší záznamy bez quiz_mode jsou IT
   const modeScores = scores.filter(s => (s.quiz_mode || QUIZ_MODES.IT) === mode);
+  const isFilm = mode === QUIZ_MODES.FILM;
 
   const todayList = modeScores.filter(s=>s.date===todayKey).sort((a,b)=>b.score-a.score);
 
@@ -2516,8 +2508,8 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, quizMode, onBac
               // Odvětvová analýza — IT vs Obecný
               const SECTORS_IT={'Sítě & Infrastruktura':['Sítě','WiFi','Konektory','Telco','DC'],'Bezpečnost':['Bezpečnost','Šifrování'],'Cloud & DevOps':['Cloud','Virtualizace','Správa'],'Systémy & OS':['OS','Linux','Windows'],'Data & Protokoly':['Databáze','Protokoly','Email'],'Hardware':['Hardware','Periferie','Úložiště','Zálohy'],'AI & Moderní tech':['AI/ML','IoT','Telco']};
               const SECTORS_GEN={'Geografie':['🌍 Geografie'],'Historie':['🏛️ Historie'],'Věda':['🔬 Věda'],'Film & TV':['🎬 Film & TV'],'Hudba':['🎵 Hudba'],'Sport':['⚽ Sport'],'Jídlo':['🍕 Jídlo'],'Příroda':['🐾 Příroda'],'Logika':['🧠 Logika'],'Zajímavosti':['💡 Zajímavosti']};
-              const SECTORS_FILM = {'Citáty':['🎬 Citáty'],'České filmy':['🇨🇿 Česko'],'Ocenění':['🏆 Ocenění'],'Režie':['🎬 Režie'],'Klasika':['🌍 Klasika'],'Marvel':['🦸 Marvel'],'Komedie':['😂 Komedie'],'Horor':['👻 Horor'],'Sci-Fi':['🚀 Sci-Fi'],'Drama':['💕 Drama'],'Thriller':['🔍 Thriller'],'Animace':['🌟 Animace'],'Herci':['🎭 Herci'],'Záludnosti':['🧠 Záludnosti']};
-              const SECTORS = pIsFilm ? SECTORS_FILM : pIsGeneral ? SECTORS_GEN : SECTORS_IT;
+              const SECTORS_FILM_P = {'Citáty':['🎬 Citáty'],'České filmy':['🇨🇿 Česko'],'Ocenění':['🏆 Ocenění'],'Režie':['🎬 Režie'],'Klasika':['🌍 Klasika'],'Marvel':['🦸 Marvel'],'Komedie':['😂 Komedie'],'Horor':['👻 Horor'],'Sci-Fi':['🚀 Sci-Fi'],'Drama':['💕 Drama'],'Thriller':['🔍 Thriller'],'Animace':['🌟 Animace'],'Herci':['🎭 Herci']};
+              const SECTORS = pIsFilm ? SECTORS_FILM_P : pIsGeneral ? SECTORS_GEN : SECTORS_IT;
               const sectorData=Object.entries(SECTORS).map(([sector,cats])=>{
                 let cor=0,tot=0;
                 if(pIsGeneral){
@@ -3057,6 +3049,8 @@ function StatsScreen({ user, scores, quizMode, onBack }) {
   const isGeneral = mode === QUIZ_MODES.GENERAL;
   const isFilm    = mode === QUIZ_MODES.FILM;
   const qPool = isFilm ? ALL_FILM_QUESTIONS : isGeneral ? ALL_GENERAL_QUESTIONS : ALL_QUESTIONS;
+
+  const myScores = scores
     .filter(s => s.user_id === user.id && (s.quiz_mode || QUIZ_MODES.IT) === mode)
     .sort((a,b) => a.date.localeCompare(b.date));
 
@@ -3152,13 +3146,8 @@ function StatsScreen({ user, scores, quizMode, onBack }) {
     'Logika': ['🧠 Logika'],
     'Zajímavosti': ['💡 Zajímavosti'],
   };
-  const SECTORS_FILM_S = {
-    'Citáty': ['🎬 Citáty'], 'České filmy': ['🇨🇿 Česko'], 'Ocenění': ['🏆 Ocenění'],
-    'Režie': ['🎬 Režie'], 'Klasika': ['🌍 Klasika'], 'Marvel': ['🦸 Marvel'],
-    'Komedie': ['😂 Komedie'], 'Horor': ['👻 Horor'], 'Sci-Fi': ['🚀 Sci-Fi'],
-    'Drama': ['💕 Drama'], 'Thriller': ['🔍 Thriller'], 'Animace': ['🌟 Animace'],
-  };
-  const SECTORS = isFilm ? SECTORS_FILM_S : isGeneral ? SECTORS_GENERAL : SECTORS_IT;
+  const SECTORS_FILM = {'Citáty':['🎬 Citáty'],'České filmy':['🇨🇿 Česko'],'Ocenění':['🏆 Ocenění'],'Režie':['🎬 Režie'],'Klasika':['🌍 Klasika'],'Marvel':['🦸 Marvel'],'Komedie':['😂 Komedie'],'Horor':['👻 Horor'],'Sci-Fi':['🚀 Sci-Fi'],'Drama':['💕 Drama'],'Thriller':['🔍 Thriller'],'Animace':['🌟 Animace'],'Herci':['🎭 Herci']};
+  const SECTORS = isFilm ? SECTORS_FILM : isGeneral ? SECTORS_GENERAL : SECTORS_IT;
   const sectorData = Object.entries(SECTORS).map(([sector, cats]) => {
     let correct=0, total=0;
     cats.forEach(c => {

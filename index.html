@@ -3642,124 +3642,191 @@ function StatsScreen({ user, scores, quizMode, onBack }) {
 
 // ─── MINIHRY ─────────────────────────────────────────
 function MinigamesScreen({ user, onBack, onScoreSaved }) {
-  const [gameScreen, setGameScreen] = useState('menu'); // menu | stopwatch | targets | result
-  const [gameResult, setGameResult] = useState(null);
+  const [phase, setPhase] = useState('menu'); // menu | stopwatch | transition | targets | result | board
+  const [swPts, setSwPts] = useState(0);
+  const [swDetail, setSwDetail] = useState({});
+  const [tgPts, setTgPts] = useState(0);
+  const [tgDetail, setTgDetail] = useState({});
+  const [board, setBoard] = useState([]);
   const [saving, setSaving] = useState(false);
 
-  async function saveMinigameScore(game, pts, detail) {
+  async function loadBoard() {
+    try {
+      const { data } = await db.from('minigame_scores')
+        .select('user_name,score')
+        .eq('game','combined')
+        .order('score', { ascending: false })
+        .limit(10);
+      if (data) setBoard(data);
+    } catch(e) {}
+  }
+
+  async function saveScore(total) {
     if (!user) return;
     setSaving(true);
     try {
-      await db.from('minigame_scores').insert({
-        id: Date.now().toString(),
-        user_id: user.id,
-        user_name: user.name,
-        game,
-        score: pts,
-        detail,
-        played_at: new Date().toISOString(),
-      });
-      if (onScoreSaved) onScoreSaved();
-    } catch(e) { console.error('Minigame save error:', e); }
+      // Ulož jen pokud je lepší než předchozí
+      const { data: existing } = await db.from('minigame_scores')
+        .select('id,score')
+        .eq('user_id', user.id)
+        .eq('game','combined')
+        .order('score', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!existing || total > existing.score) {
+        if (existing) {
+          await db.from('minigame_scores').update({ score: total, played_at: new Date().toISOString() }).eq('id', existing.id);
+        } else {
+          await db.from('minigame_scores').insert({ id: Date.now().toString(), user_id: user.id, user_name: user.name, game: 'combined', score: total, played_at: new Date().toISOString() });
+        }
+        if (onScoreSaved) onScoreSaved();
+      }
+    } catch(e) { console.error(e); }
     setSaving(false);
   }
+
+  function startGame() { setPhase('stopwatch'); }
+
+  function onSwDone(pts, detail) {
+    setSwPts(pts); setSwDetail(detail);
+    setPhase('transition');
+    setTimeout(() => setPhase('targets'), 2000);
+  }
+
+  function onTgDone(pts, detail) {
+    setTgPts(pts); setTgDetail(detail);
+    const total = swPts + pts;
+    saveScore(total);
+    setPhase('result');
+  }
+
+  function showBoard() { loadBoard(); setPhase('board'); }
+
+  const total = swPts + tgPts;
 
   return (
     <div className="slide-in" style={{width:'100%',maxWidth:480,textAlign:'center'}}>
       <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,color:'#bb44ff',letterSpacing:4,marginBottom:6}}>BONUS</div>
-      <h2 className="glow" style={{fontFamily:"'Orbitron',sans-serif",fontSize:28,fontWeight:900,color:'#fff',marginBottom:4}}>MINIHRY</h2>
-      <div style={{fontSize:12,color:'#445566',marginBottom:24}}>Získej bonusové body za postřeh</div>
+      <h2 className="glow" style={{fontFamily:"'Orbitron',sans-serif",fontSize:28,fontWeight:900,color:'#fff',marginBottom:4}}>MINIHRA</h2>
 
-      {gameScreen === 'menu' && (
-        <div style={{display:'flex',flexDirection:'column',gap:12,marginBottom:24}}>
-          <div onClick={()=>setGameScreen('stopwatch')} style={{
-            background:'rgba(0,100,200,0.1)',border:'1px solid #1a3a6a',borderRadius:14,
-            padding:'18px 20px',cursor:'pointer',textAlign:'left',transition:'all 0.2s',
-          }}
-          onMouseEnter={e=>e.currentTarget.style.borderColor='#4488ff'}
-          onMouseLeave={e=>e.currentTarget.style.borderColor='#1a3a6a'}>
-            <div style={{fontSize:28,marginBottom:6}}>⏱</div>
-            <div style={{fontSize:16,fontWeight:700,color:'#fff',marginBottom:4}}>Zastavte čas</div>
-            <div style={{fontSize:12,color:'#445566',marginBottom:8}}>Zastavte stopky přesně na 10.000 sekund</div>
-            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-              {['±0.010s → 1000 b','±0.050s → 800 b','±0.100s → 600 b'].map(t=>(
-                <span key={t} style={{fontSize:10,color:'#4488ff',background:'rgba(68,136,255,0.1)',border:'1px solid #1a3a6a',borderRadius:10,padding:'2px 8px'}}>{t}</span>
-              ))}
+      {phase==='menu' && (
+        <div style={{animation:'slideIn 0.3s ease'}}>
+          <div style={{fontSize:12,color:'#445566',marginBottom:24}}>Dvě hry za sebou — body se sčítají</div>
+          <div style={{background:'rgba(12,18,52,0.8)',border:'1px solid #1e2a4a',borderRadius:14,padding:20,marginBottom:16,textAlign:'left'}}>
+            <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12}}>
+              <span style={{fontSize:28}}>⏱</span>
+              <div>
+                <div style={{fontSize:15,fontWeight:700,color:'#fff'}}>1. Zastavte čas</div>
+                <div style={{fontSize:12,color:'#445566'}}>Zastavte na přesně 10.000 s</div>
+              </div>
+            </div>
+            <div style={{width:'100%',height:1,background:'#1e2a4a',marginBottom:12}}/>
+            <div style={{display:'flex',alignItems:'center',gap:12}}>
+              <span style={{fontSize:28}}>🎯</span>
+              <div>
+                <div style={{fontSize:15,fontWeight:700,color:'#fff'}}>2. Terčová střelnice</div>
+                <div style={{fontSize:12,color:'#445566'}}>Zasáhni co nejvíc terčů za 20 s</div>
+              </div>
             </div>
           </div>
+          <div style={{display:'flex',gap:10,justifyContent:'center',marginBottom:16}}>
+            <button className="btn" onClick={startGame} style={{background:'linear-gradient(135deg,#4a1a8a,#8822cc)',padding:'14px 36px',borderRadius:10,fontSize:14,color:'#fff',letterSpacing:2,boxShadow:'0 0 20px rgba(136,34,204,0.3)'}}>
+              ▶ SPUSTIT
+            </button>
+            <button className="btn" onClick={showBoard} style={{background:'transparent',border:'1px solid #2a3a6a',padding:'14px 20px',borderRadius:10,fontSize:13,color:'#88aaff',letterSpacing:1}}>
+              🏆 Žebříček
+            </button>
+          </div>
+          <button onClick={onBack} style={{background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1}}>← ZPĚT</button>
+        </div>
+      )}
 
-          <div onClick={()=>setGameScreen('targets')} style={{
-            background:'rgba(200,50,100,0.1)',border:'1px solid #6a1a3a',borderRadius:14,
-            padding:'18px 20px',cursor:'pointer',textAlign:'left',transition:'all 0.2s',
-          }}
-          onMouseEnter={e=>e.currentTarget.style.borderColor='#ff4488'}
-          onMouseLeave={e=>e.currentTarget.style.borderColor='#6a1a3a'}>
-            <div style={{fontSize:28,marginBottom:6}}>🎯</div>
-            <div style={{fontSize:16,fontWeight:700,color:'#fff',marginBottom:4}}>Terčová střelnice</div>
-            <div style={{fontSize:12,color:'#445566',marginBottom:8}}>Zasáhni co nejvíc terčů za 20 sekund</div>
-            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-              {['Malý terč → 180 b','Velký terč → 100 b','Minutí → -50 b'].map(t=>(
-                <span key={t} style={{fontSize:10,color:'#ff4488',background:'rgba(255,68,136,0.1)',border:'1px solid #6a1a3a',borderRadius:10,padding:'2px 8px'}}>{t}</span>
-              ))}
-            </div>
+      {phase==='stopwatch' && (
+        <StopwatchGame onResult={onSwDone} phase={1}/>
+      )}
+
+      {phase==='transition' && (
+        <div style={{animation:'slideIn 0.3s ease',padding:'40px 0'}}>
+          <div style={{fontSize:48,marginBottom:12}}>🎯</div>
+          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:14,color:'#bb44ff',letterSpacing:3,marginBottom:8}}>FÁZE 1 HOTOVA</div>
+          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:28,fontWeight:900,color:'#ffd700',marginBottom:4}}>+{swPts.toLocaleString()} b</div>
+          <div style={{fontSize:13,color:'#445566',marginBottom:20}}>Připrav se na střelnici...</div>
+          <div style={{width:200,height:4,background:'rgba(20,30,70,0.8)',borderRadius:2,overflow:'hidden',margin:'0 auto'}}>
+            <div style={{height:'100%',background:'#bb44ff',borderRadius:2,animation:'progressBar 2s linear forwards'}}/>
           </div>
         </div>
       )}
 
-      {gameScreen === 'stopwatch' && (
-        <StopwatchGame onResult={(pts, detail) => {
-          setGameResult({game:'stopwatch', pts, detail});
-          setGameScreen('result');
-          saveMinigameScore('stopwatch', pts, detail);
-        }} onBack={()=>setGameScreen('menu')}/>
+      {phase==='targets' && (
+        <TargetsGame onResult={onTgDone} swPts={swPts} phase={2}/>
       )}
 
-      {gameScreen === 'targets' && (
-        <TargetsGame onResult={(pts, detail) => {
-          setGameResult({game:'targets', pts, detail});
-          setGameScreen('result');
-          saveMinigameScore('targets', pts, detail);
-        }} onBack={()=>setGameScreen('menu')}/>
-      )}
-
-      {gameScreen === 'result' && gameResult && (
+      {phase==='result' && (
         <div style={{animation:'slideIn 0.3s ease'}}>
-          <div style={{fontSize:64,marginBottom:12}}>{gameResult.pts>=800?'🏆':gameResult.pts>=400?'🥈':'🥉'}</div>
-          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:32,fontWeight:900,color:'#ffd700',marginBottom:4}}>
-            {gameResult.pts.toLocaleString()}
-          </div>
-          <div style={{fontSize:13,color:'#445566',marginBottom:16}}>bonusových bodů</div>
-          <div style={{background:'rgba(12,18,52,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:20,textAlign:'left'}}>
-            {Object.entries(gameResult.detail).map(([k,v])=>(
-              <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'4px 0',fontSize:13,borderBottom:'1px solid #121830'}}>
-                <span style={{color:'#445566'}}>{k}</span>
-                <span style={{color:'#88aaff',fontWeight:700}}>{v}</span>
+          <div style={{fontSize:56,marginBottom:8}}>{total>=1500?'🏆':total>=800?'🥈':'🥉'}</div>
+          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:42,fontWeight:900,color:'#ffd700',marginBottom:2}}>{total.toLocaleString()}</div>
+          <div style={{fontSize:13,color:'#445566',marginBottom:20}}>celkových bodů</div>
+          <div style={{background:'rgba(12,18,52,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:12,textAlign:'left'}}>
+            <div style={{fontSize:10,color:'#4488ff',letterSpacing:2,marginBottom:10,fontFamily:"'Orbitron',sans-serif"}}>⏱ ZASTAVTE ČAS</div>
+            {Object.entries(swDetail).map(([k,v])=>(
+              <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'3px 0',fontSize:12,borderBottom:'1px solid #121830'}}>
+                <span style={{color:'#445566'}}>{k}</span><span style={{color:'#88aaff',fontWeight:700}}>{v}</span>
               </div>
             ))}
-            {saving && <div style={{fontSize:11,color:'#445566',marginTop:8,textAlign:'center'}}>Ukládám...</div>}
+            <div style={{display:'flex',justifyContent:'space-between',padding:'4px 0',fontSize:13}}>
+              <span style={{color:'#556688'}}>Body</span><span style={{color:'#ffd700',fontWeight:700}}>+{swPts.toLocaleString()}</span>
+            </div>
           </div>
+          <div style={{background:'rgba(12,18,52,0.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:16,textAlign:'left'}}>
+            <div style={{fontSize:10,color:'#ff4488',letterSpacing:2,marginBottom:10,fontFamily:"'Orbitron',sans-serif"}}>🎯 TERČOVÁ STŘELNICE</div>
+            {Object.entries(tgDetail).map(([k,v])=>(
+              <div key={k} style={{display:'flex',justifyContent:'space-between',padding:'3px 0',fontSize:12,borderBottom:'1px solid #121830'}}>
+                <span style={{color:'#445566'}}>{k}</span><span style={{color:'#88aaff',fontWeight:700}}>{v}</span>
+              </div>
+            ))}
+            <div style={{display:'flex',justifyContent:'space-between',padding:'4px 0',fontSize:13}}>
+              <span style={{color:'#556688'}}>Body</span><span style={{color:'#ffd700',fontWeight:700}}>+{tgPts.toLocaleString()}</span>
+            </div>
+          </div>
+          {saving && <div style={{fontSize:11,color:'#445566',marginBottom:8}}>Ukládám skóre...</div>}
           <div style={{display:'flex',gap:10,justifyContent:'center'}}>
-            <button className="btn" onClick={()=>setGameScreen('menu')} style={{background:'linear-gradient(135deg,#1a3a8a,#2255cc)',padding:'12px 28px',borderRadius:10,fontSize:13,color:'#fff',letterSpacing:2}}>
-              DALŠÍ HRA
+            <button className="btn" onClick={()=>{setSwPts(0);setTgPts(0);startGame();}} style={{background:'linear-gradient(135deg,#4a1a8a,#8822cc)',padding:'12px 24px',borderRadius:10,fontSize:13,color:'#fff',letterSpacing:2}}>
+              HRÁT ZNOVU
             </button>
-            <button className="btn" onClick={onBack} style={{background:'transparent',border:'1px solid #2a3a6a',padding:'12px 28px',borderRadius:10,fontSize:13,color:'#88aaff',letterSpacing:2}}>
-              ← DOMŮ
+            <button className="btn" onClick={showBoard} style={{background:'transparent',border:'1px solid #2a3a6a',padding:'12px 20px',borderRadius:10,fontSize:13,color:'#88aaff'}}>
+              🏆 Žebříček
+            </button>
+            <button className="btn" onClick={onBack} style={{background:'transparent',border:'1px solid #2a3a6a',padding:'12px 20px',borderRadius:10,fontSize:13,color:'#445566'}}>
+              ← Domů
             </button>
           </div>
         </div>
       )}
 
-      {gameScreen === 'menu' && (
-        <button onClick={onBack} style={{background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1}}>← ZPĚT</button>
+      {phase==='board' && (
+        <div style={{animation:'slideIn 0.3s ease'}}>
+          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:11,color:'#bb44ff',letterSpacing:3,marginBottom:16}}>ŽEBŘÍČEK MINIHER</div>
+          {board.length===0
+            ? <div style={{color:'#445566',fontSize:13,padding:'30px 0'}}>Zatím žádné záznamy</div>
+            : board.map((e,i)=>(
+              <div key={i} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',background:'rgba(12,18,52,0.8)',border:'1px solid #1e2a4a',borderRadius:8,marginBottom:6}}>
+                <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:14,fontWeight:900,color:i===0?'#ffd700':i===1?'#cccccc':i===2?'#cd7f32':'#334455',minWidth:24}}>{i+1}.</div>
+                <div style={{flex:1,fontSize:13,color:'#88aaff',fontWeight:700,textAlign:'left'}}>{e.user_name}</div>
+                <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:14,fontWeight:900,color:'#ffd700'}}>{e.score.toLocaleString()}</div>
+              </div>
+            ))
+          }
+          <button className="btn" onClick={()=>setPhase('menu')} style={{background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1,marginTop:16}}>← ZPĚT</button>
+        </div>
       )}
     </div>
   );
 }
 
 // ─── STOPWATCH GAME ──────────────────────────────────
-function StopwatchGame({ onResult, onBack }) {
-  const [state, setState] = useState('idle'); // idle | running | done
-  const [display, setDisplay] = useState('0.000');
+function StopwatchGame({ onResult, phase }) {
+  const [state, setState] = useState('idle');
+  const [display, setDisplay] = useState('00.000');
   const [barW, setBarW] = useState(0);
   const startRef = useRef(0);
   const rafRef = useRef(0);
@@ -3768,7 +3835,10 @@ function StopwatchGame({ onResult, onBack }) {
   function tick() {
     const v = (Date.now() - startRef.current) / 1000;
     valRef.current = v;
-    setDisplay(v.toFixed(3));
+    // Zobraz rychle plynoucí čas — bez milisekund pro větší dramatičnost
+    const secs = Math.floor(v);
+    const ms = Math.floor((v - secs) * 1000);
+    setDisplay(`${String(secs).padStart(2,'0')}.${String(ms).padStart(3,'0')}`);
     setBarW(Math.min(v / 10 * 100, 100));
     if (v < 20) rafRef.current = requestAnimationFrame(tick);
     else handleStop();
@@ -3796,54 +3866,69 @@ function StopwatchGame({ onResult, onBack }) {
     else if (diff < 0.200) pts = 400;
     else if (diff < 0.500) pts = 200;
     else if (diff < 1.000) pts = 100;
-    const verdict = diff < 0.010 ? '🎯 Neuvěřitelné!' : diff < 0.050 ? '⚡ Skvělý postřeh!' : diff < 0.200 ? '👍 Dobrý pokus' : '😅 Zkus to znovu';
+    const verdict = diff < 0.010 ? '🎯 Neuvěřitelné!' : diff < 0.050 ? '⚡ Skvělý postřeh!' : diff < 0.200 ? '👍 Dobrý pokus' : '😅 Zkus příště';
     setTimeout(() => onResult(pts, {
       'Zastavil jsi na': stopped.toFixed(3) + ' s',
-      'Odchylka od 10.000': (diff < 0 ? '' : '+') + (stopped - 10).toFixed(3) + ' s',
-      'Přesnost': verdict,
-    }), 600);
+      'Odchylka': (stopped >= 10 ? '+' : '') + (stopped - 10).toFixed(3) + ' s',
+      'Výsledek': verdict,
+    }), 800);
   }
 
   useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
 
-  const barColor = barW < 80 ? '#4488ff' : barW < 95 ? '#ffd700' : '#ff4444';
+  const barColor = barW < 70 ? '#4488ff' : barW < 90 ? '#ffd700' : '#ff4444';
+  const isClose = barW >= 85 && barW <= 115;
 
   return (
     <div style={{animation:'slideIn 0.3s ease'}}>
-      <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:11,color:'#4488ff',letterSpacing:3,marginBottom:8}}>CÍL: 10.000</div>
-      <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:56,fontWeight:900,color:'#fff',letterSpacing:2,marginBottom:4,fontVariantNumeric:'tabular-nums'}}>
+      <div style={{fontSize:10,color:'#bb44ff',letterSpacing:3,fontFamily:"'Orbitron',sans-serif",marginBottom:4}}>FÁZE 1 / 2</div>
+      <div style={{fontSize:11,color:'#445566',marginBottom:16}}>Zastavte přesně na <span style={{color:'#ffd700',fontWeight:700}}>10.000</span></div>
+
+      {/* Velký displej — monospace font */}
+      <div style={{
+        fontFamily:"'Courier New', 'Lucida Console', monospace",
+        fontSize:72,fontWeight:900,
+        color: state==='running' ? (isClose?'#ff4444':'#fff') : '#888',
+        letterSpacing:2,lineHeight:1,marginBottom:8,
+        textShadow: state==='running'&&isClose ? '0 0 20px rgba(255,50,50,0.5)' : 'none',
+        transition:'color 0.1s',
+      }}>
         {display}
-        <span style={{fontSize:20,color:'#445566'}}> s</span>
       </div>
-      <div style={{marginBottom:24,padding:'0 8px'}}>
-        <div style={{height:8,background:'rgba(20,30,70,0.8)',borderRadius:4,overflow:'hidden',border:'1px solid #1e2a4a',marginBottom:4}}>
-          <div style={{height:'100%',width:barW+'%',background:barColor,borderRadius:4,transition:'width 0.05s linear'}}/>
+      <div style={{fontSize:11,color:'#334455',marginBottom:20}}>s</div>
+
+      {/* Progress bar */}
+      <div style={{padding:'0 8px',marginBottom:24}}>
+        <div style={{height:8,background:'rgba(20,30,70,0.8)',borderRadius:4,overflow:'hidden',border:'1px solid #1e2a4a',marginBottom:6,position:'relative'}}>
+          <div style={{height:'100%',width:barW+'%',background:barColor,borderRadius:4,transition:'width 0.03s linear'}}/>
+          {/* Cílová čára na 10s */}
+          <div style={{position:'absolute',left:'50%',top:0,bottom:0,width:2,background:'rgba(255,215,0,0.8)',transform:'translateX(-50%)'}}/>
         </div>
         <div style={{display:'flex',justifyContent:'space-between',fontSize:10,color:'#334455'}}>
-          <span>0</span><span>5 s</span><span>10 s</span><span>15 s</span><span>20 s</span>
+          <span>0 s</span><span style={{color:'#ffd700'}}>⬆ 10 s</span><span>20 s</span>
         </div>
       </div>
-      {state !== 'done' && (
-        <button className="btn" onClick={handleClick} style={{
-          background: state === 'idle' ? 'linear-gradient(135deg,#1a3a8a,#2255cc)' : 'linear-gradient(135deg,#8a1a1a,#cc2222)',
-          padding:'16px 48px',borderRadius:12,fontSize:16,color:'#fff',letterSpacing:3,
-          fontFamily:"'Orbitron',sans-serif",fontWeight:900,marginBottom:16,
-          boxShadow: state === 'running' ? '0 0 30px rgba(255,50,50,0.4)' : '0 0 20px rgba(68,136,255,0.3)',
-          animation: state === 'running' ? 'pulse 1s ease infinite' : 'none',
+
+      {state !== 'done' ? (
+        <button onClick={handleClick} style={{
+          background: state==='idle' ? 'linear-gradient(135deg,#1a3a8a,#2255cc)' : 'linear-gradient(135deg,#8a1a1a,#cc2222)',
+          border:'none',padding:'18px 56px',borderRadius:12,fontSize:18,color:'#fff',
+          letterSpacing:4,fontFamily:"'Orbitron',sans-serif",fontWeight:900,cursor:'pointer',
+          boxShadow: state==='running' ? '0 0 30px rgba(255,50,50,0.4)' : '0 0 20px rgba(68,136,255,0.3)',
+          animation: state==='running' ? 'pulse 1s ease infinite' : 'none',
         }}>
-          {state === 'idle' ? '▶ START' : '⏹ STOP'}
+          {state==='idle' ? '▶ START' : '⏹ STOP'}
         </button>
+      ) : (
+        <div style={{fontSize:14,color:'#bb44ff',fontFamily:"'Orbitron',sans-serif",letterSpacing:2}}>Načítám střelnici...</div>
       )}
-      {state === 'done' && <div style={{fontSize:14,color:'#445566',marginBottom:16}}>Počítám výsledek...</div>}
-      <br/>
-      <button onClick={onBack} style={{background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1}}>← ZPĚT</button>
     </div>
   );
 }
 
 // ─── TARGETS GAME ────────────────────────────────────
-function TargetsGame({ onResult, onBack }) {
-  const [gameState, setGameState] = useState('waiting'); // waiting | playing | done
+function TargetsGame({ onResult, swPts, phase }) {
+  const [gameState, setGameState] = useState('waiting');
   const [score, setScore] = useState(0);
   const [hits, setHits] = useState(0);
   const [misses, setMisses] = useState(0);
@@ -3860,7 +3945,7 @@ function TargetsGame({ onResult, onBack }) {
 
   function startGame() {
     setGameState('playing');
-    scoreRef.current = 0; hitsRef.current = 0; missesRef.current = 0;
+    scoreRef.current=0; hitsRef.current=0; missesRef.current=0;
     setScore(0); setHits(0); setMisses(0); setTimeLeft(20); setTargets([]);
     timerRef.current = setInterval(() => {
       setTimeLeft(t => {
@@ -3872,129 +3957,114 @@ function TargetsGame({ onResult, onBack }) {
   }
 
   function scheduleSpawn() {
-    const delay = 300 + Math.random() * 600;
-    spawnRef.current = setTimeout(() => {
-      spawnTarget();
-      scheduleSpawn();
-    }, delay);
+    const delay = 250 + Math.random() * 500;
+    spawnRef.current = setTimeout(() => { spawnTarget(); scheduleSpawn(); }, delay);
   }
 
   function spawnTarget() {
-    const size = 30 + Math.random() * 26;
-    const x = size / 2 + Math.random() * (320 - size);
-    const y = size / 2 + Math.random() * (190 - size);
-    const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+    const size = 28 + Math.random() * 28;
+    const x = size/2 + Math.random()*(320-size);
+    const y = size/2 + Math.random()*(190-size);
+    const color = COLORS[Math.floor(Math.random()*COLORS.length)];
     const id = nextIdRef.current++;
-    const pts = Math.round(180 - ((size - 30) / 26) * 80);
-    setTargets(prev => [...prev, { id, x, y, size, color, pts }]);
-    setTimeout(() => setTargets(prev => prev.filter(t => t.id !== id)), 1400);
+    const pts = Math.round(180 - ((size-28)/28)*80);
+    setTargets(prev => [...prev, {id,x,y,size,color,pts}]);
+    setTimeout(() => setTargets(prev => prev.filter(t=>t.id!==id)), 1400);
   }
 
   function hitTarget(id, pts, x, y, e) {
     e.stopPropagation();
     if (gameState !== 'playing') return;
-    setTargets(prev => prev.filter(t => t.id !== id));
-    scoreRef.current += pts; hitsRef.current++;
+    setTargets(prev => prev.filter(t=>t.id!==id));
+    scoreRef.current+=pts; hitsRef.current++;
     setScore(scoreRef.current); setHits(hitsRef.current);
     const fid = nextIdRef.current++;
-    setFloats(prev => [...prev, { id: fid, x, y, pts }]);
-    setTimeout(() => setFloats(prev => prev.filter(f => f.id !== fid)), 700);
+    setFloats(prev => [...prev, {id:fid,x,y,pts}]);
+    setTimeout(() => setFloats(prev => prev.filter(f=>f.id!==fid)), 700);
   }
 
   function missClick() {
     if (gameState !== 'playing') return;
-    scoreRef.current = Math.max(0, scoreRef.current - 50);
+    scoreRef.current = Math.max(0, scoreRef.current-50);
     missesRef.current++;
     setScore(scoreRef.current); setMisses(missesRef.current);
   }
 
   function endGame() {
-    clearInterval(timerRef.current);
-    clearTimeout(spawnRef.current);
-    setGameState('done');
-    setTargets([]);
+    clearInterval(timerRef.current); clearTimeout(spawnRef.current);
+    setGameState('done'); setTargets([]);
     const total = hitsRef.current + missesRef.current;
-    const acc = total > 0 ? Math.round(hitsRef.current / total * 100) : 0;
-    const finalPts = scoreRef.current + Math.round(acc * 3);
-    const verdict = acc >= 90 ? '🎯 Ostrostřelec!' : acc >= 70 ? '💪 Dobrý střelec' : acc >= 50 ? '🙂 Průměrný výkon' : '😅 Více tréninku!';
+    const acc = total>0 ? Math.round(hitsRef.current/total*100) : 0;
+    const finalPts = scoreRef.current + Math.round(acc*3);
+    const verdict = acc>=90?'🎯 Ostrostřelec!':acc>=70?'💪 Dobrý střelec':acc>=50?'🙂 Průměrný výkon':'😅 Více tréninku!';
     setTimeout(() => onResult(finalPts, {
       'Zásahy': hitsRef.current,
       'Minutí': missesRef.current,
-      'Přesnost': acc + '%',
-      'Bonus za přesnost': '+' + Math.round(acc * 3) + ' b',
+      'Přesnost': acc+'%',
+      'Bonus za přesnost': '+'+Math.round(acc*3)+' b',
       'Hodnocení': verdict,
-    }), 300);
+    }), 400);
   }
 
   useEffect(() => () => { clearInterval(timerRef.current); clearTimeout(spawnRef.current); }, []);
 
-  const timeColor = timeLeft > 10 ? '#44ffaa' : timeLeft > 5 ? '#ffd700' : '#ff4444';
+  const timeColor = timeLeft>10?'#44ffaa':timeLeft>5?'#ffd700':'#ff4444';
 
   return (
     <div style={{animation:'slideIn 0.3s ease'}}>
+      <div style={{fontSize:10,color:'#bb44ff',letterSpacing:3,fontFamily:"'Orbitron',sans-serif",marginBottom:4}}>FÁZE 2 / 2</div>
       {/* HUD */}
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10,padding:'0 4px'}}>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8,padding:'0 4px'}}>
         <div style={{textAlign:'left'}}>
           <div style={{fontSize:9,color:'#445566',letterSpacing:1}}>SKÓRE</div>
-          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:20,fontWeight:900,color:'#4488ff'}}>{score.toLocaleString()}</div>
+          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:18,fontWeight:900,color:'#4488ff'}}>{score.toLocaleString()}</div>
         </div>
         <div style={{textAlign:'center'}}>
           <div style={{fontSize:9,color:'#445566',letterSpacing:1}}>ČAS</div>
-          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:28,fontWeight:900,color:timeColor}}>{timeLeft}</div>
+          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:26,fontWeight:900,color:timeColor}}>{timeLeft}</div>
         </div>
         <div style={{textAlign:'right'}}>
           <div style={{fontSize:9,color:'#445566',letterSpacing:1}}>ZÁSAHY</div>
-          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:20,fontWeight:900,color:'#44ffaa'}}>{hits}</div>
+          <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:18,fontWeight:900,color:'#44ffaa'}}>{hits}</div>
         </div>
       </div>
+      {swPts>0 && <div style={{fontSize:11,color:'#556688',marginBottom:6}}>+ {swPts.toLocaleString()} b z fáze 1</div>}
 
       {/* Aréna */}
-      <div onClick={gameState === 'waiting' ? startGame : missClick} style={{
-        position:'relative',width:'100%',maxWidth:340,height:200,margin:'0 auto',
+      <div onClick={gameState==='waiting'?startGame:missClick} style={{
+        position:'relative',width:'100%',maxWidth:340,height:200,margin:'0 auto 10px',
         background:'rgba(8,12,35,0.9)',border:'1px solid #1e2a4a',borderRadius:12,
-        overflow:'hidden',cursor: gameState === 'waiting' ? 'pointer' : 'crosshair',
+        overflow:'hidden',cursor:gameState==='waiting'?'pointer':'crosshair',
       }}>
-        {gameState === 'waiting' && (
+        {gameState==='waiting' && (
           <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8}}>
             <div style={{fontSize:32}}>🎯</div>
             <div style={{fontSize:14,color:'#88aaff',fontWeight:700}}>Klikni pro start</div>
           </div>
         )}
-        {targets.map(t => (
+        {targets.map(t=>(
           <div key={t.id} onClick={e=>hitTarget(t.id,t.pts,t.x,t.y,e)} style={{
-            position:'absolute',
-            left:t.x,top:t.y,
-            width:t.size,height:t.size,
-            borderRadius:'50%',
-            background:t.color,
-            border:'2px solid rgba(255,255,255,0.4)',
-            transform:'translate(-50%,-50%)',
-            cursor:'pointer',
+            position:'absolute',left:t.x,top:t.y,width:t.size,height:t.size,
+            borderRadius:'50%',background:t.color,border:'2px solid rgba(255,255,255,0.3)',
+            transform:'translate(-50%,-50%)',cursor:'pointer',
             display:'flex',alignItems:'center',justifyContent:'center',
             animation:'targetPop 0.15s ease',
           }}>
-            <div style={{width:'35%',height:'35%',borderRadius:'50%',background:'rgba(255,255,255,0.3)'}}/>
+            <div style={{width:'35%',height:'35%',borderRadius:'50%',background:'rgba(255,255,255,0.25)'}}/>
           </div>
         ))}
-        {floats.map(f => (
+        {floats.map(f=>(
           <div key={f.id} style={{
             position:'absolute',left:f.x,top:f.y,
-            color:'#44ffaa',fontWeight:900,fontSize:14,
+            color:'#44ffaa',fontWeight:900,fontSize:13,
             fontFamily:"'Orbitron',sans-serif",
-            transform:'translate(-50%,-50%)',
-            pointerEvents:'none',
+            transform:'translate(-50%,-50%)',pointerEvents:'none',
             animation:'floatUp 0.7s ease forwards',
           }}>+{f.pts}</div>
         ))}
       </div>
-
-      {gameState === 'playing' && (
-        <div style={{fontSize:11,color:'#334455',marginTop:8}}>Klikni mimo terč = −50 bodů</div>
-      )}
-      {gameState === 'done' && <div style={{fontSize:13,color:'#445566',marginTop:8}}>Vyhodnocuji...</div>}
-
-      <br/>
-      <button onClick={onBack} style={{background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1,marginTop:8}}>← ZPĚT</button>
+      {gameState==='playing' && <div style={{fontSize:10,color:'#334455'}}>Klikni mimo terč = −50 bodů</div>}
+      {gameState==='done' && <div style={{fontSize:13,color:'#445566',padding:'10px 0'}}>Vyhodnocuji...</div>}
     </div>
   );
 }

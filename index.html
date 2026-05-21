@@ -2247,13 +2247,16 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, quizMode, onBac
 
   const todayList = modeScores.filter(s=>s.date===todayKey).sort((a,b)=>b.score-a.score);
 
-  // Celkové skóre (all-time)
+  // Celkové skóre (all-time) — aktuální mód
   const allMap = {};
   modeScores.forEach(s=>{
-    if(!allMap[s.user_id]) allMap[s.user_id]={id:s.user_id,user_id:s.user_id,name:s.user_name,total:0,played:0,best:0,perfects:0};
-    allMap[s.user_id].total+=s.score; allMap[s.user_id].played+=1;
+    if(!allMap[s.user_id]) allMap[s.user_id]={id:s.user_id,user_id:s.user_id,name:s.user_name,total:0,played:0,best:0,perfects:0,totalCorrect:0,totalWrong:0};
+    allMap[s.user_id].total+=s.score;
+    allMap[s.user_id].played+=1;
     allMap[s.user_id].best=Math.max(allMap[s.user_id].best,s.score);
     if(s.perfect) allMap[s.user_id].perfects+=1;
+    allMap[s.user_id].totalCorrect+=(s.correct||0);
+    allMap[s.user_id].totalWrong+=Math.max(0,(s.total||15)-(s.correct||0));
   });
   const allList = Object.values(allMap).sort((a,b)=>b.total-a.total);
 
@@ -2267,12 +2270,26 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, quizMode, onBac
   });
   const monthList = Object.values(monthMap).sort((a,b)=>b.total-a.total);
 
-  const list = tab==='today' ? todayList : tab==='month' ? monthList : tab==='all' ? allList : [];
+  // Kombinovaný žebříček — všechny módy dohromady
+  const combinedMap = {};
+  scores.forEach(s=>{
+    if(!combinedMap[s.user_id]) combinedMap[s.user_id]={id:s.user_id,user_id:s.user_id,name:s.user_name,total:0,played:0,best:0,it:0,general:0,film:0,totalCorrect:0,totalWrong:0};
+    combinedMap[s.user_id].total+=s.score;
+    combinedMap[s.user_id].played+=1;
+    combinedMap[s.user_id].best=Math.max(combinedMap[s.user_id].best,s.score);
+    combinedMap[s.user_id].totalCorrect+=(s.correct||0);
+    combinedMap[s.user_id].totalWrong+=Math.max(0,(s.total||15)-(s.correct||0));
+    const m = s.quiz_mode||'it';
+    combinedMap[s.user_id][m]=(combinedMap[s.user_id][m]||0)+s.score;
+  });
+  const combinedList = Object.values(combinedMap).sort((a,b)=>b.total-a.total);
+
+  const list = tab==='today' ? todayList : tab==='month' ? monthList : tab==='all' ? allList : tab==='combined' ? combinedList : [];
   const rc = ['#ffdd00','#cccccc','#cd7f32'];
 
   // Prefetch avatarů pro viditelné hráče (dávkově)
   useEffect(() => {
-    const visible = (tab==='today' ? todayList : tab==='month' ? monthList : allList);
+    const visible = (tab==='today' ? todayList : tab==='month' ? monthList : tab==='combined' ? combinedList : allList);
     const missing = visible.map(e=>e.user_id||e.id).filter(id => id && !(id in avatarCache));
     if (missing.length === 0) return;
     // Označ jako "načítá se" aby se netriggeroval znovu
@@ -2890,12 +2907,17 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, quizMode, onBac
         <div style={{textAlign:'center',paddingTop:28,marginBottom:20}}>
           <div style={{fontFamily:"'Orbitron', sans-serif",fontSize:10,letterSpacing:4,color:'#4488ff',marginBottom:6}}>HALL OF FAME</div>
           <h2 className="glow" style={{fontFamily:"'Orbitron', sans-serif",fontSize:32,fontWeight:900,color:'#fff'}}>ŽEBŘÍČEK</h2>
-          <div style={{fontSize:12,color:'#445566',marginTop:4}}>{mode===QUIZ_MODES.GENERAL?'🌍 Obecný kvíz':'💻 IT Kvíz'}</div>
+          <div style={{fontSize:12,color:'#445566',marginTop:4}}>
+            {tab==='combined' ? '🌐 Součet všech kvízů dohromady'
+              : mode===QUIZ_MODES.GENERAL ? '🌍 Obecný kvíz'
+              : mode===QUIZ_MODES.FILM    ? '🎬 Filmový kvíz'
+              : '💻 IT kvíz'}
+          </div>
         </div>
 
         {/* Tabs */}
         <div style={{display:'flex',gap:6,marginBottom:20,justifyContent:'center',flexWrap:'wrap'}}>
-          {[{k:'today',l:'Dnes'},{k:'month',l:`${monthLabel(currentMonth)}`},{k:'all',l:'Celkově'},{k:'champions',l:'🏅 Šampioni'}].map(t=>(
+          {[{k:'today',l:'Dnes'},{k:'month',l:`${monthLabel(currentMonth)}`},{k:'all',l:'Celkově'},{k:'combined',l:'🌐 Vše'},{k:'champions',l:'🏅 Šampioni'}].map(t=>(
             <button key={t.k} className={`tab-btn${tab===t.k?' active':''}`} onClick={()=>setTab(t.k)}>{t.l}</button>
           ))}
         </div>
@@ -3016,7 +3038,16 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, quizMode, onBac
                           )}
                           {/* Komentář odstraněn — anti-cheat systém odebrán */}
                         </div>
-                        {tab==='all' && <div style={{fontSize:11,color:'#445566',marginTop:1}}>{e.played} {e.played===1?'kvíz':'kvízy'} • nejlepší: {e.best.toLocaleString()} b</div>}
+                        {tab==='all' && <div style={{fontSize:11,color:'#445566',marginTop:1}}>
+                          {e.played} {e.played===1?'kvíz':'kvízy'} · nejlepší: {e.best.toLocaleString()} b
+                          {e.totalCorrect>0 && <span> · ✅ {e.totalCorrect} ❌ {e.totalWrong}</span>}
+                        </div>}
+                        {tab==='combined' && <div style={{fontSize:11,color:'#445566',marginTop:1}}>
+                          {e.played} kvízů · ✅ {e.totalCorrect} ❌ {e.totalWrong}
+                          {e.it>0&&<span style={{color:'#88aaff'}}> · 💻{e.it.toLocaleString()}</span>}
+                          {e.general>0&&<span style={{color:'#44cc88'}}> · 🌍{e.general.toLocaleString()}</span>}
+                          {e.film>0&&<span style={{color:'#ff88cc'}}> · 🎬{e.film.toLocaleString()}</span>}
+                        </div>}
                         {tab==='month' && <div style={{fontSize:11,color:'#445566',marginTop:1}}>{e.played} {e.played===1?'den':'dní'} • nejlepší: {e.best.toLocaleString()} b</div>}
                         {tab==='today' && <div style={{fontSize:11,color:'#445566',marginTop:1}}>{e.correct}/{Math.max((e.total||16)-1,15)} správně</div>}
                       </div>

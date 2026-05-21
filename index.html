@@ -3925,10 +3925,9 @@ function StopwatchGame({ onResult }) {
   const roundRef  = useRef(0);
 
   function calcPts(diff) {
-    // Lineární škála: 0.000000s = 50 000, 0.500000s = 0
-    // Každých 0.00001s (10 mikrosekund) = 1 bod ztráty
-    const loss = Math.round(diff * 100000); // 1 bod za 10 mikrosekund
-    return Math.max(0, 50000 - loss);
+    // 0.000000s = 50 000, 0.1s ≈ 25 000, 0.5s ≈ 3 000, 1.0s ≈ 200, 2s+ ≈ pár bodů
+    const pts = Math.round(50000 * Math.pow(0.5, diff / 0.1));
+    return Math.max(0, pts);
   }
 
   function tick() {

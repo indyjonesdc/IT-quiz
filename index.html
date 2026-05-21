@@ -453,6 +453,9 @@ function getDailyQuestions(dateKey, mode) {
   const pool = mode === QUIZ_MODES.GENERAL ? ALL_GENERAL_QUESTIONS
              : mode === QUIZ_MODES.FILM    ? ALL_FILM_QUESTIONS
              : ALL_QUESTIONS;
+
+  // Pokud pool je prázdný (otázky se ještě načítají), vrať prázdné pole
+  if (!pool || pool.length < QUESTIONS_PER_QUIZ) return [];
   const seed = dateKey.split('-').reduce((a,b) => a*31+parseInt(b), 0);
 
   // Vyloučíme otázky z posledních 6 dní aby se neopakovaly
@@ -560,6 +563,24 @@ async function loadQuestionsFromDB() {
   } catch(e) { console.error('Questions load exception:', e); return false; }
 }
 
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(e) { return { error: e }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{color:'#ff4444',padding:20,fontFamily:'monospace',fontSize:12,background:'#0a0a0f',minHeight:'100vh'}}>
+          <div style={{fontSize:18,marginBottom:12}}>❌ Chyba aplikace</div>
+          <div>{this.state.error.message}</div>
+          <pre style={{marginTop:12,color:'#ff8888',fontSize:10,overflow:'auto'}}>{this.state.error.stack}</pre>
+          <button onClick={()=>window.location.reload()} style={{marginTop:16,padding:'8px 16px',background:'#4488ff',border:'none',color:'#fff',borderRadius:6,cursor:'pointer'}}>Obnovit stránku</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function App() {
   const [screen, setScreen] = useState(SCREENS.HOME);
   const [user, setUser] = useState(() => ls('itq_user', null));
@@ -583,7 +604,6 @@ function App() {
   const hasPlayedOtherMode = user && scores.some(s => s.user_id === user.id && s.date === todayKey && (s.quiz_mode||QUIZ_MODES.IT) === otherMode);
 
   useEffect(() => {
-    // Nejdřív načti otázky, pak scores
     loadQuestionsFromDB().then(ok => {
       setQuestionsLoaded(ok);
     });
@@ -1014,7 +1034,9 @@ function App() {
 
 // ─── HOME ─────────────────────────────────────────────
 function HomeScreen({ user, hasPlayedToday, hasPlayedOtherMode, todayKey, todayQuestions, timeBonusToday, resumableQuiz, quizMode, onSwitchMode, onResume, onRegister, onLogin, onStart, onBoard, onStats, onLogout, onProfile, loading }) {
-  const cats = [...new Set(todayQuestions.map(q=>q.cat).filter(c=>c!=='🎲 Lucky Box'))];
+  const cats = todayQuestions && todayQuestions.length > 0
+    ? [...new Set(todayQuestions.map(q=>q.cat).filter(c=>c!=='🎲 Lucky Box'))]
+    : [];
   const isGeneral = quizMode === QUIZ_MODES.GENERAL;
   const isFilm = quizMode === QUIZ_MODES.FILM;
   const otherMode = quizMode === QUIZ_MODES.IT ? QUIZ_MODES.GENERAL : QUIZ_MODES.IT;
@@ -3581,7 +3603,7 @@ function StatsScreen({ user, scores, quizMode, onBack }) {
 
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App/>);
+root.render(<ErrorBoundary><App/></ErrorBoundary>);
 </script>
 </body>
 </html>

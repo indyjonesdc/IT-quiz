@@ -3653,56 +3653,40 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
 
   async function loadBoard() {
     try {
-      const { data } = await db.from('minigame_scores')
-        .select('user_name,score')
-        .eq('game','combined')
+      const { data, error } = await db.from('minigame_scores')
+        .select('user_id,user_name,score')
+        .eq('game', 'combined')
         .order('score', { ascending: false })
-        .limit(10);
-      if (data) setBoard(data);
-    } catch(e) {}
+        .limit(100);
+      if (error) { console.error('loadBoard:', error.message); return; }
+      if (data) {
+        // Deduplikuj — nejlepší skóre každého hráče
+        const best = {};
+        data.forEach(r => {
+          if (!best[r.user_id] || r.score > best[r.user_id].score) {
+            best[r.user_id] = r;
+          }
+        });
+        setBoard(Object.values(best).sort((a,b) => b.score - a.score).slice(0, 10));
+      }
+    } catch(e) { console.error('loadBoard:', e); }
   }
 
   async function saveScore(total) {
     if (!user) return;
     setSaving(true);
     try {
-      const { data: existing, error: selErr } = await db.from('minigame_scores')
-        .select('id,score')
-        .eq('user_id', user.id)
-        .eq('game', 'combined')
-        .order('score', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (!existing) {
-        const { error } = await db.from('minigame_scores').insert({
-          id: user.id + '_minigame',
-          user_id: user.id,
-          user_name: user.name,
-          game: 'combined',
-          score: total,
-          played_at: new Date().toISOString(),
-        });
-        if (error) {
-          // Fallback — zkus bez pevného ID
-          await db.from('minigame_scores').insert({
-            id: Date.now().toString() + '_' + user.id.slice(-4),
-            user_id: user.id,
-            user_name: user.name,
-            game: 'combined',
-            score: total,
-            played_at: new Date().toISOString(),
-          });
-        }
-        if (onScoreSaved) onScoreSaved();
-      } else if (total > existing.score) {
-        await db.from('minigame_scores')
-          .update({ score: total, user_name: user.name, played_at: new Date().toISOString() })
-          .eq('id', existing.id);
-        if (onScoreSaved) onScoreSaved();
-      }
-      // Znovu načti žebříček
-      loadBoard();
+      const { error } = await db.from('minigame_scores').insert({
+        id: Date.now().toString(),
+        user_id: user.id,
+        user_name: user.name,
+        game: 'combined',
+        score: total,
+        played_at: new Date().toISOString(),
+      });
+      if (error) console.error('minigame insert:', error.message);
+      await loadBoard();
+      if (onScoreSaved) onScoreSaved();
     } catch(e) { console.error('saveScore:', e); }
     setSaving(false);
   }
@@ -3857,14 +3841,15 @@ function StopwatchGame({ onResult, phase }) {
 
   function tick() {
     const v = (Date.now() - startRef.current) / 1000;
-    valRef.current = v;
-    // Zobraz 2× zrychlený čas — vizuálně běží rychleji
+    // Vizuální čas = 2× rychlejší
     const vDisplay = v * 2;
+    valRef.current = vDisplay; // ukládáme vizuální čas — to je co hráč vidí
     const secs = Math.floor(vDisplay);
     const frac = Math.floor((vDisplay - secs) * 10000);
     setDisplay(`${String(secs).padStart(2,'0')}.${String(frac).padStart(4,'0')}`);
-    setBarW(Math.min(v / 10 * 100, 100));
-    if (v < 20) rafRef.current = requestAnimationFrame(tick);
+    // Progress bar: 0→100% když vizuální čas 0→10s
+    setBarW(Math.min(vDisplay / 10 * 100, 100));
+    if (vDisplay < 20) rafRef.current = requestAnimationFrame(tick);
     else handleStop();
   }
 

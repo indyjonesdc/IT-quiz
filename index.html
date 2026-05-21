@@ -2333,8 +2333,24 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, quizMode, onBac
             </div>
 
             {/* ARCHIV TAB */}
-            {profileTab==='archive' && (
-              profileLoading ? (
+            {profileTab==='archive' && (() => {
+              // Archiv je přístupný jen pokud prohlížející hráč dnes hrál (nebo je to jeho vlastní profil)
+              const viewerPlayedToday = user && scores.some(s =>
+                s.user_id === user.id && s.date === getTodayKey()
+              );
+              const isOwnProfile = user && profileView && user.id === profileView.id;
+              if (!isOwnProfile && !viewerPlayedToday) {
+                return (
+                  <div style={{textAlign:'center',padding:'40px 16px'}}>
+                    <div style={{fontSize:36,marginBottom:12}}>🔒</div>
+                    <div style={{fontSize:14,fontWeight:700,color:'#445566',marginBottom:8}}>Archiv je uzamčen</div>
+                    <div style={{fontSize:12,color:'#334455',lineHeight:1.6}}>
+                      Archiv odpovědí ostatních hráčů<br/>se odemkne poté co dnes odehraješ kvíz.
+                    </div>
+                  </div>
+                );
+              }
+              return profileLoading ? (
                 <div style={{textAlign:'center',padding:'40px 0',color:'#445566'}}>⏳ Načítám...</div>
               ) : profileScores.length===0 ? (
                 <div style={{textAlign:'center',padding:'40px 0',color:'#334455'}}>Žádné záznamy.</div>
@@ -2347,8 +2363,8 @@ function BoardScreen({ scores, user, todayKey, monthlyChampions, quizMode, onBac
                     return <ArchiveRow key={s.id||idx} s={s}/>;
                   })}
                 </div>
-              )
-            )}
+              );
+            })()}
 
             {/* STATS TAB */}
             {profileTab==='stats' && profileLoading && (

@@ -5161,7 +5161,7 @@ function TowerGame({ onResult }) {
 function PerfectStreakHUD({ sRef }) {
   const [, force] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => force(n => n + 1), 150);
+    const id = setInterval(() => force(n => n + 1), 250);
     return () => clearInterval(id);
   }, []);
   const s = sRef.current;
@@ -5185,7 +5185,7 @@ function PerfectStreakHUD({ sRef }) {
 function PowerUpIndicators({ sRef }) {
   const [, force] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => force(n => n + 1), 100);
+    const id = setInterval(() => force(n => n + 1), 250);
     return () => clearInterval(id);
   }, []);
   const s = sRef.current;
@@ -5277,10 +5277,11 @@ function SlashMasterGame({ onResult }) {
     s.H = window.innerHeight;
     const cv = canvasRef.current;
     if (cv) {
-      cv.width  = s.W * (window.devicePixelRatio || 1);
-      cv.height = s.H * (window.devicePixelRatio || 1);
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      cv.width  = s.W * dpr;
+      cv.height = s.H * dpr;
       const ctx = cv.getContext('2d');
-      ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
+      ctx.scale(dpr, dpr);
     }
   }
 
@@ -5431,7 +5432,7 @@ function SlashMasterGame({ onResult }) {
 
   function showBanner(text, color) {
     const s = stateRef.current;
-    s.banner = { text, color: color || '#fff', time: 1.5 };
+    s.banner = { text, color: color || '#fff', time: 1.5, width: null };
   }
 
     function sliceObject(o, accuracyRatio) {
@@ -5448,7 +5449,7 @@ function SlashMasterGame({ onResult }) {
       setLives(s.lives);
       s.combo = 0;
       setCombo(0);
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 25; i++) {
         const a = Math.random() * Math.PI * 2;
         const sp = 4 + Math.random() * 14;
         s.particles.push({
@@ -5477,7 +5478,7 @@ function SlashMasterGame({ onResult }) {
       o.alive = true;
       o.sliced = false;
       o.size = o.size * 0.85;
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < 5; i++) {
         const a = Math.random() * Math.PI * 2;
         s.particles.push({
           x: o.x, y: o.y, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3,
@@ -5495,7 +5496,7 @@ function SlashMasterGame({ onResult }) {
       o.sliced = false;
       o.size = o.size * 0.92;
       // Velký feedback
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 10; i++) {
         const a = Math.random() * Math.PI * 2;
         s.particles.push({
           x: o.x, y: o.y,
@@ -5607,7 +5608,7 @@ function SlashMasterGame({ onResult }) {
       const targets = others.slice(0, 3);
       targets.forEach(t => {
         // Lightning bolt particles z lightning na cíl
-        const steps = 8;
+        const steps = 5;
         for (let i = 0; i <= steps; i++) {
           const t_ratio = i / steps;
           const lx = o.x + (t.x - o.x) * t_ratio + (Math.random() - 0.5) * 30;
@@ -5651,7 +5652,7 @@ function SlashMasterGame({ onResult }) {
       s.flashColor = '255,68,136';
       s.shake = 25;
       // Velký particle burst
-      for (let i = 0; i < 50; i++) {
+      for (let i = 0; i < 22; i++) {
         const a = Math.random() * Math.PI * 2;
         const sp = 3 + Math.random() * 10;
         s.particles.push({
@@ -5673,7 +5674,7 @@ function SlashMasterGame({ onResult }) {
     const colors = o.type === 'star' ? ['#ffd700', '#ffaa00', '#ffffff']
                  : o.type === 'ice' ? ['#88ddff', '#ffffff', '#aaeeff']
                  : ['#ff4488', '#44ff88', '#ffaa44', '#aa44ff', '#44aaff'];
-    for (let i = 0; i < (o.type === 'star' ? 30 : 18); i++) {
+    for (let i = 0; i < (o.type === 'star' ? 14 : 8); i++) {
       const a = Math.random() * Math.PI * 2;
       const sp = 3 + Math.random() * 6;
       s.particles.push({
@@ -5748,13 +5749,14 @@ function SlashMasterGame({ onResult }) {
       }
     }
 
-    // Particles
+    // Particles - capped at 180 pro performance
     s.particles = s.particles.filter(p => {
       p.x += p.vx; p.y += p.vy;
       p.vy += 0.4;
       p.life -= 0.022;
       return p.life > 0;
     });
+    if (s.particles.length > 180) s.particles = s.particles.slice(-180);
 
     // Floats
     s.floats = s.floats.filter(f => {
@@ -5834,13 +5836,20 @@ function SlashMasterGame({ onResult }) {
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, s.W, s.H);
 
-    // Stars background
-    ctx.fillStyle = 'rgba(255,255,255,.3)';
-    for (let i = 0; i < 50; i++) {
-      const x = (i * 73 + 13) % s.W;
-      const y = (i * 41 + 7) % s.H;
-      ctx.fillRect(x, y, 1.5, 1.5);
+    // Stars - cached offscreen canvas
+    if (!s.starsCanvas || s.starsCanvas.width !== s.W) {
+      s.starsCanvas = document.createElement('canvas');
+      s.starsCanvas.width = s.W;
+      s.starsCanvas.height = s.H;
+      const sctx = s.starsCanvas.getContext('2d');
+      sctx.fillStyle = 'rgba(255,255,255,.3)';
+      for (let i = 0; i < 50; i++) {
+        const x = (i * 73 + 13) % s.W;
+        const y = (i * 41 + 7) % s.H;
+        sctx.fillRect(x, y, 1.5, 1.5);
+      }
     }
+    ctx.drawImage(s.starsCanvas, 0, 0);
 
     // Screen shake offset
     const shakeX = (Math.random() - 0.5) * s.shake;
@@ -5905,18 +5914,15 @@ function SlashMasterGame({ onResult }) {
       ctx.restore();
     });
 
-    // Particles
+    // Particles - fillRect je 3-5× rychlejší než arc, žádné shadowBlur
+    ctx.shadowBlur = 0;
     s.particles.forEach(p => {
       ctx.globalAlpha = Math.max(0, p.life);
       ctx.fillStyle = p.color;
-      ctx.shadowColor = p.color;
-      ctx.shadowBlur = 6;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
-      ctx.fill();
+      const sz = p.size * p.life;
+      ctx.fillRect(p.x - sz, p.y - sz, sz * 2, sz * 2);
     });
     ctx.globalAlpha = 1;
-    ctx.shadowBlur = 0;
 
     // Slash trail
     if (s.slashes.length >= 2) {
@@ -5994,8 +6000,8 @@ function SlashMasterGame({ onResult }) {
       ctx.fillStyle = 'rgba(0,0,0,.7)';
       const tw = ctx.measureText ? 0 : 0;
       ctx.font = '900 32px system-ui';
-      const measure = ctx.measureText(s.banner.text);
-      const bw = measure.width + 40;
+      if (s.banner.width === null) s.banner.width = ctx.measureText(s.banner.text).width + 40;
+      const bw = s.banner.width;
       const bh = 50;
       ctx.beginPath();
       ctx.roundRect(s.W/2 - bw/2, bannerY - bh/2, bw, bh, 12);

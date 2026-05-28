@@ -4611,6 +4611,105 @@ function BalanceGame({ onResult, prevPts, phase }) {
     cx.beginPath(); cx.arc(PX-2,PY-2,2.5,0,Math.PI*2); cx.fill();
   }
 
+  function startBonusRound() {
+    const s = stateRef.current;
+    s.bonusActive = true;
+    s.objects = [];
+    s.bonusTrace = [];
+    s.bonusTracing = false;
+    s.bonusTimer = 8.0;
+    s.bonusCount++;
+    const shape = BONUS_SHAPES[Math.floor(Math.random() * BONUS_SHAPES.length)];
+    s.bonusShape = shape;
+    // Velké ovoce uprostřed
+    const R = Math.min(s.W, s.H) * 0.32;
+    s.bonusObj = {
+      cx: s.W / 2,
+      cy: s.H / 2,
+      R,
+      emoji: shape.emoji,
+      // Checkpointy v absolutních souřadnicích
+      checkpoints: shape.strokes.flatMap((stroke, si) =>
+        stroke.map(([rx, ry], pi) => ({
+          x: s.W / 2 + rx * R,
+          y: s.H / 2 + ry * R,
+          hit: false,
+          minDist: 9999,
+          stroke: si,
+          idx: pi,
+        }))
+      ),
+    };
+    showBanner('🌟 BONUS! Vysekni: ' + shape.name, '#ffd700');
+    if (navigator.vibrate) navigator.vibrate([20, 50, 20]);
+  }
+
+  function evaluateBonus() {
+    const s = stateRef.current;
+    const obj = s.bonusObj;
+    if (!obj) return;
+    const threshold = obj.R * 0.35;
+
+    // Pro každý checkpoint najdi nejbližší bod v trace
+    obj.checkpoints.forEach(cp => {
+      let minD = 9999;
+      s.bonusTrace.forEach(pt => {
+        const d = Math.hypot(pt.x - cp.x, pt.y - cp.y);
+        if (d < minD) minD = d;
+      });
+      cp.minDist = minD;
+      cp.hit = minD < threshold;
+    });
+
+    // Skóre podle přesnosti
+    let totalAcc = 0;
+    obj.checkpoints.forEach(cp => {
+      totalAcc += Math.max(0, 1 - cp.minDist / threshold);
+    });
+    const accuracy = totalAcc / obj.checkpoints.length; // 0-1
+    const hitCount = obj.checkpoints.filter(cp => cp.hit).length;
+    const coverage = hitCount / obj.checkpoints.length;
+
+    // Finální přesnost = kombinace
+    const finalAcc = accuracy * 0.6 + coverage * 0.4;
+    const pts = Math.round(8000 * finalAcc);
+    s.score += pts;
+
+    const grade =
+      finalAcc >= 0.9 ? '⭐ DOKONALÉ!' :
+      finalAcc >= 0.7 ? '✨ SKVĚLÉ!' :
+      finalAcc >= 0.5 ? '👍 DOBRÉ' :
+      finalAcc >= 0.3 ? '~ slušné' : '✗ minul';
+
+    // Velká exploze ovoce
+    s.shake = 30;
+    s.flash = 0.8;
+    s.flashColor = finalAcc >= 0.7 ? '255,215,0' : '255,255,255';
+    for (let i = 0; i < 50; i++) {
+      const a = Math.random() * Math.PI * 2, sp = 3 + Math.random() * 12;
+      s.particles.push({
+        x: obj.cx, y: obj.cy,
+        vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+        life: 1.5,
+        color: ['#ff4488', '#44ff88', '#ffaa44', '#ffd700'][i % 4],
+        size: 4 + Math.random() * 4,
+      });
+    }
+    s.floats.push({ x: obj.cx, y: obj.cy - 40, pts, color: '#ffd700', life: 2 });
+    s.floats.push({ x: obj.cx, y: obj.cy + 10, text: grade + ' (' + Math.round(finalAcc * 100) + '%)', color: finalAcc >= 0.7 ? '#ffd700' : '#88aaff', life: 2, isLabel: true });
+    showBanner(grade + ' +' + pts.toLocaleString(), finalAcc >= 0.7 ? '#ffd700' : '#88aaff');
+
+    if (finalAcc >= 0.9 && navigator.vibrate) navigator.vibrate([15, 40, 15, 40, 15]);
+
+    // Konec bonus kola
+    s.bonusActive = false;
+    s.bonusObj = null;
+    s.bonusShape = null;
+    s.bonusTrace = [];
+    s.slicesSinceBonus = 0;
+    s.spawnTimer = 0.8;
+  }
+
   function gameLoop(now) {
     if (stateRef.current!=='playing') return;
     const dt=Math.min((now-lastTRef.current)/1000,.05);
@@ -5287,9 +5386,29 @@ function SlashMasterGame({ onResult }) {
     floats: [], banner: null,
     spawnTimer: 0, gameTime: 0,
     lastUIUpdate: 0, bgCanvas: null,
+    // Bonus round
+    bonusActive: false,
+    bonusObj: null,
+    bonusShape: null,
+    bonusTrace: [],
+    bonusTimer: 0,
+    bonusTracing: false,
+    slicesSinceBonus: 0,
+    bonusCount: 0,
   });
 
   const FRUITS = ['🍎','🍊','🍋','🍉','🍓','🍇','🍑','🥝','🍐','🥭'];
+
+  // Tvary pro prémiová kola - checkpointy relativně (-1..1), pořadí = směr tahu
+  const BONUS_SHAPES = [
+    { name:'Z', emoji:'🍉', strokes:[[[-0.6,-0.6],[0.6,-0.6],[-0.6,0.6],[0.6,0.6]]] },
+    { name:'X', emoji:'🍉', strokes:[[[-0.6,-0.6],[0.6,0.6]],[[0.6,-0.6],[-0.6,0.6]]] },
+    { name:'N', emoji:'🍈', strokes:[[[-0.6,0.6],[-0.6,-0.6],[0.6,0.6],[0.6,-0.6]]] },
+    { name:'V', emoji:'🍑', strokes:[[[-0.6,-0.6],[0,0.6],[0.6,-0.6]]] },
+    { name:'L', emoji:'🍐', strokes:[[[-0.5,-0.6],[-0.5,0.6],[0.6,0.6]]] },
+    { name:'C', emoji:'🍊', strokes:[[[0.5,-0.5],[-0.2,-0.6],[-0.6,0],[-0.2,0.6],[0.5,0.5]]] },
+    { name:'W', emoji:'🍉', strokes:[[[-0.7,-0.5],[-0.35,0.6],[0,-0.3],[0.35,0.6],[0.7,-0.5]]] },
+  ];
 
   function resizeCanvas() {
     const s = stateRef.current;
@@ -5308,7 +5427,7 @@ function SlashMasterGame({ onResult }) {
   }
 
   function maxObjectsForLevel(lvl) {
-    return Math.min(5, 1 + Math.floor((lvl - 1) / 2)); // L1-2:1, L3-4:2, L5-6:3, L7-8:4, L9+:5
+    return Math.min(5, 1 + Math.floor((lvl - 1) / 3)); // L1-3:1, L4-6:2, L7-9:3, L10-12:4, L13+:5
   }
 
   function spawnObject() {
@@ -5327,21 +5446,26 @@ function SlashMasterGame({ onResult }) {
 
     // Globální zrychlení podle času + levelu
     const speedMult = 1 + s.gameTime / 80 + (level - 1) * 0.08;
-    const baseSpeed = (0.30 + Math.random() * 0.08) * speedMult;
+    // Bomby lítají 3× rychleji (rychle proletí, musíš se vyhnout)
+    const bombMult = type === 'bomb' ? 3 : 1;
+    const baseSpeed = (0.30 + Math.random() * 0.08) * speedMult * bombMult;
 
-    // Spawn z RŮZNÝCH míst (ne jen střed) - náhodně po celé ploše
-    const margin = 60;
-    const spawnX = margin + Math.random() * (s.W - margin * 2);
-    const spawnY = margin + 80 + Math.random() * (s.H - margin * 2 - 160);
+    // Spawn blízko středu (objekt v dálce) s vektorem ven - poletí kolem hráče
+    const angle = Math.random() * Math.PI * 2;
+    const startDist = 25 + Math.random() * 70;
+    const cx = s.W / 2 + (Math.random() - 0.5) * 60;  // mírně posunuté ohnisko
+    const cy = s.H / 2 + (Math.random() - 0.5) * 60;
+    const spawnX = cx + Math.cos(angle) * startDist;
+    const spawnY = cy + Math.sin(angle) * startDist;
 
     s.objects.push({
       id: s.nextId++,
       type, emoji,
-      scale: 0.15,
+      scale: 0.12,
       scaleSpeed: baseSpeed,
       x: spawnX, y: spawnY,
-      driftX: (Math.random() - 0.5) * 0.5,
-      driftY: (Math.random() - 0.5) * 0.4,
+      outX: Math.cos(angle),   // směr letu ven od středu
+      outY: Math.sin(angle),
       rot: Math.random() * Math.PI * 2,
       rotSpd: (Math.random() - 0.5) * 1.5,
       baseSize: 88,
@@ -5421,6 +5545,7 @@ function SlashMasterGame({ onResult }) {
     const pts = Math.round(basePts * zoneMult * timingMult * comboMult * streakMult);
     s.score += pts;
     s.sliced++;
+    s.slicesSinceBonus = (s.slicesSinceBonus || 0) + 1;
 
     // Float - body + zóna label + streak
     s.floats.push({ x:o.x, y:o.y-22, pts, color:isClean?'#ffd700':'#fff', life:1.2 });
@@ -5448,6 +5573,12 @@ function SlashMasterGame({ onResult }) {
       showBanner(`⬆️ LEVEL ${newLevel} (${maxObj}× najednou)`, '#88ccff');
     }
 
+    // Trigger bonus round po 18 nasekaných předmětech
+    if (s.slicesSinceBonus >= 18 && s.level >= 2) {
+      setTimeout(() => { if (s.running) startBonusRound(); }, 600);
+      s.slicesSinceBonus = 0;
+    }
+
     if (o.type === 'star') showBanner('⭐ +' + pts.toLocaleString(), '#ffd700');
     if (o.type === 'diamond') { s.flash=Math.max(s.flash,0.6); s.flashColor='136,221,255'; }
 
@@ -5470,6 +5601,26 @@ function SlashMasterGame({ onResult }) {
     s.lastT = now;
     s.gameTime += dt;
 
+    // ── BONUS ROUND mode ──
+    if (s.bonusActive) {
+      s.bonusTimer -= dt;
+      // Slash trace
+      const tNow = Date.now();
+      s.slashes = s.slashes.filter(p => tNow - p.t < 220);
+      // Particles a floats stále aktualizuj
+      s.particles = s.particles.filter(p => { p.x+=p.vx; p.y+=p.vy; p.vy+=0.4; p.life-=0.022; return p.life>0; });
+      s.floats = s.floats.filter(f => { f.y -= f.isLabel?0.6:1.2; f.life -= f.isLabel?0.012:0.016; return f.life>0; });
+      s.flash *= 0.92; s.shake *= 0.85;
+      if (s.banner) { s.banner.time -= dt; if (s.banner.time<=0) s.banner=null; }
+      if (s.bonusTimer <= 0 && s.bonusObj) {
+        evaluateBonus();
+      }
+      if (now - s.lastUIUpdate > 200) { s.lastUIUpdate = now; setScore(s.score); }
+      draw();
+      s.raf = requestAnimationFrame(gameLoop);
+      return;
+    }
+
     // Spawn - drž počet objektů podle levelu
     const maxObj = maxObjectsForLevel(s.level);
     const activeCount = s.objects.filter(o => o.alive && !o.sliced).length;
@@ -5477,20 +5628,25 @@ function SlashMasterGame({ onResult }) {
     if (activeCount < maxObj && s.spawnTimer <= 0) {
       spawnObject();
       // Rychlejší spawn s vyšším levelem
-      s.spawnTimer = Math.max(0.3, 0.9 - s.level * 0.05);
+      s.spawnTimer = Math.max(0.5, 1.1 - s.level * 0.04);
     }
 
-    // Update objekty
+    // Update objekty - perspektivní pohyb ven (čím větší = blíž = rychleji letí kolem)
     s.objects.forEach(o => {
       if (!o.alive) return;
       o.scale += o.scaleSpeed * dt;
-      o.x += o.driftX; o.y += o.driftY;
+      // Rychlost ven roste s druhou mocninou velikosti = perspektiva
+      const persp = o.scale * o.scale * 130;
+      o.x += o.outX * persp * dt;
+      o.y += o.outY * persp * dt;
       o.rot += o.rotSpd * dt;
-      if (o.scale > 1.7) {
+      // Proletěl mimo obrazovku nebo příliš velký = miss
+      const margin = 120;
+      if (o.scale > 2.4 || o.x < -margin || o.x > s.W + margin || o.y < -margin || o.y > s.H + margin) {
         if (o.type !== 'bomb') {
           s.combo = 0;
           s.cleanStreak = 0; setCleanStreak(0);
-          s.floats.push({ x:o.x, y:o.y, text:'MISS', color:'#ff6644', life:1, isLabel:true });
+          s.floats.push({ x:Math.max(40,Math.min(s.W-40,o.x)), y:Math.max(60,Math.min(s.H-60,o.y)), text:'MISS', color:'#ff6644', life:1, isLabel:true });
         }
         o.alive = false;
       }
@@ -5561,6 +5717,99 @@ function SlashMasterGame({ onResult }) {
     const shX=(Math.random()-0.5)*s.shake, shY=(Math.random()-0.5)*s.shake;
     ctx.save(); ctx.translate(shX,shY);
     ctx.textAlign='center'; ctx.textBaseline='middle';
+
+    // ── BONUS ROUND rendering ──
+    if (s.bonusActive && s.bonusObj) {
+      const o = s.bonusObj;
+      // Velké ovoce
+      ctx.font = `${o.R * 2}px sans-serif`;
+      ctx.fillText(o.emoji, o.cx, o.cy);
+
+      // Vzor k vysekání - tečkovaná čára spojující checkpointy
+      s.bonusShape.strokes.forEach(stroke => {
+        ctx.strokeStyle = 'rgba(255,215,0,.85)';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.setLineDash([8, 8]);
+        ctx.beginPath();
+        stroke.forEach(([rx, ry], i) => {
+          const px = o.cx + rx * o.R;
+          const py = o.cy + ry * o.R;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        });
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      // Checkpointy jako kruhy (zelené = trefené)
+      o.checkpoints.forEach((cp, i) => {
+        const isStart = cp.idx === 0;
+        ctx.fillStyle = 'rgba(255,215,0,.9)';
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(cp.x, cp.y, isStart ? 12 : 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        if (isStart) {
+          ctx.fillStyle = '#000';
+          ctx.font = '900 12px system-ui';
+          ctx.fillText('▶', cp.x, cp.y);
+        }
+      });
+
+      // Hráčův trace
+      if (s.bonusTrace.length >= 2) {
+        ctx.strokeStyle = 'rgba(68,255,170,.9)';
+        ctx.lineWidth = 6;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(s.bonusTrace[0].x, s.bonusTrace[0].y);
+        for (let i = 1; i < s.bonusTrace.length; i++) ctx.lineTo(s.bonusTrace[i].x, s.bonusTrace[i].y);
+        ctx.stroke();
+      }
+
+      // Timer bar
+      const barW = s.W * 0.7;
+      const barX = (s.W - barW) / 2;
+      const barY = s.H * 0.85;
+      ctx.fillStyle = 'rgba(0,0,0,.5)';
+      ctx.beginPath(); ctx.roundRect(barX, barY, barW, 10, 5); ctx.fill();
+      const prog = Math.max(0, s.bonusTimer / 8);
+      ctx.fillStyle = prog > 0.3 ? '#ffd700' : '#ff4444';
+      ctx.beginPath(); ctx.roundRect(barX, barY, barW * prog, 10, 5); ctx.fill();
+
+      // Particles + floats over bonus
+      ctx.shadowBlur = 0;
+      s.particles.forEach(p => { ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.color; const sz = p.size * p.life; ctx.fillRect(p.x - sz, p.y - sz, sz * 2, sz * 2); });
+      ctx.globalAlpha = 1;
+      ctx.textAlign = 'center';
+      s.floats.forEach(f => { ctx.globalAlpha = Math.max(0, f.life); ctx.fillStyle = f.color; if (f.isLabel) { ctx.font = '900 20px system-ui'; ctx.fillText(f.text, f.x, f.y); } else { ctx.font = '900 30px system-ui'; ctx.fillText('+' + f.pts.toLocaleString(), f.x, f.y); } });
+      ctx.globalAlpha = 1;
+
+      ctx.restore();
+
+      // Flash + banner pro bonus
+      if (s.flash > 0.05) { ctx.fillStyle = `rgba(${s.flashColor},${s.flash * 0.25})`; ctx.fillRect(0, 0, s.W, s.H); }
+      if (s.banner) {
+        const t = s.banner.time;
+        const alpha = t > 1.0 ? (1.4 - t) * 2.5 : t < 0.3 ? t / 0.3 : 1;
+        ctx.save(); ctx.globalAlpha = Math.max(0, alpha);
+        const by = s.H * 0.16;
+        ctx.font = '900 26px system-ui';
+        if (s.banner.width === null) s.banner.width = ctx.measureText(s.banner.text).width + 40;
+        const bw = s.banner.width;
+        ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.beginPath(); ctx.roundRect(s.W / 2 - bw / 2, by - 24, bw, 48, 12); ctx.fill();
+        ctx.strokeStyle = s.banner.color; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = s.banner.color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(s.banner.text, s.W / 2, by);
+        ctx.restore();
+      }
+      return; // bonus rendering hotov
+    }
 
     // Objekty s terčem (10 zón)
     s.objects.forEach(o => {
@@ -5654,8 +5903,20 @@ function SlashMasterGame({ onResult }) {
   }
 
   function getPos(e){const cv=canvasRef.current;const rect=cv.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return{x:t.clientX-rect.left,y:t.clientY-rect.top};}
-  function onTouchStart(e){e.preventDefault();stateRef.current.slashes.push({...getPos(e),t:Date.now()});}
-  function onTouchMove(e){e.preventDefault();stateRef.current.slashes.push({...getPos(e),t:Date.now()});}
+  function onTouchStart(e){
+    e.preventDefault();
+    const s = stateRef.current;
+    const pos = getPos(e);
+    s.slashes.push({...pos, t:Date.now()});
+    if (s.bonusActive) { s.bonusTracing = true; s.bonusTrace.push(pos); }
+  }
+  function onTouchMove(e){
+    e.preventDefault();
+    const s = stateRef.current;
+    const pos = getPos(e);
+    s.slashes.push({...pos, t:Date.now()});
+    if (s.bonusActive && s.bonusTracing) s.bonusTrace.push(pos);
+  }
 
   function startGame(){
     const s=stateRef.current;
@@ -5675,6 +5936,7 @@ function SlashMasterGame({ onResult }) {
     const verdict=s.level>=15?'⚔️ SAMURAJ MISTR!':s.level>=10?'🥷 Ostrá čepel':s.level>=6?'✨ Dobrý řez':s.level>=3?'👍 Slušné':'🐢 Trénuj řez!';
     setTimeout(()=>onResult(s.score,{
       'Dosažený level':s.level,
+      'Bonus kol 🌟':s.bonusCount,
       'Bullseye 🎯':s.bullseyes,
       'Čistých řezů':s.perfectCuts,
       'Max clean streak':'×'+s.maxCleanStreak,
@@ -5710,6 +5972,7 @@ function SlashMasterGame({ onResult }) {
             <div style={{marginBottom:6}}>➕ Vyšší level = <strong>víc předmětů najednou</strong> (až 5)</div>
             <div style={{marginBottom:6}}>💎 Diamant 1200 · ⭐ Hvězda 500</div>
             <div style={{marginBottom:6}}>💣 <strong style={{color:'#ff4444'}}>Bomba</strong> = –1 ❤️ (3 životy)</div>
+            <div style={{marginBottom:6}}>🌟 <strong style={{color:'#ffd700'}}>BONUS kola</strong> = vysekni tvar (Z, X, W…) do ovoce!</div>
           </div>
         </div>
         <button onClick={startGame} style={{width:'100%',padding:'18px',fontSize:18,fontWeight:900,letterSpacing:2,background:'linear-gradient(135deg,#1a8a4a,#22cc66)',color:'#fff',border:'none',borderRadius:14,cursor:'pointer',fontFamily:"'Orbitron',sans-serif",boxShadow:'0 4px 20px rgba(68,255,170,.3)'}}>⚔️ START</button>

@@ -4317,10 +4317,10 @@ function StopwatchGame({ onResult }) {
 
       {/* Tlačítko */}
       {phase !== 'done' && (
-        <button onClick={phase==='idle'?handleStart:running?handleStop:handleResume} style={{
+        <button onPointerDown={(e)=>{e.preventDefault();(phase==='idle'?handleStart:running?handleStop:handleResume)();}} style={{
           background: running?'linear-gradient(135deg,#8a1a1a,#cc2222)':'linear-gradient(135deg,#1a3a8a,#2255cc)',
           border:'none',padding:'16px 52px',borderRadius:12,fontSize:17,color:'#fff',
-          letterSpacing:3,fontFamily:"'Orbitron',sans-serif",fontWeight:900,cursor:'pointer',
+          letterSpacing:3,fontFamily:"'Orbitron',sans-serif",fontWeight:900,cursor:'pointer',touchAction:'manipulation',
           boxShadow:running?'0 0 28px rgba(255,50,50,.4)':'0 0 18px rgba(68,136,255,.3)',
           animation:running?'pulse 1s ease infinite':'none',
           transition:'background .2s',

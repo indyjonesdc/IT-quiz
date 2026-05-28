@@ -6720,16 +6720,14 @@ function MapBattleGame({ user, onExit }) {
     channel.on('broadcast', { event: 'game_over' }, ({ payload }) => {
       recordMapGameDone();
       syncMapStatsToCloud(myName);  // sdílení statistik online
-      // Ulož moje finální skóre do žebříčku
+      // Ulož moje finální skóre do žebříčku (stejný formát jako ostatní minihry)
       const mine = payload.standings.find(s => s.id === myId);
       if (mine && user) {
-        try {
-          db.from('minigame_scores').insert({
-            user_id: user.id, user_name: myName,
-            date: new Date().toISOString().slice(0,10),
-            score: mine.totalScore, game: 'mapbattle',
-          }).then(()=>{});
-        } catch(e) {}
+        db.from('minigame_scores').insert({
+          id: Date.now().toString(), user_id: user.id, user_name: myName,
+          game: 'mapbattle', score: mine.totalScore, detail: null,
+          played_at: new Date().toISOString(),
+        }).then(({ error }) => { if (error) console.error('mapbattle score:', error.message); });
       }
       setResults(payload.standings);
       setView('final');

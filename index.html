@@ -450,6 +450,18 @@ function seededShuffle(arr, seed) {
 }
 
 function getDailyQuestions(dateKey, mode) {
+  // Pokud máme otázky z Edge Function pro dnešek, použij je (server-side výběr)
+  if (DAILY_FROM_EDGE && DAILY_FROM_EDGE.date === dateKey) {
+    const edgeQs = mode === QUIZ_MODES.GENERAL ? DAILY_FROM_EDGE.general
+                 : mode === QUIZ_MODES.FILM    ? DAILY_FROM_EDGE.film
+                 : DAILY_FROM_EDGE.it;
+    if (edgeQs && edgeQs.length > 0) {
+      const out = [...edgeQs];
+      out.push({ id:'lucky', type:'lucky', cat:'🎲 Lucky Box', q:'Zkus štěstí! Vyber jednu ze 4 skrytých truhliček.', prizes:null });
+      return out;
+    }
+  }
+  // Fallback: lokální výběr z plného poolu (když Edge Function není nasazená)
   const pool = mode === QUIZ_MODES.GENERAL ? ALL_GENERAL_QUESTIONS
              : mode === QUIZ_MODES.FILM    ? ALL_FILM_QUESTIONS
              : ALL_QUESTIONS;
@@ -562,6 +574,28 @@ async function loadQuestionsFromDB() {
   } catch(e) { console.error('Questions load exception:', e); return false; }
 }
 
+// ─── EDGE FUNCTION: denní otázky ze serveru (ochrana proti předvídání) ───
+let DAILY_FROM_EDGE = null;   // { date, it:[], general:[], film:[] } nebo null
+async function loadDailyFromEdge() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/daily-quiz`, {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` },
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (!data || !data.it) return false;
+    const parse = q => ({...q, opts: Array.isArray(q.opts) ? q.opts : JSON.parse(q.opts)});
+    DAILY_FROM_EDGE = {
+      date: data.date,
+      it: (data.it||[]).map(parse),
+      general: (data.general||[]).map(parse),
+      film: (data.film||[]).map(parse),
+    };
+    console.log('Daily questions z Edge Function:', DAILY_FROM_EDGE.date);
+    return true;
+  } catch(e) { console.warn('Edge Function nedostupná, fallback na lokální výběr:', e); return false; }
+}
+
 class ErrorBoundary extends React.Component {
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(e) { return { error: e }; }
@@ -627,8 +661,14 @@ function App() {
   };
 
   useEffect(() => {
-    loadQuestionsFromDB().then(ok => {
-      setQuestionsLoaded(ok);
+    // Nejdřív zkus Edge Function (server-side denní otázky, ochrana proti předvídání)
+    loadDailyFromEdge().then(edgeOk => {
+      if (edgeOk) {
+        setQuestionsLoaded(true);
+      } else {
+        // Fallback: načti celý pool z DB a počítej lokálně
+        loadQuestionsFromDB().then(ok => setQuestionsLoaded(ok));
+      }
     });
     loadScores();
     loadMonthlyChampions();

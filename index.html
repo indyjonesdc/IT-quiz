@@ -3932,7 +3932,7 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
     { key:'tg',  emoji:'🎯', title:'Terčová střelnice',  desc:'Zasáhni terče za 20 s',          color:'#ff4488', boardKey:'board_tg', game:'targets'   },
     { key:'bl',  emoji:'⚖️', title:'Rovnováha',          desc:'Udrž tyč co nejdéle',            color:'#44ffaa', boardKey:'board_bl', game:'balance'   },
     { key:'tw',  emoji:'🏗️', title:'Tower Builder',     desc:'Skládej bloky co nejpřesněji',   color:'#ffaa44', boardKey:'board_tw', game:'tower'     },
-    { key:'sl',  emoji:'⚔️', title:'Slash Master',       desc:'Fruit Ninja stylem, fullscreen', color:'#44ffaa', boardKey:'board_sl', game:'slash'     },
+    { key:'sl',  emoji:'⚔️', title:'Katana Master',      desc:'Sekej bloky správným směrem', color:'#44ffaa', boardKey:'board_sl', game:'slash'     },
     { key:'mp',  emoji:'🗺️', title:'Slepá mapa ČR',      desc:'Online multiplayer · hádej místa v ČR',   color:'#44ddff', boardKey:'board_mp', game:'mapbattle', multiplayer:true },
   ];
 
@@ -4020,7 +4020,6 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
                   <div style={{display:'flex',flexDirection:'column',gap:5,flexShrink:0}}>
                     <button onClick={()=>setScreen(g.key)} style={{background:`linear-gradient(135deg,${g.color}33,${g.color}55)`,border:`1px solid ${g.color}66`,borderRadius:8,padding:'7px 14px',fontSize:12,color:g.color,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>▶ Hrát</button>
                     {g.boardKey && <button onClick={()=>setScreen(g.boardKey)} style={{background:'transparent',border:'1px solid #1e2a4a',borderRadius:8,padding:'7px 14px',fontSize:11,color:'#445566',cursor:'pointer',whiteSpace:'nowrap'}}>🏆 Žebříček</button>}
-                    {g.multiplayer && <div style={{textAlign:'center',fontSize:9,color:'#44ddff',letterSpacing:1,padding:'2px'}}>2-6 HRÁČŮ</div>}
                   </div>
                 </div>
                 {/* Leader */}
@@ -4078,9 +4077,9 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
       )}
 
       {/* SLASH MASTER */}
-      {screen==='sl' && !slResult && <SlashMasterGame onResult={(pts,detail)=>{setSlResult({pts,detail});handleSave('slash',pts);}}/>}
+      {screen==='sl' && !slResult && <SlashMasterGame onResult={(pts,detail)=>{ if(pts===null||pts===undefined){setScreen('menu');} else {setSlResult({pts,detail});handleSave('slash',pts);} }}/>}
       {screen==='sl' && slResult && (
-        <MiniResult emoji="⚔️" title="SLASH MASTER" result={slResult} color="#44ffaa" saving={saving}
+        <MiniResult emoji="⚔️" title="KATANA MASTER" result={slResult} color="#44ffaa" saving={saving}
           onRetry={()=>setSlResult(null)}
           onBoard={()=>setScreen('board_sl')}
           onBack={()=>{setSlResult(null);setScreen('menu');}}/>
@@ -4094,7 +4093,7 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
       {screen==='board_tg' && <MiniBoard game="targets"   title="🎯 TERČOVÁ STŘELNICE" color="#ff4488" onBack={()=>setScreen('menu')}/>}
       {screen==='board_bl' && <MiniBoard game="balance"   title="⚖️ ROVNOVÁHA"         color="#44ffaa" onBack={()=>setScreen('menu')}/>}
       {screen==='board_tw' && <MiniBoard game="tower"     title="🏗️ TOWER BUILDER"     color="#ffaa44" onBack={()=>setScreen('menu')}/>}
-      {screen==='board_sl' && <MiniBoard game="slash"     title="⚔️ SLASH MASTER"       color="#44ffaa" onBack={()=>setScreen('menu')}/>}
+      {screen==='board_sl' && <MiniBoard game="slash"     title="⚔️ KATANA MASTER"      color="#44ffaa" onBack={()=>setScreen('menu')}/>}
       {screen==='board_mp' && <MiniBoard game="mapbattle" title="🗺️ SLEPÁ MAPA ČR" color="#44ddff" onBack={()=>setScreen('menu')}/>}
     </div>
   );
@@ -4567,6 +4566,15 @@ function TargetsGame({ onResult, swPts, phase }) {
 }
 
 // ─── BALANCE GAME ────────────────────────────────────
+// Tvary pro bonus kolo BalanceGame (relativní souřadnice -1..1, škálované poloměrem R)
+const BONUS_SHAPES = [
+  { emoji:'⭕', name:'kruh', strokes:[[[0.0,-1.0],[0.434,-0.901],[0.782,-0.623],[0.975,-0.223],[0.975,0.223],[0.782,0.623],[0.434,0.901],[0.0,1.0],[-0.434,0.901],[-0.782,0.623],[-0.975,0.223],[-0.975,-0.223],[-0.782,-0.623],[-0.434,-0.901],[-0.0,-1.0]]] },
+  { emoji:'⭐', name:'hvězda', strokes:[[[0.0,-1.0],[0.247,-0.34],[0.951,-0.309],[0.399,0.13],[0.588,0.809],[0.0,0.42],[-0.588,0.809],[-0.399,0.13],[-0.951,-0.309],[-0.247,-0.34],[-0.0,-1.0]]] },
+  { emoji:'🔺', name:'trojúhelník', strokes:[[[0,-0.9],[0.85,0.6],[-0.85,0.6],[0,-0.9]]] },
+  { emoji:'⬛', name:'čtverec', strokes:[[[-0.8,-0.8],[0.8,-0.8],[0.8,0.8],[-0.8,0.8],[-0.8,-0.8]]] },
+  { emoji:'❤️', name:'srdce', strokes:[[[0.0,1.0],[0.038,0.895],[0.25,0.64],[0.611,0.324],[0.899,-0.04],[0.899,-0.423],[0.611,-0.676],[0.25,-0.649],[0.038,-0.424],[0.0,-0.294],[-0.038,-0.424],[-0.25,-0.649],[-0.611,-0.676],[-0.899,-0.423],[-0.899,-0.04],[-0.611,0.324],[-0.25,0.64],[-0.038,0.895],[-0.0,1.0]]] },
+];
+
 function BalanceGame({ onResult, prevPts, phase }) {
   const [gState, setGState]   = useState('waiting');
   const [elapsed, setElapsed] = useState(0);
@@ -5449,662 +5457,438 @@ function PowerUpIndicators({ sRef }) {
 
 // ─── SLASH MASTER (10 zón přesnosti, zrychluje, multi-spawn) ──
 function SlashMasterGame({ onResult }) {
-  const [phase, setPhase] = useState('intro');
-  const [score, setScore] = useState(0);
-  const [level, setLevel] = useState(1);
-  const [lives, setLives] = useState(3);
-  const [combo, setCombo] = useState(0);
-  const [cleanStreak, setCleanStreak] = useState(0);
-
+  const [phase, setPhase] = useState('intro');   // intro | playing | over
+  const [hud, setHud] = useState({ score: 0, combo: 0, lives: 3, mult: 1 });
   const canvasRef = useRef(null);
-  const stateRef = useRef({
-    W: 360, H: 600,
-    objects: [],       // pole přilétajících objektů
-    slashes: [],
-    particles: [],
-    halves: [],
-    score: 0, lives: 3, level: 1, combo: 0, maxCombo: 0,
-    sliced: 0, perfectCuts: 0, bullseyes: 0,
-    cleanStreak: 0, maxCleanStreak: 0,
-    nextId: 0,
-    flash: 0, flashColor: '255,255,255', shake: 0,
-    raf: 0, lastT: 0, running: false,
-    floats: [], banner: null,
-    spawnTimer: 0, gameTime: 0,
-    lastUIUpdate: 0, bgCanvas: null,
-    // Bonus round
-    bonusActive: false,
-    bonusObj: null,
-    bonusShape: null,
-    bonusTrace: [],
-    bonusTimer: 0,
-    bonusTracing: false,
-    slicesSinceBonus: 0,
-    bonusCount: 0,
-  });
+  const portalElRef = useRef(null);
+  const sRef = useRef(null);   // herní stav mimo React
+  const rafRef = useRef(0);
+  const lastHudRef = useRef(0);
 
-  const FRUITS = ['🍎','🍊','🍋','🍉','🍓','🍇','🍑','🥝','🍐','🥭'];
-
-  // Tvary pro prémiová kola - checkpointy relativně (-1..1), pořadí = směr tahu
-  const BONUS_SHAPES = [
-    { name:'Z', emoji:'🍉', strokes:[[[-0.6,-0.6],[0.6,-0.6],[-0.6,0.6],[0.6,0.6]]] },
-    { name:'X', emoji:'🍉', strokes:[[[-0.6,-0.6],[0.6,0.6]],[[0.6,-0.6],[-0.6,0.6]]] },
-    { name:'N', emoji:'🍈', strokes:[[[-0.6,0.6],[-0.6,-0.6],[0.6,0.6],[0.6,-0.6]]] },
-    { name:'V', emoji:'🍑', strokes:[[[-0.6,-0.6],[0,0.6],[0.6,-0.6]]] },
-    { name:'L', emoji:'🍐', strokes:[[[-0.5,-0.6],[-0.5,0.6],[0.6,0.6]]] },
-    { name:'C', emoji:'🍊', strokes:[[[0.5,-0.5],[-0.2,-0.6],[-0.6,0],[-0.2,0.6],[0.5,0.5]]] },
-    { name:'W', emoji:'🍉', strokes:[[[-0.7,-0.5],[-0.35,0.6],[0,-0.3],[0.35,0.6],[0.7,-0.5]]] },
+  // 4 směry seku
+  const DIRS = [
+    { dx: 0, dy: -1, arrow: '↑' },  // 0 nahoru
+    { dx: 0, dy: 1,  arrow: '↓' },  // 1 dolů
+    { dx: -1, dy: 0, arrow: '←' },  // 2 vlevo
+    { dx: 1, dy: 0,  arrow: '→' },  // 3 vpravo
   ];
+  const BLOCK_COLORS = ['#44ffaa', '#44ddff', '#ffcc44', '#ff88dd', '#aa88ff'];
 
-  function resizeCanvas() {
-    const s = stateRef.current;
-    s.W = window.innerWidth; s.H = window.innerHeight;
-    const cv = canvasRef.current;
-    if (cv) {
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-      cv.width = s.W * dpr; cv.height = s.H * dpr;
-      cv.getContext('2d').scale(dpr, dpr);
-    }
-    s.bgCanvas = null;
+  function initState(W, H) {
+    return {
+      W, H, dpr: Math.min(window.devicePixelRatio || 1, 1.5),
+      blocks: [], particles: [], halves: [],
+      trail: [],                 // body prstu {x,y,t}
+      lastDir: null,
+      score: 0, combo: 0, maxCombo: 0, mult: 1, lives: 3,
+      sliced: 0, missed: 0, perfectCount: 0,
+      gameTime: 0, lastSpawn: 0, spawnGap: 1100,
+      shake: 0, slowmo: 1, flash: 0,
+      bg: null, over: false, startedAt: performance.now(),
+      banner: null,
+    };
   }
 
-  function showBanner(text, color) {
-    stateRef.current.banner = { text, color: color || '#fff', time: 1.4, width: null };
-  }
+  // Hit zóna = vodorovné pásmo dole (relativně k výšce)
+  function hitZone(H) { return { top: H * 0.62, bot: H * 0.84, mid: H * 0.73 }; }
 
-  function maxObjectsForLevel(lvl) {
-    return Math.min(5, 1 + Math.floor((lvl - 1) / 3)); // L1-3:1, L4-6:2, L7-9:3, L10-12:4, L13+:5
-  }
-
-  function spawnObject() {
-    const s = stateRef.current;
-    const level = s.level;
-    const bombChance = Math.min(0.25, 0.08 + (level - 1) * 0.02);
-    const r = Math.random();
-    let type;
-    if (r < bombChance) type = 'bomb';
-    else if (r < bombChance + 0.05) type = 'star';
-    else if (r < bombChance + 0.09) type = 'diamond';
-    else type = 'fruit';
-
-    const emojiMap = { bomb:'💣', star:'⭐', diamond:'💎' };
-    const emoji = type === 'fruit' ? FRUITS[Math.floor(Math.random()*FRUITS.length)] : emojiMap[type];
-
-    // Globální zrychlení podle času + levelu
-    const speedMult = 1 + s.gameTime / 80 + (level - 1) * 0.08;
-    // Bomby lítají 3× rychleji (rychle proletí, musíš se vyhnout)
-    const bombMult = type === 'bomb' ? 3 : 1;
-    const baseSpeed = (0.30 + Math.random() * 0.08) * speedMult * bombMult;
-
-    // Spawn blízko středu (objekt v dálce) s vektorem ven - poletí kolem hráče
-    const angle = Math.random() * Math.PI * 2;
-    const startDist = 25 + Math.random() * 70;
-    const cx = s.W / 2 + (Math.random() - 0.5) * 60;  // mírně posunuté ohnisko
-    const cy = s.H / 2 + (Math.random() - 0.5) * 60;
-    const spawnX = cx + Math.cos(angle) * startDist;
-    const spawnY = cy + Math.sin(angle) * startDist;
-
-    s.objects.push({
-      id: s.nextId++,
-      type, emoji,
-      scale: 0.12,
-      scaleSpeed: baseSpeed,
-      x: spawnX, y: spawnY,
-      outX: Math.cos(angle),   // směr letu ven od středu
-      outY: Math.sin(angle),
-      rot: Math.random() * Math.PI * 2,
-      rotSpd: (Math.random() - 0.5) * 1.5,
-      baseSize: 88,
-      alive: true, sliced: false,
+  function spawnBlock(s) {
+    const margin = s.W * 0.12;
+    const x = margin + Math.random() * (s.W - margin * 2);
+    const t = Math.random();
+    let type = 'normal';
+    // bomby a zlaté přibývají s časem
+    const bombChance = Math.min(0.18, 0.05 + s.gameTime / 90000 * 0.15);
+    if (t < bombChance) type = 'bomb';
+    else if (t < bombChance + 0.07) type = 'gold';
+    const dir = Math.floor(Math.random() * 4);
+    const speed = (s.H * 0.00022) * (1 + s.gameTime / 45000);  // px/ms, roste
+    s.blocks.push({
+      x, y: -s.H * 0.08, vy: speed, dir, type,
+      size: s.W * 0.085, sliced: false, rot: (Math.random() - 0.5) * 0.3,
+      col: BLOCK_COLORS[Math.floor(Math.random() * BLOCK_COLORS.length)],
+      enteredZone: false, scored: false,
     });
   }
 
-  function pointLineDist(px, py, x1, y1, x2, y2) {
-    const dx = x2-x1, dy = y2-y1, len2 = dx*dx+dy*dy;
-    if (len2 < 0.01) return Math.hypot(px-x1, py-y1);
-    const t = Math.max(0, Math.min(1, ((px-x1)*dx+(py-y1)*dy)/len2));
-    return Math.hypot(px-(x1+t*dx), py-(y1+t*dy));
-  }
+  function setBanner(s, text, color) { s.banner = { text, color, t: 900 }; }
 
-  // ZÓNY: 10 = přesný střed (bullseye), 1 = okraj
-  const ZONE_MULT = [0,0.3,0.4,0.55,0.7,0.9,1.2,1.7,2.4,3.5,5.0]; // index 1-10
-  const ZONE_LABEL = {
-    10:'🎯 BULLSEYE!', 9:'⚔️ ČISTÝ ŘEZ!', 8:'✨ SKVĚLE!', 7:'✨ VÝBORNĚ',
-    6:'👍 DOBŘE', 5:'👍 OK', 4:'~ slušné', 3:'~ odřeno', 2:'~ těsně', 1:'~ okraj',
-  };
-  const ZONE_COLOR = {
-    10:'#ffd700', 9:'#ffdd33', 8:'#44ffaa', 7:'#66ffaa',
-    6:'#88aaff', 5:'#88aaff', 4:'#aa99cc', 3:'#aa88aa', 2:'#996688', 1:'#886677',
-  };
-
-  function sliceObj(o, ratio, sliceAngle) {
-    const s = stateRef.current;
-    if (!o.alive || o.sliced) return;
-    o.sliced = true; o.alive = false;
-
-    if (o.type === 'bomb') {
-      if (navigator.vibrate) navigator.vibrate([60,40,60]);
-      s.shake = 40; s.lives--; setLives(s.lives);
-      s.combo = 0; s.cleanStreak = 0; setCleanStreak(0);
-      for (let i=0;i<25;i++){const a=Math.random()*Math.PI*2,sp=4+Math.random()*12;s.particles.push({x:o.x,y:o.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1.2,color:['#ff4400','#ffaa00','#ff8800'][i%3],size:4+Math.random()*4});}
-      s.flash=1; s.flashColor='255,68,0';
-      if (s.lives<=0){showBanner('💀 GAME OVER!','#ff4444');setTimeout(()=>endGame(),1400);}
-      else showBanner('💔 -1 ŽIVOT! ('+s.lives+')','#ff4488');
-      return;
-    }
-
-    // Výpočet zóny 1-10
-    const zone = Math.min(10, Math.max(1, Math.ceil((1 - ratio) * 10)));
-    const zoneMult = ZONE_MULT[zone];
-    const isClean = zone >= 9;       // čistý řez = zóna 9-10
-    const isBullseye = zone === 10;
-
-    // Clean streak (3× čistý řez za sebou se násobí)
-    let streakMult = 1;
-    if (isClean) {
-      s.cleanStreak++;
-      if (s.cleanStreak > s.maxCleanStreak) s.maxCleanStreak = s.cleanStreak;
-      setCleanStreak(s.cleanStreak);
-      // 3+ = ×2, 6+ = ×3, 9+ = ×4, 12+ = ×5
-      streakMult = s.cleanStreak >= 12 ? 5 : s.cleanStreak >= 9 ? 4 : s.cleanStreak >= 6 ? 3 : s.cleanStreak >= 3 ? 2 : 1;
-      if (navigator.vibrate) navigator.vibrate(isBullseye ? [10,20,10] : 15);
-      s.perfectCuts++;
-      if (isBullseye) s.bullseyes++;
-    } else {
-      if (s.cleanStreak >= 3) showBanner('Streak ztracen!', '#888');
-      s.cleanStreak = 0;
-      setCleanStreak(0);
-    }
-
-    // Combo (jakýkoliv úspěšný řez zóna >= 4)
-    if (zone >= 4) s.combo++;
-    else s.combo = 0;
-    if (s.combo > s.maxCombo) s.maxCombo = s.combo;
-
-    // Timing bonus
-    const sizeDiff = Math.abs(o.scale - 1.0);
-    const timingMult = sizeDiff < 0.15 ? 1.3 : sizeDiff < 0.3 ? 1.1 : 1.0;
-
-    const baseMap = { star:500, diamond:1200, fruit:100 };
-    const basePts = baseMap[o.type] || 100;
-    const comboMult = Math.min(8, Math.max(1, s.combo));
-    const pts = Math.round(basePts * zoneMult * timingMult * comboMult * streakMult);
-    s.score += pts;
+  function sliceBlock(s, b, ang) {
+    b.sliced = true;
     s.sliced++;
-    s.slicesSinceBonus = (s.slicesSinceBonus || 0) + 1;
-
-    // Float - body + zóna label + streak
-    s.floats.push({ x:o.x, y:o.y-22, pts, color:isClean?'#ffd700':'#fff', life:1.2 });
-    let label = ZONE_LABEL[zone];
-    if (streakMult > 1) label += ` ×${streakMult}`;
-    s.floats.push({ x:o.x, y:o.y+24, text:label, color:ZONE_COLOR[zone], life:1.4, isLabel:true });
-
-    if (isBullseye) { s.flash=0.8; s.flashColor='255,215,0'; }
-    else if (isClean) { s.flash=0.5; s.flashColor='255,221,51'; }
-
-    // Streak achievementy
-    if (s.cleanStreak === 3)  showBanner('🔥 STREAK ×2!', '#ff6644');
-    if (s.cleanStreak === 6)  showBanner('🔥🔥 STREAK ×3!', '#ff4400');
-    if (s.cleanStreak === 9)  showBanner('💎 STREAK ×4!', '#ffd700');
-    if (s.cleanStreak === 12) showBanner('👑 STREAK ×5 MAX!', '#ff44ff');
-    if (s.bullseyes === 10) showBanner('🎯 10× BULLSEYE!', '#ffd700');
-    if (s.sliced === 25) showBanner('⚔️ MISTR MEČE!', '#44ffaa');
-    if (s.sliced === 50) showBanner('👑 SAMURAJ!', '#ffd700');
-
-    // Level up
-    const newLevel = Math.min(20, Math.floor(s.score / 2500) + 1);
-    if (newLevel !== s.level) {
-      s.level = newLevel;
-      const maxObj = maxObjectsForLevel(newLevel);
-      showBanner(`⬆️ LEVEL ${newLevel} (${maxObj}× najednou)`, '#88ccff');
+    s.combo++;
+    if (s.combo > s.maxCombo) s.maxCombo = s.combo;
+    s.mult = s.combo >= 24 ? 5 : s.combo >= 16 ? 4 : s.combo >= 9 ? 3 : s.combo >= 4 ? 2 : 1;
+    // timing bonus podle blízkosti středu hit zóny
+    const hz = hitZone(s.H);
+    const dist = Math.abs(b.y - hz.mid);
+    const perfect = dist < (hz.bot - hz.top) * 0.22;
+    let base = b.type === 'gold' ? 500 : 100;
+    if (perfect) { base = Math.round(base * 1.6); s.perfectCount++; }
+    const gained = base * s.mult;
+    s.score += gained;
+    // efekty
+    s.flash = Math.min(1, s.flash + 0.25);
+    s.shake = Math.min(14, s.shake + (b.type === 'gold' ? 10 : 5));
+    if (s.combo > 0 && s.combo % 5 === 0) {
+      setBanner(s, '🔥 COMBO ×' + s.mult + '!', '#ffcc44');
+      s.slowmo = 0.35; // krátké slow-mo na milníku comba
     }
-
-    // Trigger bonus round po 18 nasekaných předmětech
-    if (s.slicesSinceBonus >= 18 && s.level >= 2) {
-      setTimeout(() => { if (s.running) startBonusRound(); }, 600);
-      s.slicesSinceBonus = 0;
-    }
-
-    if (o.type === 'star') showBanner('⭐ +' + pts.toLocaleString(), '#ffd700');
-    if (o.type === 'diamond') { s.flash=Math.max(s.flash,0.6); s.flashColor='136,221,255'; }
-
-    // Půlky
-    const perpAngle = sliceAngle + Math.PI/2;
-    const sz = o.baseSize * o.scale;
-    for (let side=0;side<2;side++){
-      const dir = side===0?1:-1;
-      s.halves.push({ x:o.x,y:o.y, vx:Math.cos(perpAngle)*dir*3+Math.cos(sliceAngle)*2, vy:Math.sin(perpAngle)*dir*3+Math.sin(sliceAngle)*2-2, rot:o.rot, rotSpd:dir*4, emoji:o.emoji, size:sz, life:1.2, sliceAngle, side });
-    }
-    // Šťáva
-    const jc = o.type==='diamond'?['#88ddff','#fff']:o.type==='star'?['#ffd700','#ffaa00']:['#ff4488','#44ff88','#ffaa44','#ff66aa'];
-    for (let i=0;i<(isClean?18:10);i++){const a=Math.random()*Math.PI*2,sp=2+Math.random()*5;s.particles.push({x:o.x,y:o.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:1,color:jc[i%jc.length],size:3+Math.random()*3});}
+    if (perfect) spawnParticles(s, b.x, b.y, '#ffffff', 8);
+    spawnParticles(s, b.x, b.y, b.col, 14);
+    spawnHalves(s, b, ang);
+    if (navigator.vibrate) navigator.vibrate(perfect ? 18 : 8);
   }
 
-  function gameLoop(now) {
-    const s = stateRef.current;
-    if (!s.running) return;
-    const dt = Math.min((now - s.lastT)/1000, 0.05);
-    s.lastT = now;
-    s.gameTime += dt;
-
-    // ── BONUS ROUND mode ──
-    if (s.bonusActive) {
-      s.bonusTimer -= dt;
-      // Slash trace
-      const tNow = Date.now();
-      s.slashes = s.slashes.filter(p => tNow - p.t < 220);
-      // Particles a floats stále aktualizuj
-      s.particles = s.particles.filter(p => { p.x+=p.vx; p.y+=p.vy; p.vy+=0.4; p.life-=0.022; return p.life>0; });
-      s.floats = s.floats.filter(f => { f.y -= f.isLabel?0.6:1.2; f.life -= f.isLabel?0.012:0.016; return f.life>0; });
-      s.flash *= 0.92; s.shake *= 0.85;
-      if (s.banner) { s.banner.time -= dt; if (s.banner.time<=0) s.banner=null; }
-      if (s.bonusTimer <= 0 && s.bonusObj) {
-        evaluateBonus();
-      }
-      if (now - s.lastUIUpdate > 200) { s.lastUIUpdate = now; setScore(s.score); }
-      draw();
-      s.raf = requestAnimationFrame(gameLoop);
-      return;
-    }
-
-    // Spawn - drž počet objektů podle levelu
-    const maxObj = maxObjectsForLevel(s.level);
-    const activeCount = s.objects.filter(o => o.alive && !o.sliced).length;
-    s.spawnTimer -= dt;
-    if (activeCount < maxObj && s.spawnTimer <= 0) {
-      spawnObject();
-      // Rychlejší spawn s vyšším levelem
-      s.spawnTimer = Math.max(0.5, 1.1 - s.level * 0.04);
-    }
-
-    // Update objekty - perspektivní pohyb ven (čím větší = blíž = rychleji letí kolem)
-    s.objects.forEach(o => {
-      if (!o.alive) return;
-      o.scale += o.scaleSpeed * dt;
-      // Rychlost ven roste s druhou mocninou velikosti = perspektiva
-      const persp = o.scale * o.scale * 130;
-      o.x += o.outX * persp * dt;
-      o.y += o.outY * persp * dt;
-      o.rot += o.rotSpd * dt;
-      // Proletěl mimo obrazovku nebo příliš velký = miss
-      const margin = 120;
-      if (o.scale > 2.4 || o.x < -margin || o.x > s.W + margin || o.y < -margin || o.y > s.H + margin) {
-        if (o.type !== 'bomb') {
-          s.combo = 0;
-          s.cleanStreak = 0; setCleanStreak(0);
-          s.floats.push({ x:Math.max(40,Math.min(s.W-40,o.x)), y:Math.max(60,Math.min(s.H-60,o.y)), text:'MISS', color:'#ff6644', life:1, isLabel:true });
-        }
-        o.alive = false;
-      }
-    });
-    s.objects = s.objects.filter(o => o.alive && !o.sliced);
-
-    // Slash detection - projdi všechny objekty
-    const tNow = Date.now();
-    s.slashes = s.slashes.filter(p => tNow - p.t < 220);
-    if (s.slashes.length >= 2) {
-      for (let i = s.slashes.length-1; i>0; i--) {
-        const a = s.slashes[i-1], b = s.slashes[i];
-        const moved = Math.hypot(b.x-a.x, b.y-a.y);
-        if (moved < 10) continue;
-        const ang = Math.atan2(b.y-a.y, b.x-a.x);
-        for (const o of s.objects) {
-          if (!o.alive || o.sliced) continue;
-          const radius = o.baseSize * o.scale * 0.5;
-          const dist = pointLineDist(o.x, o.y, a.x, a.y, b.x, b.y);
-          if (o.type === 'bomb') {
-            if (moved >= 20 && dist <= radius * 0.7) sliceObj(o, dist/radius, ang);
-          } else {
-            if (o.scale >= 0.45 && dist <= radius) sliceObj(o, dist/radius, ang);
-          }
-        }
-      }
-    }
-
-    // Half pieces
-    s.halves = s.halves.filter(h => { h.x+=h.vx; h.y+=h.vy; h.vy+=0.35; h.rot+=h.rotSpd*dt; h.life-=0.02; return h.life>0; });
-    // Particles
-    s.particles = s.particles.filter(p => { p.x+=p.vx; p.y+=p.vy; p.vy+=0.4; p.life-=0.022; return p.life>0; });
-    if (s.particles.length > 150) s.particles = s.particles.slice(-150);
-    // Floats
-    s.floats = s.floats.filter(f => { f.y -= f.isLabel?0.7:1.3; f.life -= f.isLabel?0.014:0.018; return f.life>0; });
-
-    s.flash *= 0.92; s.shake *= 0.85;
-    if (s.banner) { s.banner.time -= dt; if (s.banner.time<=0) s.banner=null; }
-
-    if (now - s.lastUIUpdate > 200) {
-      s.lastUIUpdate = now;
-      setScore(s.score); setCombo(s.combo); setLives(s.lives); setLevel(s.level);
-    }
-
-    draw();
-    s.raf = requestAnimationFrame(gameLoop);
+  function hitBomb(s, b) {
+    b.sliced = true;
+    s.lives--;
+    s.combo = 0; s.mult = 1;
+    s.shake = 22; s.flash = 1;
+    setBanner(s, '💥 BOMBA!', '#ff4444');
+    spawnParticles(s, b.x, b.y, '#ff5533', 26);
+    if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
+    if (s.lives <= 0) endGame(s);
   }
 
-  function draw() {
-    const s = stateRef.current;
-    const cv = canvasRef.current;
-    if (!cv) return;
-    const ctx = cv.getContext('2d');
+  function missBlock(s, b) {
+    if (b.type === 'bomb') return; // bombu je správné minout
+    s.missed++;
+    s.combo = 0; s.mult = 1;
+    s.lives--;
+    s.shake = 10;
+    setBanner(s, 'MINUTO!', '#ff8844');
+    if (navigator.vibrate) navigator.vibrate(20);
+    if (s.lives <= 0) endGame(s);
+  }
 
-    if (!s.bgCanvas || s.bgCanvas.width !== s.W) {
-      s.bgCanvas = document.createElement('canvas');
-      s.bgCanvas.width = s.W; s.bgCanvas.height = s.H;
-      const b = s.bgCanvas.getContext('2d');
-      const g = b.createRadialGradient(s.W/2, s.H/2, 30, s.W/2, s.H/2, Math.max(s.W,s.H)*0.7);
-      g.addColorStop(0,'#1a2545'); g.addColorStop(0.6,'#0d1530'); g.addColorStop(1,'#080a1e');
-      b.fillStyle=g; b.fillRect(0,0,s.W,s.H);
-      b.fillStyle='rgba(255,255,255,.25)';
-      for (let i=0;i<40;i++) b.fillRect((i*73+13)%s.W,(i*41+7)%s.H,1.5,1.5);
+  function spawnParticles(s, x, y, col, n) {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 2 + Math.random() * 6;
+      s.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 2, life: 1, col, size: 2 + Math.random() * 3 });
     }
-    ctx.clearRect(0,0,s.W,s.H);
-    ctx.drawImage(s.bgCanvas,0,0);
+    if (s.particles.length > 220) s.particles.splice(0, s.particles.length - 220);
+  }
 
-    const shX=(Math.random()-0.5)*s.shake, shY=(Math.random()-0.5)*s.shake;
-    ctx.save(); ctx.translate(shX,shY);
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-
-    // ── BONUS ROUND rendering ──
-    if (s.bonusActive && s.bonusObj) {
-      const o = s.bonusObj;
-      // Velké ovoce
-      ctx.font = `${o.R * 2}px sans-serif`;
-      ctx.fillText(o.emoji, o.cx, o.cy);
-
-      // Vzor k vysekání - tečkovaná čára spojující checkpointy
-      s.bonusShape.strokes.forEach(stroke => {
-        ctx.strokeStyle = 'rgba(255,215,0,.85)';
-        ctx.lineWidth = 4;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.setLineDash([8, 8]);
-        ctx.beginPath();
-        stroke.forEach(([rx, ry], i) => {
-          const px = o.cx + rx * o.R;
-          const py = o.cy + ry * o.R;
-          if (i === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
-        });
-        ctx.stroke();
-        ctx.setLineDash([]);
+  function spawnHalves(s, b, ang) {
+    const perp = ang + Math.PI / 2;
+    for (const sgn of [-1, 1]) {
+      s.halves.push({
+        x: b.x, y: b.y, size: b.size, col: b.col, rot: b.rot, cutAng: ang,
+        vx: Math.cos(perp) * sgn * 3, vy: Math.sin(perp) * sgn * 3 - 1,
+        vr: sgn * 0.15, life: 1, side: sgn,
       });
+    }
+    if (s.halves.length > 40) s.halves.splice(0, s.halves.length - 40);
+  }
 
-      // Checkpointy jako kruhy (zelené = trefené)
-      o.checkpoints.forEach((cp, i) => {
-        const isStart = cp.idx === 0;
-        ctx.fillStyle = 'rgba(255,215,0,.9)';
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(cp.x, cp.y, isStart ? 12 : 8, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        if (isStart) {
-          ctx.fillStyle = '#000';
-          ctx.font = '900 12px system-ui';
-          ctx.fillText('▶', cp.x, cp.y);
-        }
-      });
+  function endGame(s) {
+    if (s.over) return;
+    s.over = true;
+    cancelAnimationFrame(rafRef.current);
+    const detail = {
+      'Naseknuto': s.sliced,
+      'Max combo': s.maxCombo,
+      'Perfektních': s.perfectCount,
+      'Minuto': s.missed,
+    };
+    setTimeout(() => {
+      setPhase('over');
+      setHud(h => ({ ...h, score: s.score }));
+      onResult(s.score, detail);
+    }, 600);
+  }
 
-      // Hráčův trace
-      if (s.bonusTrace.length >= 2) {
-        ctx.strokeStyle = 'rgba(68,255,170,.9)';
-        ctx.lineWidth = 6;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        ctx.moveTo(s.bonusTrace[0].x, s.bonusTrace[0].y);
-        for (let i = 1; i < s.bonusTrace.length; i++) ctx.lineTo(s.bonusTrace[i].x, s.bonusTrace[i].y);
-        ctx.stroke();
+  // ── Vyhodnocení švihu (volá se při pohybu prstu) ──
+  function processSwipe(s) {
+    const tr = s.trail;
+    if (tr.length < 2) return;
+    const a = tr[tr.length - 2], b = tr[tr.length - 1];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 6) return;
+    const ang = Math.atan2(dy, dx);
+    // dominantní směr z úhlu pohybu
+    let swDir;
+    const adeg = (ang * 180 / Math.PI + 360) % 360;
+    if (adeg >= 45 && adeg < 135) swDir = 1;       // dolů
+    else if (adeg >= 135 && adeg < 225) swDir = 2; // vlevo
+    else if (adeg >= 225 && adeg < 315) swDir = 0; // nahoru
+    else swDir = 3;                                 // vpravo
+    const hz = hitZone(s.H);
+    for (const blk of s.blocks) {
+      if (blk.sliced) continue;
+      // prst protíná blok?
+      const d = Math.hypot(b.x - blk.x, b.y - blk.y);
+      if (d > blk.size * 0.95) continue;
+      // blok v hit zóně?
+      if (blk.y < hz.top || blk.y > hz.bot) continue;
+      if (blk.type === 'bomb') { hitBomb(s, blk); continue; }
+      // správný směr?
+      if (swDir === blk.dir) {
+        sliceBlock(s, blk, ang);
+      }
+    }
+  }
+
+  // ── Game loop ──
+  useEffect(() => {
+    if (phase !== 'playing') return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const W = window.innerWidth, H = window.innerHeight;
+    const s = initState(W, H);
+    sRef.current = s;
+    const dpr = s.dpr;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    // cached pozadí
+    const bg = document.createElement('canvas');
+    bg.width = W; bg.height = H;
+    const bx = bg.getContext('2d');
+    const grad = bx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, '#0a0e1a'); grad.addColorStop(1, '#10162e');
+    bx.fillStyle = grad; bx.fillRect(0, 0, W, H);
+    // hvězdy
+    for (let i = 0; i < 60; i++) {
+      bx.fillStyle = `rgba(120,150,220,${0.1 + Math.random() * 0.3})`;
+      bx.fillRect(Math.random() * W, Math.random() * H, 1.5, 1.5);
+    }
+    s.bg = bg;
+
+    let last = performance.now();
+    const loop = (now) => {
+      let dt = now - last; last = now;
+      if (dt > 50) dt = 50;
+      const sm = s.slowmo;
+      const sdt = dt * sm;
+      s.gameTime += sdt;
+      // slow-mo se vrací k normálu
+      if (s.slowmo < 1) s.slowmo = Math.min(1, s.slowmo + dt * 0.0012);
+
+      // spawn
+      s.spawnGap = Math.max(420, 1100 - s.gameTime / 90);
+      if (s.gameTime - s.lastSpawn > s.spawnGap) {
+        s.lastSpawn = s.gameTime;
+        spawnBlock(s);
+        // občas dvojitý spawn později
+        if (s.gameTime > 25000 && Math.random() < 0.35) spawnBlock(s);
       }
 
-      // Timer bar
-      const barW = s.W * 0.7;
-      const barX = (s.W - barW) / 2;
-      const barY = s.H * 0.85;
-      ctx.fillStyle = 'rgba(0,0,0,.5)';
-      ctx.beginPath(); ctx.roundRect(barX, barY, barW, 10, 5); ctx.fill();
-      const prog = Math.max(0, s.bonusTimer / 8);
-      ctx.fillStyle = prog > 0.3 ? '#ffd700' : '#ff4444';
-      ctx.beginPath(); ctx.roundRect(barX, barY, barW * prog, 10, 5); ctx.fill();
+      const hz = hitZone(H);
+      // update bloky
+      for (const b of s.blocks) {
+        if (b.sliced) continue;
+        b.y += b.vy * sdt;
+        if (b.y > hz.bot + b.size && !b.scored) { b.scored = true; missBlock(s, b); b.sliced = true; }
+      }
+      s.blocks = s.blocks.filter(b => !b.sliced && b.y < H + b.size * 2 || (!b.sliced));
+      s.blocks = s.blocks.filter(b => b.y < H + b.size * 2);
 
-      // Particles + floats over bonus
-      ctx.shadowBlur = 0;
-      s.particles.forEach(p => { ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = p.color; const sz = p.size * p.life; ctx.fillRect(p.x - sz, p.y - sz, sz * 2, sz * 2); });
-      ctx.globalAlpha = 1;
-      ctx.textAlign = 'center';
-      s.floats.forEach(f => { ctx.globalAlpha = Math.max(0, f.life); ctx.fillStyle = f.color; if (f.isLabel) { ctx.font = '900 20px system-ui'; ctx.fillText(f.text, f.x, f.y); } else { ctx.font = '900 30px system-ui'; ctx.fillText('+' + f.pts.toLocaleString(), f.x, f.y); } });
-      ctx.globalAlpha = 1;
+      // particles
+      for (const p of s.particles) { p.x += p.vx; p.y += p.vy; p.vy += 0.25; p.life -= 0.025; }
+      s.particles = s.particles.filter(p => p.life > 0);
+      // halves
+      for (const h of s.halves) { h.x += h.vx; h.y += h.vy; h.vy += 0.3; h.rot += h.vr; h.life -= 0.018; }
+      s.halves = s.halves.filter(h => h.life > 0);
+      // trail fade
+      const tnow = now;
+      s.trail = s.trail.filter(pt => tnow - pt.t < 120);
+      // shake/flash/banner
+      s.shake *= 0.85; if (s.shake < 0.3) s.shake = 0;
+      s.flash *= 0.88; if (s.flash < 0.02) s.flash = 0;
+      if (s.banner) { s.banner.t -= dt; if (s.banner.t <= 0) s.banner = null; }
 
-      ctx.restore();
+      // ── RENDER ──
+      ctx.save();
+      const shx = (Math.random() - 0.5) * s.shake, shy = (Math.random() - 0.5) * s.shake;
+      ctx.translate(shx, shy);
+      ctx.drawImage(s.bg, 0, 0, W, H);
 
-      // Flash + banner pro bonus
-      if (s.flash > 0.05) { ctx.fillStyle = `rgba(${s.flashColor},${s.flash * 0.25})`; ctx.fillRect(0, 0, s.W, s.H); }
-      if (s.banner) {
-        const t = s.banner.time;
-        const alpha = t > 1.0 ? (1.4 - t) * 2.5 : t < 0.3 ? t / 0.3 : 1;
-        ctx.save(); ctx.globalAlpha = Math.max(0, alpha);
-        const by = s.H * 0.16;
-        ctx.font = '900 26px system-ui';
-        if (s.banner.width === null) s.banner.width = ctx.measureText(s.banner.text).width + 40;
-        const bw = s.banner.width;
-        ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.beginPath(); ctx.roundRect(s.W / 2 - bw / 2, by - 24, bw, 48, 12); ctx.fill();
-        ctx.strokeStyle = s.banner.color; ctx.lineWidth = 2; ctx.stroke();
-        ctx.fillStyle = s.banner.color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(s.banner.text, s.W / 2, by);
+      // hit zóna
+      ctx.fillStyle = 'rgba(68,221,255,0.06)';
+      ctx.fillRect(0, hz.top, W, hz.bot - hz.top);
+      ctx.strokeStyle = 'rgba(68,221,255,0.25)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(0, hz.top); ctx.lineTo(W, hz.top);
+      ctx.moveTo(0, hz.bot); ctx.lineTo(W, hz.bot); ctx.stroke();
+      ctx.fillStyle = 'rgba(68,221,255,0.4)'; ctx.font = '11px Orbitron, sans-serif';
+      ctx.textAlign = 'center'; ctx.fillText('SEKEJ ZDE', W / 2, hz.top - 8);
+
+      // halves (rozseknuté půlky)
+      for (const h of s.halves) {
+        ctx.save();
+        ctx.globalAlpha = h.life;
+        ctx.translate(h.x, h.y); ctx.rotate(h.rot);
+        ctx.fillStyle = h.col;
+        ctx.beginPath();
+        // půlka jako trojúhelník/klín
+        ctx.moveTo(-h.size / 2 * h.side, -h.size / 2);
+        ctx.lineTo(h.size / 2 * h.side, 0);
+        ctx.lineTo(-h.size / 2 * h.side, h.size / 2);
+        ctx.closePath(); ctx.fill();
         ctx.restore();
       }
-      return; // bonus rendering hotov
-    }
+      ctx.globalAlpha = 1;
 
-    // Objekty s terčem (10 zón)
-    s.objects.forEach(o => {
-      if (!o.alive) return;
-      const sz = o.baseSize * o.scale;
-      // Stín
-      ctx.globalAlpha = Math.min(0.4, o.scale*0.3);
-      ctx.fillStyle='#000';
-      ctx.beginPath(); ctx.ellipse(o.x, o.y+sz*0.55, sz*0.4, sz*0.15, 0,0,Math.PI*2); ctx.fill();
-      ctx.globalAlpha=1;
+      // bloky
+      for (const b of s.blocks) {
+        if (b.sliced) continue;
+        const inZone = b.y >= hz.top && b.y <= hz.bot;
+        ctx.save();
+        ctx.translate(b.x, b.y); ctx.rotate(b.rot);
+        const half = b.size / 2;
+        if (b.type === 'bomb') {
+          ctx.fillStyle = inZone ? '#552222' : '#331818';
+          ctx.strokeStyle = '#ff4444'; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.arc(0, 0, half, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          ctx.fillStyle = '#ff6666'; ctx.font = `${b.size * 0.6}px sans-serif`;
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('💣', 0, 2);
+        } else {
+          // tělo bloku
+          ctx.fillStyle = b.type === 'gold' ? '#ffd700' : b.col;
+          if (inZone) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; }
+          else { ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 2; }
+          const r = half * 0.32;
+          ctx.beginPath();
+          ctx.moveTo(-half + r, -half);
+          ctx.arcTo(half, -half, half, half, r);
+          ctx.arcTo(half, half, -half, half, r);
+          ctx.arcTo(-half, half, -half, -half, r);
+          ctx.arcTo(-half, -half, half, -half, r);
+          ctx.closePath(); ctx.fill(); ctx.stroke();
+          // šipka směru
+          ctx.rotate(-b.rot);
+          ctx.fillStyle = b.type === 'gold' ? '#3a2e00' : 'rgba(0,0,30,0.85)';
+          ctx.font = `bold ${b.size * 0.7}px sans-serif`;
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(DIRS[b.dir].arrow, 0, 2);
+        }
+        ctx.restore();
+      }
+      ctx.textBaseline = 'alphabetic';
 
-      if (o.type === 'bomb') {
-        const pulse=(Math.sin(Date.now()*0.012)+1)*0.5;
-        ctx.strokeStyle=`rgba(255,50,50,${0.5+pulse*0.5})`;
-        ctx.lineWidth=2.5+pulse*2;
-        ctx.beginPath(); ctx.arc(o.x,o.y,sz*0.55,0,Math.PI*2); ctx.stroke();
-      } else if (o.scale > 0.5) {
-        // Terč - koncentrické kruhy ukazující zóny
-        const R = sz * 0.55;
-        // Vnější (zóna 1-4) - tlumený
-        ctx.strokeStyle='rgba(120,140,180,.25)'; ctx.lineWidth=1;
-        ctx.beginPath(); ctx.arc(o.x,o.y,R,0,Math.PI*2); ctx.stroke();
-        // Střední (zóna 5-7)
-        ctx.strokeStyle='rgba(100,170,255,.3)'; ctx.lineWidth=1.5;
-        ctx.beginPath(); ctx.arc(o.x,o.y,R*0.6,0,Math.PI*2); ctx.stroke();
-        // Vnitřní clean zóna (8-9)
-        ctx.strokeStyle='rgba(68,255,170,.4)'; ctx.lineWidth=1.5;
-        ctx.beginPath(); ctx.arc(o.x,o.y,R*0.3,0,Math.PI*2); ctx.stroke();
-        // Bullseye (10) - pulzující zlatý
-        const pulse=(Math.sin(Date.now()*0.008)+1)*0.5;
-        ctx.strokeStyle=`rgba(255,215,0,${0.6+pulse*0.4})`; ctx.lineWidth=2;
-        ctx.beginPath(); ctx.arc(o.x,o.y,R*0.1,0,Math.PI*2); ctx.stroke();
+      // particles
+      for (const p of s.particles) {
+        ctx.globalAlpha = Math.max(0, p.life);
+        ctx.fillStyle = p.col;
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+      }
+      ctx.globalAlpha = 1;
+
+      // slash trail
+      if (s.trail.length > 1) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+        ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(s.trail[0].x, s.trail[0].y);
+        for (let i = 1; i < s.trail.length; i++) ctx.lineTo(s.trail[i].x, s.trail[i].y);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(68,221,255,0.5)'; ctx.lineWidth = 9;
+        ctx.stroke();
       }
 
-      ctx.save(); ctx.translate(o.x,o.y); ctx.rotate(o.rot);
-      ctx.font=`${sz}px sans-serif`; ctx.fillText(o.emoji,0,0);
+      // flash
+      if (s.flash > 0.02) {
+        ctx.fillStyle = `rgba(255,255,255,${s.flash * 0.25})`;
+        ctx.fillRect(-20, -20, W + 40, H + 40);
+      }
+
+      // banner
+      if (s.banner) {
+        ctx.globalAlpha = Math.min(1, s.banner.t / 400);
+        ctx.fillStyle = s.banner.color;
+        ctx.font = 'bold 30px Orbitron, sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(s.banner.text, W / 2, H * 0.4);
+        ctx.globalAlpha = 1;
+      }
       ctx.restore();
-    });
 
-    // Půlky
-    s.halves.forEach(h => {
-      ctx.save(); ctx.globalAlpha=Math.max(0,h.life);
-      ctx.translate(h.x,h.y); ctx.rotate(h.sliceAngle);
-      ctx.beginPath();
-      if (h.side===0) ctx.rect(-h.size,-h.size,h.size*2,h.size);
-      else ctx.rect(-h.size,0,h.size*2,h.size);
-      ctx.clip(); ctx.rotate(-h.sliceAngle); ctx.rotate(h.rot);
-      ctx.font=`${h.size}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText(h.emoji,0,0);
-      ctx.restore();
-    });
+      // HUD throttle (5×/s)
+      if (now - lastHudRef.current > 200) {
+        lastHudRef.current = now;
+        setHud({ score: s.score, combo: s.combo, lives: s.lives, mult: s.mult });
+      }
 
-    // Particles
-    ctx.shadowBlur=0;
-    s.particles.forEach(p=>{ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle=p.color;const sz=p.size*p.life;ctx.fillRect(p.x-sz,p.y-sz,sz*2,sz*2);});
-    ctx.globalAlpha=1;
+      if (!s.over) rafRef.current = requestAnimationFrame(loop);
+    };
+    rafRef.current = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [phase]);
 
-    // Slash trail
-    if (s.slashes.length>=2){
-      ctx.lineCap='round';ctx.lineJoin='round';
-      ctx.beginPath();ctx.moveTo(s.slashes[0].x,s.slashes[0].y);
-      for(let i=1;i<s.slashes.length;i++)ctx.lineTo(s.slashes[i].x,s.slashes[i].y);
-      ctx.strokeStyle='rgba(136,255,255,.25)';ctx.lineWidth=14;ctx.stroke();
-      ctx.beginPath();ctx.moveTo(s.slashes[0].x,s.slashes[0].y);
-      for(let i=1;i<s.slashes.length;i++)ctx.lineTo(s.slashes[i].x,s.slashes[i].y);
-      ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=5;ctx.stroke();
-    }
-
-    // Floats
-    ctx.textAlign='center';
-    s.floats.forEach(f=>{ctx.globalAlpha=Math.max(0,f.life);ctx.fillStyle=f.color;if(f.isLabel){ctx.font='900 18px system-ui';ctx.fillText(f.text,f.x,f.y);}else{ctx.font='900 26px system-ui';ctx.fillText('+'+f.pts.toLocaleString(),f.x,f.y);}});
-    ctx.globalAlpha=1;
-    ctx.restore();
-
-    if (s.flash>0.05){ctx.fillStyle=`rgba(${s.flashColor},${s.flash*0.25})`;ctx.fillRect(0,0,s.W,s.H);}
-
-    if (s.banner){
-      const t=s.banner.time;
-      const alpha=t>1.0?(1.4-t)*2.5:t<0.3?t/0.3:1;
-      ctx.save();ctx.globalAlpha=Math.max(0,alpha);
-      const by=s.H*0.28;
-      ctx.font='900 30px system-ui';
-      if(s.banner.width===null)s.banner.width=ctx.measureText(s.banner.text).width+40;
-      const bw=s.banner.width;
-      ctx.fillStyle='rgba(0,0,0,.7)';ctx.beginPath();ctx.roundRect(s.W/2-bw/2,by-25,bw,50,12);ctx.fill();
-      ctx.strokeStyle=s.banner.color;ctx.lineWidth=2;ctx.stroke();
-      ctx.fillStyle=s.banner.color;ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.fillText(s.banner.text,s.W/2,by);
-      ctx.restore();
-    }
+  // ── Input ──
+  function pointerPos(e) {
+    const t = e.touches ? e.touches[0] : e;
+    return { x: t.clientX, y: t.clientY };
   }
-
-  function getPos(e){const cv=canvasRef.current;const rect=cv.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return{x:t.clientX-rect.left,y:t.clientY-rect.top};}
-  function onTouchStart(e){
+  function onDown(e) {
     e.preventDefault();
-    const s = stateRef.current;
-    const pos = getPos(e);
-    s.slashes.push({...pos, t:Date.now()});
-    if (s.bonusActive) { s.bonusTracing = true; s.bonusTrace.push(pos); }
+    const s = sRef.current; if (!s || s.over) return;
+    const p = pointerPos(e);
+    s.trail = [{ x: p.x, y: p.y, t: performance.now() }];
   }
-  function onTouchMove(e){
+  function onMove(e) {
     e.preventDefault();
-    const s = stateRef.current;
-    const pos = getPos(e);
-    s.slashes.push({...pos, t:Date.now()});
-    if (s.bonusActive && s.bonusTracing) s.bonusTrace.push(pos);
+    const s = sRef.current; if (!s || s.over) return;
+    if (s.trail.length === 0) return;
+    const p = pointerPos(e);
+    s.trail.push({ x: p.x, y: p.y, t: performance.now() });
+    if (s.trail.length > 12) s.trail.shift();
+    processSwipe(s);
+  }
+  function onUp(e) {
+    const s = sRef.current; if (!s) return;
+    s.trail = [];
   }
 
-  function startGame(){
-    const s=stateRef.current;
-    s.objects=[];s.slashes=[];s.particles=[];s.halves=[];s.floats=[];
-    s.score=0;s.lives=3;s.level=1;s.combo=0;s.maxCombo=0;
-    s.sliced=0;s.perfectCuts=0;s.bullseyes=0;s.cleanStreak=0;s.maxCleanStreak=0;
-    s.flash=0;s.shake=0;s.spawnTimer=0;s.gameTime=0;s.lastUIUpdate=0;
-    setScore(0);setLives(3);setLevel(1);setCombo(0);setCleanStreak(0);
-    setPhase('playing');s.running=true;s.lastT=performance.now();
-    setTimeout(()=>{resizeCanvas();s.raf=requestAnimationFrame(gameLoop);},50);
+  // ── Render UI ──
+  if (!portalElRef.current && typeof document !== 'undefined') {
+    portalElRef.current = document.body;
   }
 
-  function endGame(){
-    const s=stateRef.current;
-    if(!s.running)return;
-    s.running=false;cancelAnimationFrame(s.raf);setPhase('done');
-    const verdict=s.level>=15?'⚔️ SAMURAJ MISTR!':s.level>=10?'🥷 Ostrá čepel':s.level>=6?'✨ Dobrý řez':s.level>=3?'👍 Slušné':'🐢 Trénuj řez!';
-    setTimeout(()=>onResult(s.score,{
-      'Dosažený level':s.level,
-      'Bonus kol 🌟':s.bonusCount,
-      'Bullseye 🎯':s.bullseyes,
-      'Čistých řezů':s.perfectCuts,
-      'Max clean streak':'×'+s.maxCleanStreak,
-      'Max combo':'×'+s.maxCombo,
-      'Rozseknuto':s.sliced,
-      'Zbývající životy':'❤️ × '+s.lives,
-      'Hodnocení':verdict,
-    }),1000);
-  }
-
-  function quitToMenu(){const s=stateRef.current;s.running=false;cancelAnimationFrame(s.raf);endGame();}
-
-  useEffect(()=>{
-    const s=stateRef.current;
-    const hr=()=>resizeCanvas();
-    window.addEventListener('resize',hr);window.addEventListener('orientationchange',hr);
-    return()=>{s.running=false;cancelAnimationFrame(s.raf);window.removeEventListener('resize',hr);window.removeEventListener('orientationchange',hr);};
-  },[]);
-
-  if (phase==='intro'){
-    return (
-      <div style={{animation:'slideIn .3s ease',textAlign:'center',padding:'10px 0'}}>
-        <div style={{fontSize:10,color:'#bb44ff',letterSpacing:3,fontFamily:"'Orbitron',sans-serif",marginBottom:14}}>SLASH MASTER</div>
-        <div style={{fontSize:64,marginBottom:16}}>🎯⚔️</div>
-        <div style={{background:'rgba(12,18,52,.8)',border:'1px solid #1e2a4a',borderRadius:14,padding:18,marginBottom:18,textAlign:'left'}}>
-          <div style={{fontSize:12,color:'#44ffaa',fontWeight:700,marginBottom:10,letterSpacing:1}}>🎯 PRAVIDLA</div>
-          <div style={{fontSize:12.5,color:'#aabbcc',lineHeight:1.6}}>
-            <div style={{marginBottom:6}}>🍎 Předměty <strong style={{color:'#fff'}}>přilétají z různých míst</strong> a rostou</div>
-            <div style={{marginBottom:6}}>🎯 Mají <strong style={{color:'#ffd700'}}>10 zón přesnosti</strong> jako terč</div>
-            <div style={{marginBottom:6}}>⚔️ Sekni <strong style={{color:'#ffd700'}}>BULLSEYE střed = ×5</strong></div>
-            <div style={{marginBottom:6}}>🔥 <strong style={{color:'#ff6644'}}>3× čistý řez za sebou</strong> = streak ×2 (až ×5!)</div>
-            <div style={{marginBottom:6}}>⏩ Hra se <strong style={{color:'#88ccff'}}>postupně zrychluje</strong></div>
-            <div style={{marginBottom:6}}>➕ Vyšší level = <strong>víc předmětů najednou</strong> (až 5)</div>
-            <div style={{marginBottom:6}}>💎 Diamant 1200 · ⭐ Hvězda 500</div>
-            <div style={{marginBottom:6}}>💣 <strong style={{color:'#ff4444'}}>Bomba</strong> = –1 ❤️ (3 životy)</div>
-            <div style={{marginBottom:6}}>🌟 <strong style={{color:'#ffd700'}}>BONUS kola</strong> = vysekni tvar (Z, X, W…) do ovoce!</div>
-          </div>
-        </div>
-        <button onClick={startGame} style={{width:'100%',padding:'18px',fontSize:18,fontWeight:900,letterSpacing:2,background:'linear-gradient(135deg,#1a8a4a,#22cc66)',color:'#fff',border:'none',borderRadius:14,cursor:'pointer',fontFamily:"'Orbitron',sans-serif",boxShadow:'0 4px 20px rgba(68,255,170,.3)'}}>⚔️ START</button>
-        <div style={{fontSize:10,color:'#445566',marginTop:10}}>Hra běží na celé obrazovce</div>
-      </div>
-    );
-  }
-
-  return ReactDOM.createPortal(
-    <div style={{position:'fixed',inset:0,zIndex:9999,background:'#080a1e',display:'flex',flexDirection:'column',touchAction:'none',userSelect:'none',overflow:'hidden'}}>
+  const overlay = (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#0a0e1a', overflow: 'hidden', touchAction: 'none', userSelect: 'none' }}>
       <canvas ref={canvasRef}
-        onTouchStart={onTouchStart} onTouchMove={onTouchMove}
-        onMouseDown={onTouchStart} onMouseMove={(e)=>{if(e.buttons)onTouchMove(e);}}
-        style={{position:'absolute',inset:0,width:'100%',height:'100%',touchAction:'none',background:'#080a1e'}}
-      />
-      <div style={{position:'absolute',top:0,left:0,right:0,padding:'env(safe-area-inset-top,14px) 12px 8px',display:'flex',justifyContent:'space-between',alignItems:'flex-start',pointerEvents:'none',gap:8}}>
-        <div style={{display:'flex',flexDirection:'column',gap:4}}>
-          <div style={{background:'rgba(0,0,0,.5)',backdropFilter:'blur(8px)',borderRadius:10,padding:'6px 12px'}}>
-            <div style={{fontSize:9,color:'#88aaff',letterSpacing:1}}>SKÓRE</div>
-            <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:20,fontWeight:900,color:'#ffd700',lineHeight:1}}>{score.toLocaleString()}</div>
+        onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp}
+        onTouchStart={onDown} onTouchMove={onMove} onTouchEnd={onUp}
+        style={{ position: 'absolute', inset: 0, display: phase === 'playing' ? 'block' : 'none' }} />
+
+      {phase === 'playing' && (
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', pointerEvents: 'none', fontFamily: "'Orbitron',sans-serif" }}>
+          <div>
+            <div style={{ fontSize: 11, color: '#88aaff', letterSpacing: 2 }}>SKÓRE</div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: '#fff' }}>{hud.score.toLocaleString()}</div>
+            {hud.combo >= 2 && <div style={{ fontSize: 14, fontWeight: 700, color: '#ffcc44' }}>COMBO ×{hud.mult} <span style={{ fontSize: 11, color: '#aa8' }}>({hud.combo})</span></div>}
           </div>
-          <div style={{display:'flex',gap:4,alignItems:'center',flexWrap:'wrap'}}>
-            <div style={{background:'rgba(0,0,0,.5)',backdropFilter:'blur(8px)',borderRadius:8,padding:'4px 8px',fontSize:11,color:'#fff'}}>L{level}</div>
-            {combo>=2 && <div style={{background:combo>=5?'rgba(255,68,68,.85)':'rgba(255,170,0,.75)',borderRadius:8,padding:'4px 10px',fontSize:13,fontWeight:900,color:'#fff',fontFamily:"'Orbitron',sans-serif",animation:'comboPulse .3s ease'}}>×{combo} {combo>=5?'🔥':'✨'}</div>}
-            {cleanStreak>=3 && <div style={{background:'rgba(255,215,0,.85)',borderRadius:8,padding:'4px 10px',fontSize:12,fontWeight:900,color:'#000',fontFamily:"'Orbitron',sans-serif"}}>🎯×{cleanStreak>=12?5:cleanStreak>=9?4:cleanStreak>=6?3:2}</div>}
-          </div>
-        </div>
-        <div style={{display:'flex',flexDirection:'column',gap:6,alignItems:'flex-end',pointerEvents:'auto'}}>
-          <button onClick={quitToMenu} style={{background:'rgba(255,68,68,.3)',border:'1px solid rgba(255,68,68,.5)',color:'#fff',borderRadius:10,padding:'6px 10px',fontSize:11,fontWeight:700,cursor:'pointer',backdropFilter:'blur(8px)'}}>✕ KONEC</button>
-          <div style={{background:'rgba(0,0,0,.5)',backdropFilter:'blur(8px)',borderRadius:10,padding:'6px 10px',display:'flex',gap:3,fontSize:18,lineHeight:1}}>
-            {[...Array(3)].map((_,i)=>(<span key={i} style={{opacity:i<lives?1:0.2}}>{i<lives?'❤️':'🖤'}</span>))}
-          </div>
-        </div>
-      </div>
-      {phase==='done' && (
-        <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,.7)',backdropFilter:'blur(10px)',display:'flex',alignItems:'center',justifyContent:'center',animation:'fadeIn .5s ease'}}>
-          <div style={{textAlign:'center',color:'#fff'}}>
-            <div style={{fontSize:48,marginBottom:10}}>💀</div>
-            <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:32,fontWeight:900,color:'#ff4488',letterSpacing:3}}>GAME OVER</div>
-            <div style={{fontSize:14,color:'#88aaff',marginTop:8}}>Vyhodnocuji…</div>
-          </div>
+          <div style={{ fontSize: 22 }}>{'❤️'.repeat(Math.max(0, hud.lives))}{'🖤'.repeat(Math.max(0, 3 - hud.lives))}</div>
         </div>
       )}
-    </div>,
-    document.body
+
+      {phase === 'intro' && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
+          <div style={{ fontSize: 64, marginBottom: 8 }}>⚔️</div>
+          <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', fontFamily: "'Orbitron',sans-serif", letterSpacing: 1 }}>KATANA MASTER</div>
+          <div style={{ fontSize: 14, color: '#88aaff', margin: '14px 0 6px', maxWidth: 340, lineHeight: 1.6 }}>
+            Bloky padají do <strong style={{ color: '#44ddff' }}>modré zóny</strong>. Švihni přesně <strong style={{ color: '#fff' }}>směrem šipky</strong> ve správný okamžik.
+          </div>
+          <div style={{ display: 'flex', gap: 18, margin: '10px 0 4px', fontSize: 13, color: '#ccd' }}>
+            <span>↑ ↓ ← → <span style={{ color: '#778' }}>sekni směrem</span></span>
+          </div>
+          <div style={{ fontSize: 13, color: '#ccd', margin: '4px 0 6px' }}>💣 <span style={{ color: '#ff8866' }}>bombu nech projít!</span> · 🟡 zlatý = bonus</div>
+          <div style={{ fontSize: 12, color: '#778', marginBottom: 20 }}>Trefa do středu zóny = ⭐ perfektní · combo zvyšuje násobič</div>
+          <button onClick={() => { setHud({ score: 0, combo: 0, lives: 3, mult: 1 }); setPhase('playing'); }}
+            style={{ padding: '15px 40px', fontSize: 17, fontWeight: 900, letterSpacing: 1, background: 'linear-gradient(135deg,#1a8a4a,#22cc66)', color: '#fff', border: 'none', borderRadius: 14, cursor: 'pointer', fontFamily: "'Orbitron',sans-serif" }}>SPUSTIT</button>
+          <button onClick={() => onResult(null, null)}
+            style={{ marginTop: 14, padding: '10px 20px', background: 'transparent', border: '1px solid #2a3a5a', color: '#778', borderRadius: 10, cursor: 'pointer', fontSize: 13 }}>← Zpět</button>
+        </div>
+      )}
+    </div>
   );
+
+  return ReactDOM.createPortal(overlay, document.body);
 }
 
 

@@ -3800,7 +3800,7 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
 
   useEffect(() => {
     async function loadLeaders() {
-      const games = ['stopwatch','targets','balance','tower','slash'];
+      const games = ['stopwatch','targets','balance','tower','slash','mapbattle'];
       const result = {};
       const myBest = {};
       for (const game of games) {
@@ -3862,7 +3862,7 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
     { key:'bl',  emoji:'⚖️', title:'Rovnováha',          desc:'Udrž tyč co nejdéle',            color:'#44ffaa', boardKey:'board_bl', game:'balance'   },
     { key:'tw',  emoji:'🏗️', title:'Tower Builder',     desc:'Skládej bloky co nejpřesněji',   color:'#ffaa44', boardKey:'board_tw', game:'tower'     },
     { key:'sl',  emoji:'⚔️', title:'Slash Master',       desc:'Fruit Ninja stylem, fullscreen', color:'#44ffaa', boardKey:'board_sl', game:'slash'     },
-    { key:'mp',  emoji:'🗺️', title:'Slepá mapa ČR',      desc:'Online multiplayer 2-6 hráčů',   color:'#44ddff', boardKey:null,       game:'mapbattle', multiplayer:true },
+    { key:'mp',  emoji:'🗺️', title:'Slepá mapa ČR',      desc:'Online multiplayer 2-6 hráčů',   color:'#44ddff', boardKey:'board_mp', game:'mapbattle', multiplayer:true },
   ];
 
   return (
@@ -4024,6 +4024,7 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
       {screen==='board_bl' && <MiniBoard game="balance"   title="⚖️ ROVNOVÁHA"         color="#44ffaa" onBack={()=>setScreen('menu')}/>}
       {screen==='board_tw' && <MiniBoard game="tower"     title="🏗️ TOWER BUILDER"     color="#ffaa44" onBack={()=>setScreen('menu')}/>}
       {screen==='board_sl' && <MiniBoard game="slash"     title="⚔️ SLASH MASTER"       color="#44ffaa" onBack={()=>setScreen('menu')}/>}
+      {screen==='board_mp' && <MiniBoard game="mapbattle" title="🗺️ SLEPÁ MAPA ČR" color="#44ddff" onBack={()=>setScreen('menu')}/>}
     </div>
   );
 }
@@ -6299,6 +6300,52 @@ function geoDistKm(lat1,lon1,lat2,lon2){
   return Math.sqrt(dLat*dLat + dLon*dLon);
 }
 function distToPoints(km){ return Math.round(1000 * Math.exp(-km / 45)); }
+// Hlavní řeky (lon,lat polyline)
+const CR_RIVERS = [
+  { n:'Vltava', pts:[[13.60,48.89],[14.06,48.78],[14.32,48.79],[14.47,48.97],[14.42,49.19],[14.32,49.42],[14.20,49.62],[14.40,49.80],[14.41,49.97],[14.42,50.08],[14.47,50.35]] },
+  { n:'Labe', pts:[[15.54,50.77],[15.60,50.55],[15.66,50.38],[15.83,50.21],[15.79,50.03],[15.50,50.06],[15.10,50.13],[14.80,50.23],[14.47,50.35],[14.40,50.53],[14.24,50.66],[14.22,50.80],[14.23,50.92]] },
+  { n:'Morava', pts:[[16.93,49.97],[17.05,49.75],[17.18,49.55],[17.28,49.30],[17.30,49.10],[17.18,48.92],[17.02,48.75],[16.94,48.62]] },
+  { n:'Dyje', pts:[[15.45,48.84],[15.80,48.81],[16.05,48.78],[16.30,48.76],[16.55,48.76],[16.75,48.72],[16.94,48.62]] },
+  { n:'Ohře', pts:[[12.45,50.08],[12.70,50.16],[12.95,50.22],[13.22,50.26],[13.50,50.32],[13.78,50.38],[14.05,50.47],[14.14,50.53]] },
+  { n:'Sázava', pts:[[15.59,49.42],[15.35,49.52],[15.05,49.62],[14.78,49.74],[14.55,49.83],[14.40,49.92]] },
+  { n:'Berounka', pts:[[13.40,49.73],[13.65,49.84],[13.95,49.92],[14.20,49.97],[14.40,49.98]] },
+];
+// Vodní plochy (přehrady/jezera) - elipsy [lon,lat,rx_lon,ry_lat,angle]
+const CR_WATER = [
+  { n:'Lipno', lon:48.66, x:14.20, w:0.04, h:0.18, a:35 },
+  { n:'Orlík', lon:49.55, x:14.25, w:0.03, h:0.13, a:10 },
+  { n:'Slapy', lon:49.78, x:14.40, w:0.025, h:0.10, a:-10 },
+  { n:'Vranov', lon:48.90, x:15.78, w:0.07, h:0.025, a:0 },
+  { n:'Nové Mlýny', lon:48.88, x:16.60, w:0.10, h:0.04, a:5 },
+  { n:'Rozkoš', lon:50.39, x:16.03, w:0.04, h:0.05, a:0 },
+  { n:'Máchovo j.', lon:50.59, x:14.63, w:0.035, h:0.03, a:0 },
+];
+// Zjednodušené krajské hranice (orientační dělící linie, lon,lat)
+const CR_REGIONS = [
+  // Karlovarský/Plzeňský × Ústecký/Středočeský
+  [[13.00,50.50],[13.10,50.10],[13.30,49.90]],
+  // Plzeňský × Středočeský/Jihočeský
+  [[13.30,49.90],[13.65,49.75],[13.70,49.45],[13.85,49.10]],
+  // Jihočeský × Středočeský × Vysočina
+  [[13.85,49.10],[14.35,49.30],[14.75,49.45],[15.05,49.40]],
+  // Vysočina × Středočeský/Jihomoravský
+  [[15.05,49.40],[15.30,49.60],[15.45,49.85],[15.55,49.50],[15.70,49.20],[15.90,48.95]],
+  // Vysočina × Jihomoravský × Pardubický
+  [[15.45,49.85],[15.85,49.95],[16.20,49.90]],
+  // Jihomoravský × Olomoucký × Zlínský
+  [[16.20,49.90],[16.60,49.65],[17.10,49.50],[17.30,49.20]],
+  // Pardubický × Královéhradecký × Olomoucký
+  [[16.20,49.90],[16.10,50.20],[16.30,50.35]],
+  // Olomoucký × Moravskoslezský × Zlínský
+  [[17.30,49.20],[17.65,49.40],[17.90,49.70],[17.85,50.00]],
+  // Liberecký × Královéhradecký × Středočeský
+  [[14.80,50.70],[15.10,50.50],[15.40,50.40],[15.70,50.35]],
+  // Ústecký × Liberecký × Středočeský
+  [[14.40,50.85],[14.55,50.55],[14.70,50.40],[14.80,50.70]],
+  // Středočeský okolo Prahy (hrubě)
+  [[14.30,50.20],[14.60,50.10],[14.75,49.95],[14.65,49.80]],
+];
+
 const CR_OUTLINE_PTS = CR_OUTLINE.map(([lo,la]) => `${lonToX(lo).toFixed(1)},${latToY(la).toFixed(1)}`).join(' ');
 
 // Statistiky přesnosti hráče (localStorage)
@@ -6418,6 +6465,7 @@ function MapBattleGame({ user, onExit }) {
   const revealTimerRef = useRef(null); // host: timeout pro deadline
   const revealedRef = useRef(false);   // host: guard proti dvojímu reveal
   const curRoundRef = useRef(0);       // host: aktuální kolo
+  const usedPlacesRef = useRef([]);    // host: použitá místa (neopakovat)
 
   // Tick pro časovač
   useEffect(() => {
@@ -6447,6 +6495,13 @@ function MapBattleGame({ user, onExit }) {
     });
 
     // Broadcast eventy
+    channel.on('broadcast', { event: 'restart_lobby' }, () => {
+      scoresRef.current = {};
+      setResults([]);
+      setRound(0);
+      setView('lobby');
+    });
+
     channel.on('broadcast', { event: 'round_start' }, ({ payload }) => {
       setPlace(payload.place);
       setRound(payload.round);
@@ -6480,6 +6535,17 @@ function MapBattleGame({ user, onExit }) {
     channel.on('broadcast', { event: 'game_over' }, ({ payload }) => {
       recordMapGameDone();
       syncMapStatsToCloud(myName);  // sdílení statistik online
+      // Ulož moje finální skóre do žebříčku
+      const mine = payload.standings.find(s => s.id === myId);
+      if (mine && user) {
+        try {
+          db.from('minigame_scores').insert({
+            user_id: user.id, user_name: myName,
+            date: new Date().toISOString().slice(0,10),
+            score: mine.totalScore, game: 'mapbattle',
+          }).then(()=>{});
+        } catch(e) {}
+      }
       setResults(payload.standings);
       setView('final');
     });
@@ -6529,9 +6595,16 @@ function MapBattleGame({ user, onExit }) {
   }
 
   function hostStartGame() {
-    // Vyber náhodná místa
-    const shuffled = [...CR_PLACES].sort(() => Math.random() - 0.5);
+    // Vyber místa která ještě nebyla použita
+    let pool = CR_PLACES.filter(p => !usedPlacesRef.current.includes(p.n));
+    if (pool.length < totalRounds) {
+      // Došla nepoužitá místa - reset historie
+      usedPlacesRef.current = [];
+      pool = [...CR_PLACES];
+    }
+    const shuffled = pool.sort(() => Math.random() - 0.5);
     placesRef.current = shuffled.slice(0, totalRounds);
+    usedPlacesRef.current.push(...placesRef.current.map(p => p.n));
     // Init skóre
     const sc = {};
     Object.keys(players).forEach(id => sc[id] = 0);
@@ -6622,15 +6695,90 @@ function MapBattleGame({ user, onExit }) {
     return { x: viewX + relX * (MAP_VIEW_W / zoom), y: viewY + relY * (MAP_VIEW_H / zoom) };
   }
 
-  function onMapPointerDown(e) {
+  // Touch: 1 prst = pan/tap, 2 prsty = pinch zoom
+  function getTouchSvgPoint(touch) {
+    const svg = canvasRef.current;
+    const rect = svg.getBoundingClientRect();
+    const relX = (touch.clientX - rect.left) / rect.width;
+    const relY = (touch.clientY - rect.top) / rect.height;
+    return { x: viewX + relX * (MAP_VIEW_W / zoom), y: viewY + relY * (MAP_VIEW_H / zoom) };
+  }
+
+  function onMapTouchStart(e) {
     if (view !== 'playing') return;
+    const p = panRef.current;
+    if (e.touches.length === 2) {
+      // Pinch start
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      p.pinchStartDist = Math.hypot(dx, dy);
+      p.pinchStartZoom = zoom;
+      // Střed pinche ve SVG souř.
+      const svg = canvasRef.current;
+      const rect = svg.getBoundingClientRect();
+      const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      p.pinchCx = viewX + ((mx - rect.left) / rect.width) * (MAP_VIEW_W / zoom);
+      p.pinchCy = viewY + ((my - rect.top) / rect.height) * (MAP_VIEW_H / zoom);
+      p.pinching = true;
+      p.moved = true;
+    } else if (e.touches.length === 1) {
+      p.active = true; p.moved = false; p.pinching = false;
+      p.startX = e.touches[0].clientX; p.startY = e.touches[0].clientY;
+      p.startVX = viewX; p.startVY = viewY;
+    }
+  }
+
+  function onMapTouchMove(e) {
+    if (view !== 'playing') return;
+    e.preventDefault();
+    const p = panRef.current;
+    if (e.touches.length === 2 && p.pinching) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.hypot(dx, dy);
+      const ratio = dist / (p.pinchStartDist || dist);
+      const newZoom = Math.max(1, Math.min(6, p.pinchStartZoom * ratio));
+      const nvw = MAP_VIEW_W / newZoom, nvh = MAP_VIEW_H / newZoom;
+      let nvx = p.pinchCx - nvw / 2;
+      let nvy = p.pinchCy - nvh / 2;
+      const cl = clampView(nvx, nvy, newZoom);
+      setZoom(newZoom); setViewX(cl.x); setViewY(cl.y);
+    } else if (e.touches.length === 1 && p.active && zoom > 1) {
+      const dx = e.touches[0].clientX - p.startX, dy = e.touches[0].clientY - p.startY;
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) p.moved = true;
+      const svg = canvasRef.current;
+      const rect = svg.getBoundingClientRect();
+      const scaleX = (MAP_VIEW_W / zoom) / rect.width;
+      const scaleY = (MAP_VIEW_H / zoom) / rect.height;
+      const cl = clampView(p.startVX - dx * scaleX, p.startVY - dy * scaleY, zoom);
+      setViewX(cl.x); setViewY(cl.y);
+    }
+  }
+
+  function onMapTouchEnd(e) {
+    if (view !== 'playing') return;
+    const p = panRef.current;
+    if (p.pinching && e.touches.length < 2) { p.pinching = false; p.active = false; return; }
+    if (p.active && e.touches.length === 0) {
+      p.active = false;
+      if (!p.moved && !locked) {
+        const t = e.changedTouches[0];
+        const pt = getTouchSvgPoint(t);
+        setMyGuess({ x: pt.x, y: pt.y });
+      }
+    }
+  }
+
+  // Mouse (desktop) - klik umístí, kolečko zoom
+  function onMapMouseDown(e) {
+    if (view !== 'playing' || locked) return;
     const p = panRef.current;
     p.active = true; p.moved = false;
     p.startX = e.clientX; p.startY = e.clientY;
     p.startVX = viewX; p.startVY = viewY;
-    if (canvasRef.current.setPointerCapture) { try { canvasRef.current.setPointerCapture(e.pointerId); } catch(err){} }
   }
-  function onMapPointerMove(e) {
+  function onMapMouseMove(e) {
     const p = panRef.current;
     if (!p.active || zoom <= 1) return;
     const dx = e.clientX - p.startX, dy = e.clientY - p.startY;
@@ -6642,16 +6790,20 @@ function MapBattleGame({ user, onExit }) {
     const cl = clampView(p.startVX - dx * scaleX, p.startVY - dy * scaleY, zoom);
     setViewX(cl.x); setViewY(cl.y);
   }
-  function onMapPointerUp(e) {
+  function onMapMouseUp(e) {
     const p = panRef.current;
     if (!p.active) return;
     p.active = false;
-    if (canvasRef.current.releasePointerCapture) { try { canvasRef.current.releasePointerCapture(e.pointerId); } catch(err){} }
-    // Tap (bez výrazného pohybu) = umísti bod
     if (!p.moved && !locked) {
       const pt = svgPointFromEvent(e);
       setMyGuess({ x: pt.x, y: pt.y });
     }
+  }
+  function onMapWheel(e) {
+    if (view !== 'playing') return;
+    e.preventDefault();
+    const pt = svgPointFromEvent(e);
+    doZoom(e.deltaY < 0 ? 1.2 : 1/1.2, pt.x, pt.y);
   }
 
   function lockGuess() {
@@ -6919,21 +7071,39 @@ function MapBattleGame({ user, onExit }) {
           <div style={{fontSize:22,fontWeight:900,color:'#fff'}}>{place?.n}</div>
         </div>
 
-        {!showReveal && (
-          <div style={{display:'flex',gap:6,marginBottom:6,justifyContent:'center',alignItems:'center'}}>
-            <button onPointerDown={(e)=>{e.preventDefault();doZoom(1/1.6);}} style={{width:38,height:38,borderRadius:8,border:'1px solid #2a3a5a',background:'rgba(12,18,52,.9)',color:'#fff',fontSize:20,fontWeight:900,cursor:'pointer',touchAction:'manipulation'}}>−</button>
-            <div style={{fontSize:11,color:'#88aaff',minWidth:54,textAlign:'center'}}>{Math.round(zoom*100)}%</div>
-            <button onPointerDown={(e)=>{e.preventDefault();doZoom(1.6);}} style={{width:38,height:38,borderRadius:8,border:'1px solid #2a3a5a',background:'rgba(12,18,52,.9)',color:'#fff',fontSize:20,fontWeight:900,cursor:'pointer',touchAction:'manipulation'}}>+</button>
-            {zoom>1 && <button onPointerDown={(e)=>{e.preventDefault();setZoom(1);setViewX(0);setViewY(0);}} style={{marginLeft:6,padding:'8px 12px',borderRadius:8,border:'1px solid #2a3a5a',background:'rgba(12,18,52,.9)',color:'#88aaff',fontSize:11,cursor:'pointer',touchAction:'manipulation'}}>⟲ reset</button>}
+        {!showReveal && zoom > 1.05 && (
+          <div style={{display:'flex',justifyContent:'center',marginBottom:6}}>
+            <button onPointerDown={(e)=>{e.preventDefault();setZoom(1);setViewX(0);setViewY(0);}} style={{padding:'6px 14px',borderRadius:8,border:'1px solid #2a3a5a',background:'rgba(12,18,52,.9)',color:'#88aaff',fontSize:11,cursor:'pointer',touchAction:'manipulation'}}>⟲ Oddálit ({Math.round(zoom*100)}%)</button>
           </div>
         )}
         <svg ref={!showReveal ? canvasRef : null}
           viewBox={`${showReveal?0:viewX} ${showReveal?0:viewY} ${showReveal?MAP_VIEW_W:MAP_VIEW_W/zoom} ${showReveal?MAP_VIEW_H:MAP_VIEW_H/zoom}`}
-          onPointerDown={showReveal?undefined:onMapPointerDown}
-          onPointerMove={showReveal?undefined:onMapPointerMove}
-          onPointerUp={showReveal?undefined:onMapPointerUp}
+          onTouchStart={showReveal?undefined:onMapTouchStart}
+          onTouchMove={showReveal?undefined:onMapTouchMove}
+          onTouchEnd={showReveal?undefined:onMapTouchEnd}
+          onMouseDown={showReveal?undefined:onMapMouseDown}
+          onMouseMove={showReveal?undefined:onMapMouseMove}
+          onMouseUp={showReveal?undefined:onMapMouseUp}
+          onWheel={showReveal?undefined:onMapWheel}
           style={{width:'100%',height:'auto',background:'#0a1530',borderRadius:12,border:'1px solid #1e2a4a',touchAction:'none',cursor:locked||showReveal?'default':zoom>1?'grab':'crosshair'}}>
           <polygon points={CR_OUTLINE_PTS} fill="#16243f" stroke="#3a5a8a" strokeWidth="3"/>
+          {/* Krajské hranice */}
+          {CR_REGIONS.map((line,i)=>(
+            <polyline key={'reg'+i} points={line.map(([lo,la])=>`${lonToX(lo).toFixed(1)},${latToY(la).toFixed(1)}`).join(' ')}
+              fill="none" stroke="#4a6a9a" strokeWidth="1" strokeDasharray="4 5" opacity="0.45"/>
+          ))}
+          {/* Řeky */}
+          {CR_RIVERS.map((r,i)=>(
+            <polyline key={'riv'+i} points={r.pts.map(([lo,la])=>`${lonToX(lo).toFixed(1)},${latToY(la).toFixed(1)}`).join(' ')}
+              fill="none" stroke="#3d7fc4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.75"/>
+          ))}
+          {/* Vodní plochy */}
+          {CR_WATER.map((w,i)=>(
+            <ellipse key={'wat'+i} cx={lonToX(w.x)} cy={latToY(w.lon)}
+              rx={Math.abs(lonToX(w.x+w.w)-lonToX(w.x))} ry={Math.abs(latToY(w.lon+w.h)-latToY(w.lon))}
+              transform={`rotate(${w.a} ${lonToX(w.x)} ${latToY(w.lon)})`}
+              fill="#3d7fc4" opacity="0.7"/>
+          ))}
           {/* Reveal: spojnice + správný bod + tipy ostatních */}
           {showReveal && results.map((r,i) => {
             if (!r.guess) return null;
@@ -6969,7 +7139,7 @@ function MapBattleGame({ user, onExit }) {
             {!locked ? (
               <button onClick={lockGuess} disabled={!myGuess}
                 style={{width:'100%',padding:15,fontSize:16,fontWeight:900,letterSpacing:1,background:myGuess?'linear-gradient(135deg,#1a8a4a,#22cc66)':'#2a3a5a',color:'#fff',border:'none',borderRadius:12,cursor:myGuess?'pointer':'default',fontFamily:"'Orbitron',sans-serif"}}>
-                {myGuess ? '✓ POTVRDIT TIP' : (zoom>1?'Klepni pro umístění · táhni pro posun':'Klepni na mapu · + přiblíží')}
+                {myGuess ? '✓ POTVRDIT TIP' : (zoom>1?'Klepni pro umístění · táhni pro posun':'Klepni na mapu · 🤏 přibliž dvěma prsty')}
               </button>
             ) : (
               <div style={{textAlign:'center',color:'#44ffaa',fontSize:15,fontWeight:700,padding:14}}>✓ Tip potvrzen · čekání na ostatní…</div>
@@ -7010,7 +7180,13 @@ function MapBattleGame({ user, onExit }) {
             <span style={{fontSize:18,fontWeight:900,color:'#ffd700',fontFamily:"'Orbitron',sans-serif"}}>{r.totalScore.toLocaleString()}</span>
           </div>
         ))}
-        <button onClick={leaveRoom} style={{width:'100%',marginTop:18,padding:14,fontSize:15,fontWeight:900,background:'linear-gradient(135deg,#1a3a8a,#2255cc)',color:'#fff',border:'none',borderRadius:12,cursor:'pointer',fontFamily:"'Orbitron',sans-serif"}}>HOTOVO</button>
+        {isHost ? (
+          <button onClick={()=>{ chanRef.current.send({type:'broadcast',event:'restart_lobby',payload:{}}); }}
+            style={{width:'100%',marginTop:18,padding:15,fontSize:16,fontWeight:900,letterSpacing:1,background:'linear-gradient(135deg,#1a8a4a,#22cc66)',color:'#fff',border:'none',borderRadius:12,cursor:'pointer',fontFamily:"'Orbitron',sans-serif"}}>🔄 HRÁT ZNOVU</button>
+        ) : (
+          <div style={{marginTop:18,padding:14,color:'#88aaff',fontSize:14,textAlign:'center'}}>⏳ Čekání na hosta (může spustit novou hru)</div>
+        )}
+        <button onClick={leaveRoom} style={{width:'100%',marginTop:10,padding:12,fontSize:14,fontWeight:700,background:'transparent',border:'1px solid #2a3a5a',color:'#778',borderRadius:10,cursor:'pointer'}}>← Odejít do menu</button>
       </div>
     );
   }

@@ -588,6 +588,25 @@ function App() {
   const [questionsLoaded, setQuestionsLoaded] = useState(false);
   const [currentQuiz, setCurrentQuiz] = useState(null);
   const [wrongData, setWrongData] = useState(null);
+
+  // ── Mobilní tlačítko Zpět (History API) - navigace v appce místo opuštění ──
+  const screenRef = useRef(screen);
+  useEffect(() => { screenRef.current = screen; }, [screen]);
+  useEffect(() => {
+    window.history.pushState({ app: true }, '');
+    const onPop = () => {
+      window.history.pushState({ app: true }, '');  // zabraň opuštění stránky
+      // Priorita: nejhlubší aktivní úroveň navigace
+      if (typeof window.__mapBack === 'function') { window.__mapBack(); return; }
+      if (typeof window.__minigamesBack === 'function') { window.__minigamesBack(); return; }
+      // App úroveň
+      const s = screenRef.current;
+      if (s === SCREENS.HOME || s === SCREENS.LOGIN || s === SCREENS.REGISTER) return;
+      setScreen(SCREENS.HOME);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
   const [comboPopup, setComboPopup] = useState(null);
   const [dbOk, setDbOk] = useState(true);
   const [timeBonusToday, setTimeBonusToday] = useState(0);
@@ -3788,6 +3807,18 @@ function MiniBoard({ game, title, color, onBack }) {
 
 function MinigamesScreen({ user, onBack, onScoreSaved }) {
   const [screen, setScreen] = useState('menu');
+
+  // Back handler pro minihry (mapa má vlastní __mapBack s vyšší prioritou)
+  const mgScreenRef = useRef(screen);
+  useEffect(() => { mgScreenRef.current = screen; }, [screen]);
+  useEffect(() => {
+    window.__minigamesBack = () => {
+      const s = mgScreenRef.current;
+      if (s === 'menu') onBack();
+      else setScreen('menu');
+    };
+    return () => { window.__minigamesBack = null; };
+  }, []);
   const [swResult, setSwResult] = useState(null);
   const [tgResult, setTgResult] = useState(null);
   const [blResult, setBlResult] = useState(null);
@@ -6610,6 +6641,23 @@ function MapBattleGame({ user, onExit }) {
     return () => clearInterval(id);
   }, []);
 
+  // Back handler pro mapu (nejhlubší úroveň navigace)
+  const viewRef = useRef(view);
+  useEffect(() => { viewRef.current = view; }, [view]);
+  useEffect(() => {
+    window.__mapBack = () => {
+      const v = viewRef.current;
+      if (v === 'menu') { onExit(); }
+      else if (v === 'training' || v === 'stats') { setView('menu'); }
+      else {
+        // lobby/playing/reveal/final - opusť room a zpět na menu mapy
+        if (chanRef.current) { try { db.removeChannel(chanRef.current); } catch(e){} chanRef.current = null; }
+        setView('menu');
+      }
+    };
+    return () => { window.__mapBack = null; };
+  }, []);
+
   function genCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     return Array.from({length:4}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
@@ -7267,10 +7315,6 @@ function MapBattleGame({ user, onExit }) {
             <polygon key={'reg'+i} points={reg.pts.map(([lo,la])=>`${lonToX(lo).toFixed(1)},${latToY(la).toFixed(1)}`).join(' ')}
               fill="#16243f" stroke="#3e5e8e" strokeWidth="1" strokeLinejoin="round"/>
           ))}
-          {CR_RIVERS.map((r,i)=>(
-            <polyline key={'riv'+i} points={r.pts.map(([lo,la])=>`${lonToX(lo).toFixed(1)},${latToY(la).toFixed(1)}`).join(' ')}
-              fill="none" stroke="#3d7fc4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.75"/>
-          ))}
           {CR_WATER.map((w,i)=>(
             <circle key={'wat'+i} cx={lonToX(w.lon)} cy={latToY(w.lat)} r={w.r||4} fill="#2d6fb8" opacity="0.85"/>
           ))}
@@ -7349,11 +7393,6 @@ function MapBattleGame({ user, onExit }) {
           {[...CR_REGIONS].sort((a,b)=>(a.n==='Praha'?1:0)-(b.n==='Praha'?1:0)).map((reg,i)=>(
             <polygon key={'reg'+i} points={reg.pts.map(([lo,la])=>`${lonToX(lo).toFixed(1)},${latToY(la).toFixed(1)}`).join(' ')}
               fill="#16243f" stroke="#3e5e8e" strokeWidth="1" strokeLinejoin="round"/>
-          ))}
-          {/* Řeky */}
-          {CR_RIVERS.map((r,i)=>(
-            <polyline key={'riv'+i} points={r.pts.map(([lo,la])=>`${lonToX(lo).toFixed(1)},${latToY(la).toFixed(1)}`).join(' ')}
-              fill="none" stroke="#3d7fc4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.75"/>
           ))}
           {/* Vodní plochy */}
           {CR_WATER.map((w,i)=>(

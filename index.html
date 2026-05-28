@@ -5448,7 +5448,6 @@ function SlashMasterGame({ onResult }) {
       s.lives--;
       setLives(s.lives);
       s.combo = 0;
-      setCombo(0);
       for (let i = 0; i < 25; i++) {
         const a = Math.random() * Math.PI * 2;
         const sp = 4 + Math.random() * 14;
@@ -5516,7 +5515,6 @@ function SlashMasterGame({ onResult }) {
     else s.combo = 1;
     s.lastComboTime = now;
     if (s.combo > s.maxCombo) s.maxCombo = s.combo;
-    setCombo(s.combo);
 
     // Base points per type
     const baseMap = {
@@ -5538,7 +5536,6 @@ function SlashMasterGame({ onResult }) {
     const x2Mult = (s.multiplierTime > 0 ? 2 : 1) * (s.frenzyActive ? 3 : 1);
     const pts = Math.round(basePts * accuracyMult * comboMult * x2Mult);
     s.score += pts;
-    setScore(s.score);
     s.sliced++;
 
     // Perfect streak tracking
@@ -5567,7 +5564,6 @@ function SlashMasterGame({ onResult }) {
     const newLevel = Math.min(20, Math.floor(s.score / 1500) + 1);
     if (newLevel !== s.level) {
       s.level = newLevel;
-      setLevel(newLevel);
       s.spawnInterval = Math.max(280, 900 - (newLevel - 1) * 35);
       showBanner('⬆️ LEVEL ' + newLevel, '#88ccff');
     }
@@ -5591,11 +5587,9 @@ function SlashMasterGame({ onResult }) {
     if (o.type === 'heart') {
       if (s.lives < s.maxLives) {
         s.lives++;
-        setLives(s.lives);
         showBanner('❤️ +1 ŽIVOT!', '#ff4488');
       } else {
         s.score += 1000;
-        setScore(s.score);
         s.floats.push({ x: o.x, y: o.y - 30, text: '+1000', color: '#ff4488', life: 1.5, isLabel: true });
         showBanner('❤️ +1000 BONUS', '#ff4488');
       }
@@ -5634,7 +5628,7 @@ function SlashMasterGame({ onResult }) {
         s.iceTime = 3.0;
         showBanner('❄️ SLOW 3s!', '#88ddff');
       } else {
-        s.score += 1500; setScore(s.score); showBanner('+1500 BONUS', '#ffd700');
+        s.score += 1500; showBanner('+1500 BONUS', '#ffd700');
       }
     }
     if (o.type === 'x2') {
@@ -5644,7 +5638,6 @@ function SlashMasterGame({ onResult }) {
     if (o.type === 'boss') {
       // Mega reward
       s.score += 3000;
-      setScore(s.score);
       s.floats.push({ x: o.x, y: o.y - 30, text: '+3000 BOSS!', color: '#ff4488', life: 1.8, isLabel: true });
       showBanner('🍉 BOSS DOWN! ×2 zóna!', '#ff44ff');
       s.perfectZoneTime = 5.0;
@@ -5720,7 +5713,6 @@ function SlashMasterGame({ onResult }) {
         // Propadnutí jen resetuje combo - žádné životy se neztrácí
         if (o.type === 'fruit' && s.combo > 0) {
           s.combo = 0;
-          setCombo(0);
         }
       }
     });
@@ -5772,6 +5764,15 @@ function SlashMasterGame({ onResult }) {
     s.shake *= 0.85;
     s.bombShake *= 0.92;
     s.bgPulse = (s.bgPulse + dt * (s.multiplierTime > 0 ? 4 : 1)) % (Math.PI * 2);
+
+    // Throttle React HUD update - jen 5×/s místo při každém cut (eliminuje jank)
+    if (now - (s.lastUIUpdate || 0) > 200) {
+      s.lastUIUpdate = now;
+      setScore(s.score);
+      setCombo(s.combo);
+      setLives(s.lives);
+      setLevel(s.level);
+    }
 
     // Power-up timer decay
     if (s.multiplierTime > 0) {
@@ -5836,20 +5837,7 @@ function SlashMasterGame({ onResult }) {
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, s.W, s.H);
 
-    // Stars - cached offscreen canvas
-    if (!s.starsCanvas || s.starsCanvas.width !== s.W) {
-      s.starsCanvas = document.createElement('canvas');
-      s.starsCanvas.width = s.W;
-      s.starsCanvas.height = s.H;
-      const sctx = s.starsCanvas.getContext('2d');
-      sctx.fillStyle = 'rgba(255,255,255,.3)';
-      for (let i = 0; i < 50; i++) {
-        const x = (i * 73 + 13) % s.W;
-        const y = (i * 41 + 7) % s.H;
-        sctx.fillRect(x, y, 1.5, 1.5);
-      }
-    }
-    ctx.drawImage(s.starsCanvas, 0, 0);
+
 
     // Screen shake offset
     const shakeX = (Math.random() - 0.5) * s.shake;
@@ -5863,54 +5851,35 @@ function SlashMasterGame({ onResult }) {
       ctx.fillRect(0, 0, s.W, s.H);
     }
 
-    // Objects
+    // Objects - ŽÁDNÝ shadowBlur (drahý na mobilu), jen levné prsteny pro bomb/boss
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     s.objects.forEach(o => {
       if (!o.alive) return;
-      ctx.save();
-      ctx.translate(o.x, o.y);
-      ctx.rotate(o.rot);
 
-      // Shadow / glow
+      // Levný glow ring pro speciální objekty (jen stroke, žádný shadowBlur)
       if (o.type === 'bomb') {
         const pulse = (Math.sin(Date.now() * 0.012) + 1) * 0.5;
-        ctx.shadowColor = '#ff0000';
-        ctx.shadowBlur = 18 + pulse * 14;
-        ctx.save();
-        ctx.rotate(-o.rot);
         ctx.strokeStyle = `rgba(255, 50, 50, ${0.5 + pulse * 0.5})`;
         ctx.lineWidth = 2.5 + pulse * 1.5;
         ctx.beginPath();
-        ctx.arc(0, 0, o.size * 0.55, 0, Math.PI * 2);
+        ctx.arc(o.x, o.y, o.size * 0.55, 0, Math.PI * 2);
         ctx.stroke();
-        ctx.restore();
       } else if (o.type === 'boss') {
-        const pulse = (Math.sin(Date.now() * 0.008) + 1) * 0.5;
-        ctx.shadowColor = '#ff4488';
-        ctx.shadowBlur = 25 + pulse * 15;
-        // HP indicator ring
-        ctx.save();
-        ctx.rotate(-o.rot);
         for (let h = 0; h < o.hp; h++) {
           ctx.strokeStyle = `rgba(255, 68, 136, ${0.7 - h * 0.15})`;
           ctx.lineWidth = 3;
           ctx.beginPath();
-          ctx.arc(0, 0, o.size * 0.5 + 8 + h * 6, 0, Math.PI * 2);
+          ctx.arc(o.x, o.y, o.size * 0.5 + 8 + h * 6, 0, Math.PI * 2);
           ctx.stroke();
         }
-        ctx.restore();
-      } else if (o.type === 'star') {
-        ctx.shadowColor = '#ffd700';
-        ctx.shadowBlur = 20;
-      } else if (o.type === 'ice') {
-        ctx.shadowColor = '#88ddff';
-        ctx.shadowBlur = 12;
       }
 
+      ctx.save();
+      ctx.translate(o.x, o.y);
+      ctx.rotate(o.rot);
       ctx.font = `${o.size}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
       ctx.fillText(o.emoji, 0, 0);
-
       ctx.restore();
     });
 
@@ -5924,35 +5893,32 @@ function SlashMasterGame({ onResult }) {
     });
     ctx.globalAlpha = 1;
 
-    // Slash trail
+    // Slash trail - žádný shadowBlur, místo toho dvojitá čára (glow efekt levně)
     if (s.slashes.length >= 2) {
       const tNow = Date.now();
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      for (let i = 1; i < s.slashes.length; i++) {
-        const a = s.slashes[i - 1], b = s.slashes[i];
-        const age = (tNow - b.t) / 250;
-        const alpha = 1 - age;
-        const width = 8 * alpha;
-        ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
-        ctx.lineWidth = width;
-        ctx.shadowColor = '#88ffff';
-        ctx.shadowBlur = 10;
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.stroke();
-      }
-      ctx.shadowBlur = 0;
+      // Vnější glow vrstva (širší, průhledná)
+      ctx.beginPath();
+      ctx.moveTo(s.slashes[0].x, s.slashes[0].y);
+      for (let i = 1; i < s.slashes.length; i++) ctx.lineTo(s.slashes[i].x, s.slashes[i].y);
+      ctx.strokeStyle = 'rgba(136,255,255,.25)';
+      ctx.lineWidth = 14;
+      ctx.stroke();
+      // Vnitřní jasná čára
+      ctx.beginPath();
+      ctx.moveTo(s.slashes[0].x, s.slashes[0].y);
+      for (let i = 1; i < s.slashes.length; i++) ctx.lineTo(s.slashes[i].x, s.slashes[i].y);
+      ctx.strokeStyle = 'rgba(255,255,255,.9)';
+      ctx.lineWidth = 5;
+      ctx.stroke();
     }
 
-    // Floating score numbers
+    // Floating score - bez shadowBlur
+    ctx.textAlign = 'center';
     s.floats.forEach(f => {
       ctx.globalAlpha = Math.max(0, f.life);
       ctx.fillStyle = f.color;
-      ctx.textAlign = 'center';
-      ctx.shadowColor = f.color;
-      ctx.shadowBlur = 10;
       if (f.isLabel) {
         ctx.font = '900 18px system-ui';
         ctx.fillText(f.text, f.x, f.y);
@@ -5962,7 +5928,6 @@ function SlashMasterGame({ onResult }) {
       }
     });
     ctx.globalAlpha = 1;
-    ctx.shadowBlur = 0;
 
     ctx.restore();
 
@@ -6014,8 +5979,6 @@ function SlashMasterGame({ onResult }) {
       ctx.fillStyle = s.banner.color;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.shadowColor = s.banner.color;
-      ctx.shadowBlur = 15;
       ctx.fillText(s.banner.text, s.W/2, bannerY);
       ctx.restore();
     }

@@ -3862,6 +3862,7 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
     { key:'bl',  emoji:'⚖️', title:'Rovnováha',          desc:'Udrž tyč co nejdéle',            color:'#44ffaa', boardKey:'board_bl', game:'balance'   },
     { key:'tw',  emoji:'🏗️', title:'Tower Builder',     desc:'Skládej bloky co nejpřesněji',   color:'#ffaa44', boardKey:'board_tw', game:'tower'     },
     { key:'sl',  emoji:'⚔️', title:'Slash Master',       desc:'Fruit Ninja stylem, fullscreen', color:'#44ffaa', boardKey:'board_sl', game:'slash'     },
+    { key:'mp',  emoji:'🗺️', title:'Slepá mapa ČR',      desc:'Online multiplayer 2-6 hráčů',   color:'#44ddff', boardKey:null,       game:'mapbattle', multiplayer:true },
   ];
 
   return (
@@ -3946,8 +3947,9 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
                     <div style={{fontSize:11,color:'#445566'}}>{g.desc}</div>
                   </div>
                   <div style={{display:'flex',flexDirection:'column',gap:5,flexShrink:0}}>
-                    <button onClick={()=>setScreen(g.key)} style={{background:`linear-gradient(135deg,${g.color}33,${g.color}55)`,border:`1px solid ${g.color}66`,borderRadius:8,padding:'7px 14px',fontSize:12,color:g.color,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>▶ Hrát</button>
-                    <button onClick={()=>setScreen(g.boardKey)} style={{background:'transparent',border:'1px solid #1e2a4a',borderRadius:8,padding:'7px 14px',fontSize:11,color:'#445566',cursor:'pointer',whiteSpace:'nowrap'}}>🏆 Žebříček</button>
+                    <button onClick={()=>setScreen(g.key)} style={{background:`linear-gradient(135deg,${g.color}33,${g.color}55)`,border:`1px solid ${g.color}66`,borderRadius:8,padding:'7px 14px',fontSize:12,color:g.color,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>{g.multiplayer?'🌐 Online':'▶ Hrát'}</button>
+                    {g.boardKey && <button onClick={()=>setScreen(g.boardKey)} style={{background:'transparent',border:'1px solid #1e2a4a',borderRadius:8,padding:'7px 14px',fontSize:11,color:'#445566',cursor:'pointer',whiteSpace:'nowrap'}}>🏆 Žebříček</button>}
+                    {g.multiplayer && <div style={{textAlign:'center',fontSize:9,color:'#44ddff',letterSpacing:1,padding:'2px'}}>2-6 HRÁČŮ</div>}
                   </div>
                 </div>
                 {/* Leader */}
@@ -4012,6 +4014,9 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
           onBoard={()=>setScreen('board_sl')}
           onBack={()=>{setSlResult(null);setScreen('menu');}}/>
       )}
+
+      {/* SLEPÁ MAPA ČR - multiplayer */}
+      {screen==='mp' && <MapBattleGame user={user} onExit={()=>setScreen('menu')}/>}
 
       {/* ŽEBŘÍČKY */}
       {screen==='board_sw' && <MiniBoard game="stopwatch" title="⏱ ZASTAVTE ČAS"     color="#4488ff" onBack={()=>setScreen('menu')}/>}
@@ -6028,6 +6033,439 @@ function SlashMasterGame({ onResult }) {
     </div>,
     document.body
   );
+}
+
+
+// ═══ SLEPÁ MAPA ČR - online multiplayer ═══════════════
+// Obrys ČR (lon, lat) - zjednodušený, po obvodu
+const CR_OUTLINE = [
+  [12.10,50.32],[12.20,50.10],[12.49,49.97],[12.40,49.76],[12.63,49.54],
+  [12.90,49.34],[13.20,49.12],[13.50,48.95],[13.85,48.77],[14.10,48.58],
+  [14.45,48.55],[14.70,48.58],[14.98,48.77],[15.30,48.96],[15.75,48.85],
+  [16.05,48.75],[16.45,48.80],[16.70,48.73],[16.95,48.62],[17.40,48.82],
+  [17.90,48.88],[18.10,49.10],[18.40,49.30],[18.60,49.50],[18.85,49.52],
+  [18.35,49.92],[18.05,49.95],[17.75,50.20],[17.40,50.27],[17.00,50.28],
+  [16.60,50.15],[16.30,50.30],[16.45,50.50],[16.10,50.66],[15.74,50.74],
+  [15.37,50.78],[15.00,50.85],[14.60,50.92],[14.40,51.05],[14.30,50.90],
+  [13.85,50.73],[13.20,50.50],[12.55,50.39],[12.10,50.32],
+];
+
+// Místa k hádání: name, type, lat, lon
+const CR_PLACES = [
+  // Velká města
+  { n:'Praha', t:'město', lat:50.075, lon:14.437 },
+  { n:'Brno', t:'město', lat:49.195, lon:16.608 },
+  { n:'Ostrava', t:'město', lat:49.835, lon:18.292 },
+  { n:'Plzeň', t:'město', lat:49.747, lon:13.378 },
+  { n:'Liberec', t:'město', lat:50.767, lon:15.056 },
+  { n:'Olomouc', t:'město', lat:49.594, lon:17.251 },
+  { n:'České Budějovice', t:'město', lat:48.975, lon:14.480 },
+  { n:'Hradec Králové', t:'město', lat:50.209, lon:15.832 },
+  { n:'Ústí nad Labem', t:'město', lat:50.661, lon:14.032 },
+  { n:'Pardubice', t:'město', lat:50.038, lon:15.779 },
+  { n:'Zlín', t:'město', lat:49.224, lon:17.666 },
+  { n:'Karlovy Vary', t:'město', lat:50.232, lon:12.871 },
+  { n:'Jihlava', t:'město', lat:49.397, lon:15.591 },
+  { n:'Děčín', t:'město', lat:50.782, lon:14.215 },
+  { n:'Cheb', t:'město', lat:50.079, lon:12.370 },
+  { n:'Znojmo', t:'město', lat:48.855, lon:16.048 },
+  { n:'Tábor', t:'město', lat:49.414, lon:14.658 },
+  { n:'Trutnov', t:'město', lat:50.561, lon:15.912 },
+  { n:'Kroměříž', t:'město', lat:49.298, lon:17.393 },
+  { n:'Břeclav', t:'město', lat:48.759, lon:16.882 },
+  { n:'Šumperk', t:'město', lat:49.965, lon:16.971 },
+  { n:'Tachov', t:'město', lat:49.795, lon:12.633 },
+  // Hory / vrcholy
+  { n:'Sněžka', t:'hora', lat:50.736, lon:15.740 },
+  { n:'Praděd', t:'hora', lat:50.083, lon:17.230 },
+  { n:'Lysá hora', t:'hora', lat:49.546, lon:18.447 },
+  { n:'Klínovec', t:'hora', lat:50.396, lon:12.968 },
+  { n:'Ještěd', t:'hora', lat:50.732, lon:14.984 },
+  { n:'Radhošť', t:'hora', lat:49.489, lon:18.244 },
+  // Vodní díla / zajímavosti
+  { n:'Lipno (přehrada)', t:'přehrada', lat:48.640, lon:14.220 },
+  { n:'Orlík (přehrada)', t:'přehrada', lat:49.512, lon:14.168 },
+  { n:'hrad Karlštejn', t:'hrad', lat:49.939, lon:14.188 },
+  { n:'zámek Hluboká', t:'zámek', lat:49.051, lon:14.434 },
+  { n:'Macocha (propast)', t:'příroda', lat:49.373, lon:16.728 },
+];
+
+// Projekce - bounding box + aspect-correct
+const MAP_LON_MIN = 12.05, MAP_LON_MAX = 18.90;
+const MAP_LAT_MIN = 48.50, MAP_LAT_MAX = 51.10;
+const MAP_CLAT = (MAP_LAT_MIN + MAP_LAT_MAX) / 2;
+const MAP_VIEW_W = 1000;
+const MAP_VIEW_H = Math.round(MAP_VIEW_W * ((MAP_LAT_MAX-MAP_LAT_MIN)*111.3) / ((MAP_LON_MAX-MAP_LON_MIN)*111.3*Math.cos(MAP_CLAT*Math.PI/180)));
+
+function lonToX(lon){ return (lon - MAP_LON_MIN) / (MAP_LON_MAX - MAP_LON_MIN) * MAP_VIEW_W; }
+function latToY(lat){ return (MAP_LAT_MAX - lat) / (MAP_LAT_MAX - MAP_LAT_MIN) * MAP_VIEW_H; }
+function xToLon(x){ return MAP_LON_MIN + (x / MAP_VIEW_W) * (MAP_LON_MAX - MAP_LON_MIN); }
+function yToLat(y){ return MAP_LAT_MAX - (y / MAP_VIEW_H) * (MAP_LAT_MAX - MAP_LAT_MIN); }
+function geoDistKm(lat1,lon1,lat2,lon2){
+  const dLat = (lat1-lat2)*111.3;
+  const dLon = (lon1-lon2)*111.3*Math.cos((lat1+lat2)/2*Math.PI/180);
+  return Math.sqrt(dLat*dLat + dLon*dLon);
+}
+function distToPoints(km){ return Math.round(1000 * Math.exp(-km / 45)); }
+const CR_OUTLINE_PTS = CR_OUTLINE.map(([lo,la]) => `${lonToX(lo).toFixed(1)},${latToY(la).toFixed(1)}`).join(' ');
+
+
+// ─── MAPA ČR - online multiplayer (Supabase Realtime) ──
+function MapBattleGame({ user, onExit }) {
+  const [view, setView] = useState('menu');   // menu | lobby | playing | reveal | final
+  const [roomCode, setRoomCode] = useState('');
+  const [joinCode, setJoinCode] = useState('');
+  const [isHost, setIsHost] = useState(false);
+  const [players, setPlayers] = useState({});  // id -> {name, score, ready}
+  const [myId] = useState(() => 'p_' + Math.random().toString(36).slice(2, 9));
+  const [myName, setMyName] = useState(user?.username || user?.email?.split('@')[0] || 'Hráč');
+  const [error, setError] = useState('');
+  const [connecting, setConnecting] = useState(false);
+
+  const [round, setRound] = useState(0);
+  const [totalRounds] = useState(5);
+  const [place, setPlace] = useState(null);     // aktuální místo
+  const [myGuess, setMyGuess] = useState(null);  // {x,y}
+  const [locked, setLocked] = useState(false);
+  const [results, setResults] = useState([]);    // reveal výsledky
+  const [roundDeadline, setRoundDeadline] = useState(0);
+  const [now, setNow] = useState(Date.now());
+
+  const chanRef = useRef(null);
+  const placesRef = useRef([]);     // host: vybraná místa pro kola
+  const guessesRef = useRef({});    // host: tipy pro aktuální kolo
+  const scoresRef = useRef({});     // host: kumulativní skóre
+
+  // Tick pro časovač
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 200);
+    return () => clearInterval(id);
+  }, []);
+
+  function genCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    return Array.from({length:4}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
+  }
+
+  function setupChannel(code, asHost) {
+    const channel = db.channel('mapbattle-' + code, {
+      config: { presence: { key: myId }, broadcast: { self: true } },
+    });
+
+    // Presence - kdo je v roomu
+    channel.on('presence', { event: 'sync' }, () => {
+      const state = channel.presenceState();
+      const pl = {};
+      Object.keys(state).forEach(k => {
+        const meta = state[k][0];
+        pl[k] = { name: meta.name, score: scoresRef.current[k] || 0 };
+      });
+      setPlayers(pl);
+    });
+
+    // Broadcast eventy
+    channel.on('broadcast', { event: 'round_start' }, ({ payload }) => {
+      setPlace(payload.place);
+      setRound(payload.round);
+      setMyGuess(null);
+      setLocked(false);
+      setResults([]);
+      setRoundDeadline(payload.deadline);
+      setView('playing');
+    });
+
+    channel.on('broadcast', { event: 'reveal' }, ({ payload }) => {
+      setResults(payload.results);
+      // Aktualizuj lokální skóre z payloadu
+      const sc = {};
+      payload.results.forEach(r => { sc[r.id] = r.totalScore; });
+      scoresRef.current = sc;
+      setPlayers(prev => {
+        const np = { ...prev };
+        payload.results.forEach(r => { if (np[r.id]) np[r.id] = { ...np[r.id], score: r.totalScore }; });
+        return np;
+      });
+      setView('reveal');
+    });
+
+    channel.on('broadcast', { event: 'game_over' }, ({ payload }) => {
+      setResults(payload.standings);
+      setView('final');
+    });
+
+    // Host sbírá tipy
+    if (asHost) {
+      channel.on('broadcast', { event: 'guess' }, ({ payload }) => {
+        guessesRef.current[payload.id] = payload;
+      });
+    }
+
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await channel.track({ name: myName });
+        setConnecting(false);
+      }
+    });
+
+    chanRef.current = channel;
+    return channel;
+  }
+
+  function hostCreate() {
+    if (!myName.trim()) { setError('Zadej jméno'); return; }
+    const code = genCode();
+    setRoomCode(code);
+    setIsHost(true);
+    setConnecting(true);
+    scoresRef.current = {};
+    setupChannel(code, true);
+    setView('lobby');
+  }
+
+  function joinRoom() {
+    const code = joinCode.trim().toUpperCase();
+    if (!myName.trim()) { setError('Zadej jméno'); return; }
+    if (code.length !== 4) { setError('Kód má 4 znaky'); return; }
+    setRoomCode(code);
+    setIsHost(false);
+    setConnecting(true);
+    setError('');
+    setupChannel(code, false);
+    setView('lobby');
+  }
+
+  function hostStartGame() {
+    // Vyber náhodná místa
+    const shuffled = [...CR_PLACES].sort(() => Math.random() - 0.5);
+    placesRef.current = shuffled.slice(0, totalRounds);
+    // Init skóre
+    const sc = {};
+    Object.keys(players).forEach(id => sc[id] = 0);
+    scoresRef.current = sc;
+    hostStartRound(0);
+  }
+
+  function hostStartRound(r) {
+    guessesRef.current = {};
+    const place = placesRef.current[r];
+    const deadline = Date.now() + 20000; // 20s na tip
+    chanRef.current.send({ type:'broadcast', event:'round_start', payload:{ round:r, place:{n:place.n,t:place.t,lat:place.lat,lon:place.lon}, deadline } });
+    // Host po deadline vyhodnotí
+    setTimeout(() => hostReveal(r), 20500);
+  }
+
+  function hostReveal(r) {
+    const place = placesRef.current[r];
+    const results = [];
+    const pstate = chanRef.current.presenceState();
+    Object.keys(pstate).forEach(id => {
+      const name = pstate[id][0].name;
+      const g = guessesRef.current[id];
+      let km = null, pts = 0;
+      if (g) {
+        km = geoDistKm(place.lat, place.lon, g.lat, g.lon);
+        pts = distToPoints(km);
+      }
+      scoresRef.current[id] = (scoresRef.current[id] || 0) + pts;
+      results.push({ id, name, km, pts, guess: g ? {lat:g.lat, lon:g.lon} : null, totalScore: scoresRef.current[id] });
+    });
+    results.sort((a,b) => (a.km ?? 9999) - (b.km ?? 9999));
+    chanRef.current.send({ type:'broadcast', event:'reveal', payload:{ results, place:{lat:place.lat, lon:place.lon, n:place.n} } });
+
+    // Po 6s další kolo nebo konec
+    setTimeout(() => {
+      if (r + 1 < totalRounds) hostStartRound(r + 1);
+      else {
+        const standings = Object.keys(scoresRef.current).map(id => ({
+          id, name: (pstate[id] && pstate[id][0].name) || '?', totalScore: scoresRef.current[id],
+        })).sort((a,b) => b.totalScore - a.totalScore);
+        chanRef.current.send({ type:'broadcast', event:'game_over', payload:{ standings } });
+      }
+    }, 6000);
+  }
+
+  function handleMapClick(e) {
+    if (locked || view !== 'playing') return;
+    const svg = e.currentTarget;
+    const rect = svg.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width * MAP_VIEW_W;
+    const y = (e.clientY - rect.top) / rect.height * MAP_VIEW_H;
+    setMyGuess({ x, y });
+  }
+
+  function lockGuess() {
+    if (!myGuess) return;
+    setLocked(true);
+    const lon = xToLon(myGuess.x);
+    const lat = yToLat(myGuess.y);
+    chanRef.current.send({ type:'broadcast', event:'guess', payload:{ id:myId, name:myName, lat, lon } });
+  }
+
+  function leaveRoom() {
+    if (chanRef.current) { db.removeChannel(chanRef.current); chanRef.current = null; }
+    onExit();
+  }
+
+  useEffect(() => () => { if (chanRef.current) db.removeChannel(chanRef.current); }, []);
+
+  const playerList = Object.entries(players);
+  const timeLeft = Math.max(0, Math.ceil((roundDeadline - now) / 1000));
+
+  // ── MENU ──
+  if (view === 'menu') {
+    return (
+      <div style={{animation:'slideIn .3s ease',maxWidth:420,margin:'0 auto'}}>
+        <div style={{textAlign:'center',marginBottom:18}}>
+          <div style={{fontSize:54,marginBottom:8}}>🗺️</div>
+          <div style={{fontSize:20,fontWeight:900,color:'#fff',fontFamily:"'Orbitron',sans-serif"}}>SLEPÁ MAPA ČR</div>
+          <div style={{fontSize:12,color:'#88aaff',marginTop:4}}>Online multiplayer · 2-6 hráčů</div>
+        </div>
+        <div style={{background:'rgba(12,18,52,.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:14}}>
+          <label style={{fontSize:11,color:'#88aaff',letterSpacing:1}}>TVOJE JMÉNO</label>
+          <input value={myName} onChange={e=>setMyName(e.target.value)} maxLength={14}
+            style={{width:'100%',marginTop:6,padding:'10px 12px',borderRadius:8,border:'1px solid #2a3a5a',background:'#0a1228',color:'#fff',fontSize:15,boxSizing:'border-box'}}/>
+        </div>
+        <button onClick={hostCreate} style={{width:'100%',padding:16,fontSize:16,fontWeight:900,letterSpacing:1,background:'linear-gradient(135deg,#1a8a4a,#22cc66)',color:'#fff',border:'none',borderRadius:12,cursor:'pointer',marginBottom:10,fontFamily:"'Orbitron',sans-serif"}}>🎮 VYTVOŘIT HRU</button>
+        <div style={{display:'flex',gap:8,alignItems:'stretch'}}>
+          <input value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} placeholder="KÓD" maxLength={4}
+            style={{flex:1,padding:'12px',borderRadius:10,border:'1px solid #2a3a5a',background:'#0a1228',color:'#fff',fontSize:18,textAlign:'center',letterSpacing:4,fontFamily:"'Orbitron',sans-serif",boxSizing:'border-box'}}/>
+          <button onClick={joinRoom} style={{padding:'12px 20px',fontSize:14,fontWeight:900,background:'linear-gradient(135deg,#1a3a8a,#2255cc)',color:'#fff',border:'none',borderRadius:10,cursor:'pointer'}}>PŘIPOJIT</button>
+        </div>
+        {error && <div style={{color:'#ff6644',fontSize:12,marginTop:10,textAlign:'center'}}>{error}</div>}
+        <button onClick={onExit} style={{width:'100%',marginTop:16,padding:10,background:'transparent',border:'1px solid #2a3a5a',color:'#778',borderRadius:8,cursor:'pointer',fontSize:13}}>← Zpět</button>
+      </div>
+    );
+  }
+
+  // ── LOBBY ──
+  if (view === 'lobby') {
+    return (
+      <div style={{animation:'slideIn .3s ease',maxWidth:420,margin:'0 auto',textAlign:'center'}}>
+        <div style={{fontSize:11,color:'#88aaff',letterSpacing:2,marginBottom:6}}>KÓD MÍSTNOSTI</div>
+        <div style={{fontSize:44,fontWeight:900,color:'#ffd700',fontFamily:"'Orbitron',sans-serif",letterSpacing:8,marginBottom:6}}>{roomCode}</div>
+        <div style={{fontSize:12,color:'#778',marginBottom:18}}>{connecting ? 'Připojuji…' : 'Sdílej kód s ostatními'}</div>
+        <div style={{background:'rgba(12,18,52,.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:16}}>
+          <div style={{fontSize:11,color:'#88aaff',letterSpacing:1,marginBottom:10}}>HRÁČI ({playerList.length})</div>
+          {playerList.map(([id,p])=>(
+            <div key={id} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 10px',background:'rgba(68,170,255,.08)',borderRadius:8,marginBottom:6}}>
+              <span style={{fontSize:16}}>{id===myId?'⭐':'👤'}</span>
+              <span style={{color:'#fff',fontWeight:600,fontSize:14}}>{p.name}{id===myId?' (ty)':''}</span>
+              {id===Object.keys(players)[0] && <span style={{marginLeft:'auto',fontSize:10,color:'#ffd700'}}>HOST</span>}
+            </div>
+          ))}
+          {playerList.length === 0 && <div style={{color:'#556',fontSize:13}}>Čekám na hráče…</div>}
+        </div>
+        {isHost ? (
+          <button onClick={hostStartGame} disabled={playerList.length < 2}
+            style={{width:'100%',padding:16,fontSize:16,fontWeight:900,letterSpacing:1,background:playerList.length<2?'#2a3a5a':'linear-gradient(135deg,#1a8a4a,#22cc66)',color:'#fff',border:'none',borderRadius:12,cursor:playerList.length<2?'default':'pointer',fontFamily:"'Orbitron',sans-serif"}}>
+            {playerList.length < 2 ? 'Čekej na 2+ hráče' : '🚀 SPUSTIT HRU'}
+          </button>
+        ) : (
+          <div style={{color:'#88aaff',fontSize:14,padding:14}}>⏳ Čekání na hosta…</div>
+        )}
+        <button onClick={leaveRoom} style={{width:'100%',marginTop:12,padding:10,background:'transparent',border:'1px solid #2a3a5a',color:'#778',borderRadius:8,cursor:'pointer',fontSize:13}}>← Opustit</button>
+      </div>
+    );
+  }
+
+  // ── PLAYING / REVEAL - mapa ──
+  if (view === 'playing' || view === 'reveal') {
+    const showReveal = view === 'reveal';
+    const correctPt = showReveal && place ? { x: lonToX(place.lon), y: latToY(place.lat) } : null;
+    return (
+      <div style={{animation:'slideIn .3s ease',maxWidth:600,margin:'0 auto'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+          <div style={{fontSize:12,color:'#88aaff'}}>Kolo {round+1}/{totalRounds}</div>
+          {!showReveal && <div style={{fontSize:18,fontWeight:900,color:timeLeft<=5?'#ff4444':'#ffd700',fontFamily:"'Orbitron',sans-serif"}}>⏱ {timeLeft}s</div>}
+        </div>
+
+        <div style={{textAlign:'center',marginBottom:10,padding:'10px',background:'rgba(255,215,0,.1)',border:'1px solid rgba(255,215,0,.3)',borderRadius:10}}>
+          <div style={{fontSize:10,color:'#ffaa44',letterSpacing:1}}>{showReveal?'SPRÁVNĚ:':`NAJDI (${place?.t}):`}</div>
+          <div style={{fontSize:22,fontWeight:900,color:'#fff'}}>{place?.n}</div>
+        </div>
+
+        <svg viewBox={`0 0 ${MAP_VIEW_W} ${MAP_VIEW_H}`} onPointerDown={handleMapClick}
+          style={{width:'100%',height:'auto',background:'#0a1530',borderRadius:12,border:'1px solid #1e2a4a',touchAction:'none',cursor:locked||showReveal?'default':'crosshair'}}>
+          <polygon points={CR_OUTLINE_PTS} fill="#16243f" stroke="#3a5a8a" strokeWidth="3"/>
+          {/* Reveal: spojnice + správný bod + tipy ostatních */}
+          {showReveal && results.map((r,i) => {
+            if (!r.guess) return null;
+            const gx = lonToX(r.guess.lon), gy = latToY(r.guess.lat);
+            const isMe = r.id === myId;
+            return (
+              <g key={r.id}>
+                {correctPt && <line x1={gx} y1={gy} x2={correctPt.x} y2={correctPt.y} stroke={isMe?'#44ffaa':'#ff668855'} strokeWidth="2" strokeDasharray="6 4"/>}
+                <circle cx={gx} cy={gy} r={isMe?14:10} fill={isMe?'#44ffaa':'#ff6688'} stroke="#fff" strokeWidth="2"/>
+                <text x={gx} y={gy-20} fill="#fff" fontSize="22" fontWeight="900" textAnchor="middle">{r.name}</text>
+              </g>
+            );
+          })}
+          {showReveal && correctPt && (
+            <g>
+              <circle cx={correctPt.x} cy={correctPt.y} r="18" fill="none" stroke="#ffd700" strokeWidth="4"/>
+              <circle cx={correctPt.x} cy={correctPt.y} r="7" fill="#ffd700"/>
+              <text x={correctPt.x} y={correctPt.y+40} fill="#ffd700" fontSize="26" fontWeight="900" textAnchor="middle">📍</text>
+            </g>
+          )}
+          {/* Můj tip během hry */}
+          {!showReveal && myGuess && (
+            <g>
+              <circle cx={myGuess.x} cy={myGuess.y} r="14" fill={locked?'#44ffaa':'#ffd700'} stroke="#fff" strokeWidth="3"/>
+              <circle cx={myGuess.x} cy={myGuess.y} r="5" fill="#fff"/>
+            </g>
+          )}
+        </svg>
+
+        {/* Spodní panel */}
+        {!showReveal ? (
+          <div style={{marginTop:12}}>
+            {!locked ? (
+              <button onClick={lockGuess} disabled={!myGuess}
+                style={{width:'100%',padding:15,fontSize:16,fontWeight:900,letterSpacing:1,background:myGuess?'linear-gradient(135deg,#1a8a4a,#22cc66)':'#2a3a5a',color:'#fff',border:'none',borderRadius:12,cursor:myGuess?'pointer':'default',fontFamily:"'Orbitron',sans-serif"}}>
+                {myGuess ? '✓ POTVRDIT TIP' : 'Klikni na mapu'}
+              </button>
+            ) : (
+              <div style={{textAlign:'center',color:'#44ffaa',fontSize:15,fontWeight:700,padding:14}}>✓ Tip potvrzen · čekání na ostatní…</div>
+            )}
+          </div>
+        ) : (
+          <div style={{marginTop:12,background:'rgba(12,18,52,.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:14}}>
+            <div style={{fontSize:11,color:'#88aaff',letterSpacing:1,marginBottom:8}}>VÝSLEDKY KOLA</div>
+            {results.map((r,i) => (
+              <div key={r.id} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 8px',background:r.id===myId?'rgba(68,255,170,.1)':'transparent',borderRadius:6,marginBottom:4}}>
+                <span style={{fontSize:13,color:'#778',width:20}}>{i+1}.</span>
+                <span style={{color:'#fff',fontWeight:600,fontSize:14,flex:1}}>{r.name}{r.id===myId?' (ty)':''}</span>
+                <span style={{fontSize:12,color:'#88aaff'}}>{r.km!=null?`${Math.round(r.km)} km`:'—'}</span>
+                <span style={{fontSize:14,fontWeight:900,color:'#ffd700',width:60,textAlign:'right'}}>+{r.pts}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <button onClick={leaveRoom} style={{width:'100%',marginTop:10,padding:9,background:'transparent',border:'1px solid #2a3a5a',color:'#778',borderRadius:8,cursor:'pointer',fontSize:12}}>Opustit hru</button>
+      </div>
+    );
+  }
+
+  // ── FINAL ──
+  if (view === 'final') {
+    const medals = ['🥇','🥈','🥉'];
+    return (
+      <div style={{animation:'slideIn .3s ease',maxWidth:420,margin:'0 auto',textAlign:'center'}}>
+        <div style={{fontSize:48,marginBottom:8}}>🏆</div>
+        <div style={{fontSize:22,fontWeight:900,color:'#fff',fontFamily:"'Orbitron',sans-serif",marginBottom:18}}>KONEČNÉ POŘADÍ</div>
+        {results.map((r,i) => (
+          <div key={r.id} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',background:i===0?'rgba(255,215,0,.15)':'rgba(12,18,52,.8)',border:`1px solid ${i===0?'rgba(255,215,0,.4)':'#1e2a4a'}`,borderRadius:12,marginBottom:8}}>
+            <span style={{fontSize:24}}>{medals[i]||`${i+1}.`}</span>
+            <span style={{color:'#fff',fontWeight:700,fontSize:16,flex:1,textAlign:'left'}}>{r.name}{r.id===myId?' (ty)':''}</span>
+            <span style={{fontSize:18,fontWeight:900,color:'#ffd700',fontFamily:"'Orbitron',sans-serif"}}>{r.totalScore.toLocaleString()}</span>
+          </div>
+        ))}
+        <button onClick={leaveRoom} style={{width:'100%',marginTop:18,padding:14,fontSize:15,fontWeight:900,background:'linear-gradient(135deg,#1a3a8a,#2255cc)',color:'#fff',border:'none',borderRadius:12,cursor:'pointer',fontFamily:"'Orbitron',sans-serif"}}>HOTOVO</button>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 

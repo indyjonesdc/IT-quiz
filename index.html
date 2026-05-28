@@ -3862,7 +3862,7 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
     { key:'bl',  emoji:'⚖️', title:'Rovnováha',          desc:'Udrž tyč co nejdéle',            color:'#44ffaa', boardKey:'board_bl', game:'balance'   },
     { key:'tw',  emoji:'🏗️', title:'Tower Builder',     desc:'Skládej bloky co nejpřesněji',   color:'#ffaa44', boardKey:'board_tw', game:'tower'     },
     { key:'sl',  emoji:'⚔️', title:'Slash Master',       desc:'Fruit Ninja stylem, fullscreen', color:'#44ffaa', boardKey:'board_sl', game:'slash'     },
-    { key:'mp',  emoji:'🗺️', title:'Slepá mapa ČR',      desc:'Online multiplayer 2-6 hráčů',   color:'#44ddff', boardKey:'board_mp', game:'mapbattle', multiplayer:true },
+    { key:'mp',  emoji:'🗺️', title:'Slepá mapa ČR',      desc:'Online multiplayer · hádej místa v ČR',   color:'#44ddff', boardKey:'board_mp', game:'mapbattle', multiplayer:true },
   ];
 
   return (
@@ -3947,7 +3947,7 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
                     <div style={{fontSize:11,color:'#445566'}}>{g.desc}</div>
                   </div>
                   <div style={{display:'flex',flexDirection:'column',gap:5,flexShrink:0}}>
-                    <button onClick={()=>setScreen(g.key)} style={{background:`linear-gradient(135deg,${g.color}33,${g.color}55)`,border:`1px solid ${g.color}66`,borderRadius:8,padding:'7px 14px',fontSize:12,color:g.color,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>{g.multiplayer?'🌐 Online':'▶ Hrát'}</button>
+                    <button onClick={()=>setScreen(g.key)} style={{background:`linear-gradient(135deg,${g.color}33,${g.color}55)`,border:`1px solid ${g.color}66`,borderRadius:8,padding:'7px 14px',fontSize:12,color:g.color,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>▶ Hrát</button>
                     {g.boardKey && <button onClick={()=>setScreen(g.boardKey)} style={{background:'transparent',border:'1px solid #1e2a4a',borderRadius:8,padding:'7px 14px',fontSize:11,color:'#445566',cursor:'pointer',whiteSpace:'nowrap'}}>🏆 Žebříček</button>}
                     {g.multiplayer && <div style={{textAlign:'center',fontSize:9,color:'#44ddff',letterSpacing:1,padding:'2px'}}>2-6 HRÁČŮ</div>}
                   </div>
@@ -6996,7 +6996,7 @@ function MapBattleGame({ user, onExit }) {
         <div style={{textAlign:'center',marginBottom:18}}>
           <div style={{fontSize:54,marginBottom:8}}>🗺️</div>
           <div style={{fontSize:20,fontWeight:900,color:'#fff',fontFamily:"'Orbitron',sans-serif"}}>SLEPÁ MAPA ČR</div>
-          <div style={{fontSize:12,color:'#88aaff',marginTop:4}}>Online multiplayer · 2-6 hráčů</div>
+          <div style={{fontSize:12,color:'#88aaff',marginTop:4}}>Online multiplayer · 2-12 hráčů</div>
           <div style={{fontSize:10,color:'#667',marginTop:4}}>⚡ Rychlý + přesný tip = bonus za ušetřený čas</div>
         </div>
         <div style={{background:'rgba(12,18,52,.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:'12px 16px',marginBottom:14,display:'flex',alignItems:'center',gap:10}}>

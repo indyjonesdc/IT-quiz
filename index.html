@@ -4050,7 +4050,7 @@ function MiniResult({ emoji, title, result, color, saving, onRetry, onBoard, onB
 
 // ─── STOPWATCH GAME ──────────────────────────────────
 function StopwatchGame({ onResult }) {
-  const TARGETS = [5, 10, 15, 20];
+  const TARGETS = [5, 10, 15, 20, 25];
   const COMMENTS = [
     // 5s komentáře
     [
@@ -4087,6 +4087,15 @@ function StopwatchGame({ onResult }) {
       ['< 0.1',   '😑 No... aspoň jsi to dokončil. Bravo?'],
       ['< 0.5',   '🥱 Unaveně průměrné. Jak tvůj pondělní výkon.'],
       ['else',    '☕ 20 sekund a taková odchylka? Vrať se po kávě.'],
+    ],
+    // 25s komentáře
+    [
+      ['< 0.0001','🌠 Nadlidský. Čas se tě bojí.'],
+      ['< 0.001', '🏆 Absolutní legenda. 25 sekund přesně!'],
+      ['< 0.01',  '🎖 Brilantní! Vnitřní hodiny jako Švýcar.'],
+      ['< 0.1',   '👏 Slušné na 25s. Klobouk dolů.'],
+      ['< 0.5',   '😬 Po 25 sekundách se dalo čekat víc.'],
+      ['else',    '🐌 25 sekund a takhle? To radši používej budík.'],
     ],
   ];
 
@@ -4328,7 +4337,7 @@ function StopwatchGame({ onResult }) {
           {phase==='idle'   ? '▶ START'
           :running          ? '⏹ STOP'
           :round < TARGETS.length - 1 ? `▶ KOLO ${round+2}`
-          :'▶ KOLO 4'}
+          :'▶ KOLO 5'}
         </button>
       )}
       {phase==='done' && <div style={{fontSize:13,color:'#bb44ff',fontFamily:"'Orbitron',sans-serif",letterSpacing:2,marginTop:8}}>Načítám střelnici...</div>}

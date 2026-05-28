@@ -6039,15 +6039,27 @@ function SlashMasterGame({ onResult }) {
 // ═══ SLEPÁ MAPA ČR - online multiplayer ═══════════════
 // Obrys ČR (lon, lat) - zjednodušený, po obvodu
 const CR_OUTLINE = [
-  [12.10,50.32],[12.20,50.10],[12.49,49.97],[12.40,49.76],[12.63,49.54],
-  [12.90,49.34],[13.20,49.12],[13.50,48.95],[13.85,48.77],[14.10,48.58],
-  [14.45,48.55],[14.70,48.58],[14.98,48.77],[15.30,48.96],[15.75,48.85],
-  [16.05,48.75],[16.45,48.80],[16.70,48.73],[16.95,48.62],[17.40,48.82],
-  [17.90,48.88],[18.10,49.10],[18.40,49.30],[18.60,49.50],[18.85,49.52],
-  [18.35,49.92],[18.05,49.95],[17.75,50.20],[17.40,50.27],[17.00,50.28],
-  [16.60,50.15],[16.30,50.30],[16.45,50.50],[16.10,50.66],[15.74,50.74],
-  [15.37,50.78],[15.00,50.85],[14.60,50.92],[14.40,51.05],[14.30,50.90],
-  [13.85,50.73],[13.20,50.50],[12.55,50.39],[12.10,50.32],
+  // Ašský výběžek (nejzápadnější) → po severu (Krušné hory) k Šluknovu
+  [12.10,50.15],[12.09,50.25],[12.20,50.32],[12.18,50.42],[12.32,50.18],
+  [12.51,50.39],[12.82,50.45],[13.02,50.50],[13.25,50.58],[13.40,50.62],
+  [13.55,50.73],[13.86,50.73],[14.00,50.80],[14.22,50.85],[14.38,50.90],
+  [14.30,50.98],[14.40,51.05],[14.55,51.02],[14.62,50.92],[14.82,50.87],
+  [15.00,50.97],[15.17,51.01],[15.28,50.90],[15.38,50.78],[15.55,50.78],
+  [15.74,50.74],[15.82,50.68],[16.02,50.63],[16.10,50.66],[16.20,50.58],
+  [16.33,50.38],[16.23,50.27],[16.40,50.30],[16.57,50.42],[16.70,50.10],
+  [16.90,50.45],[17.02,50.29],[17.20,50.32],[17.38,50.27],[17.60,50.16],
+  [17.72,50.30],[17.78,50.20],[17.90,50.05],[18.05,50.00],[18.00,49.90],
+  [18.27,49.93],[18.32,49.87],[18.55,49.91],[18.62,49.73],[18.85,49.52],
+  // Východní/jihovýchodní hranice (Beskydy → Slovensko → jih Moravy)
+  [18.43,49.32],[18.16,49.25],[18.10,49.04],[17.90,48.92],[17.74,48.86],
+  [17.51,48.82],[17.40,48.81],[17.19,48.88],[16.95,48.62],[16.72,48.70],
+  [16.48,48.81],[16.10,48.75],[15.95,48.77],[15.73,48.85],[15.55,48.90],
+  [15.28,48.96],[15.16,48.95],[14.98,48.78],[14.80,48.62],[14.70,48.58],
+  // Jižní hranice (Rakousko → Šumava)
+  [14.45,48.55],[14.30,48.58],[14.10,48.63],[13.90,48.71],[13.83,48.77],
+  [13.60,48.88],[13.50,48.94],[13.38,49.05],[13.20,49.12],[13.02,49.30],
+  [12.88,49.34],[12.78,49.46],[12.63,49.54],[12.50,49.69],[12.40,49.76],
+  [12.55,49.90],[12.49,49.98],[12.40,50.05],[12.20,50.10],[12.10,50.15],
 ];
 
 // Místa k hádání: name, type, lat, lon
@@ -6393,11 +6405,19 @@ function MapBattleGame({ user, onExit }) {
   const [statsTab, setStatsTab] = useState('me');     // me | global
   const [globalStats, setGlobalStats] = useState(null);
   const [loadingGlobal, setLoadingGlobal] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [viewX, setViewX] = useState(0);
+  const [viewY, setViewY] = useState(0);
+  const panRef = useRef({ active:false, moved:false, startX:0, startY:0, startVX:0, startVY:0 });
 
+  const canvasRef = useRef(null);
   const chanRef = useRef(null);
   const placesRef = useRef([]);     // host: vybraná místa pro kola
   const guessesRef = useRef({});    // host: tipy pro aktuální kolo
   const scoresRef = useRef({});     // host: kumulativní skóre
+  const revealTimerRef = useRef(null); // host: timeout pro deadline
+  const revealedRef = useRef(false);   // host: guard proti dvojímu reveal
+  const curRoundRef = useRef(0);       // host: aktuální kolo
 
   // Tick pro časovač
   useEffect(() => {
@@ -6434,6 +6454,7 @@ function MapBattleGame({ user, onExit }) {
       setLocked(false);
       setResults([]);
       setRoundDeadline(payload.deadline);
+      setZoom(1); setViewX(0); setViewY(0);
       setView('playing');
     });
 
@@ -6463,10 +6484,15 @@ function MapBattleGame({ user, onExit }) {
       setView('final');
     });
 
-    // Host sbírá tipy
+    // Host sbírá tipy - vyhodnotí hned jak mají všichni
     if (asHost) {
       channel.on('broadcast', { event: 'guess' }, ({ payload }) => {
         guessesRef.current[payload.id] = payload;
+        const playerCount = Object.keys(channel.presenceState()).length;
+        const guessCount = Object.keys(guessesRef.current).length;
+        if (guessCount >= playerCount && !revealedRef.current) {
+          hostReveal(curRoundRef.current);
+        }
       });
     }
 
@@ -6515,14 +6541,20 @@ function MapBattleGame({ user, onExit }) {
 
   function hostStartRound(r) {
     guessesRef.current = {};
+    revealedRef.current = false;
+    curRoundRef.current = r;
     const place = placesRef.current[r];
-    const deadline = Date.now() + 60000; // 60s na tip
+    const deadline = Date.now() + 60000; // 60s limit
     chanRef.current.send({ type:'broadcast', event:'round_start', payload:{ round:r, place:{n:place.n,t:place.t,lat:place.lat,lon:place.lon}, deadline } });
-    // Host po deadline vyhodnotí
-    setTimeout(() => hostReveal(r), 60500);
+    // Fallback: vyhodnoť po vypršení času (pokud někdo nepotvrdí)
+    if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
+    revealTimerRef.current = setTimeout(() => hostReveal(r), 60500);
   }
 
   function hostReveal(r) {
+    if (revealedRef.current) return;
+    revealedRef.current = true;
+    if (revealTimerRef.current) { clearTimeout(revealTimerRef.current); revealTimerRef.current = null; }
     const place = placesRef.current[r];
     const results = [];
     const pstate = chanRef.current.presenceState();
@@ -6557,13 +6589,69 @@ function MapBattleGame({ user, onExit }) {
     }, 6000);
   }
 
-  function handleMapClick(e) {
-    if (locked || view !== 'playing') return;
-    const svg = e.currentTarget;
+  function curViewW() { return MAP_VIEW_W / zoom; }
+  function curViewH() { return MAP_VIEW_H / zoom; }
+
+  function clampView(vx, vy, z) {
+    const vw = MAP_VIEW_W / z, vh = MAP_VIEW_H / z;
+    return {
+      x: Math.max(0, Math.min(MAP_VIEW_W - vw, vx)),
+      y: Math.max(0, Math.min(MAP_VIEW_H - vh, vy)),
+    };
+  }
+
+  function doZoom(factor, cx, cy) {
+    // cx,cy = bod ve SVG souřadnicích kolem kterého zoomovat (default střed viewportu)
+    const newZoom = Math.max(1, Math.min(6, zoom * factor));
+    if (newZoom === zoom) return;
+    const vw = MAP_VIEW_W / zoom, vh = MAP_VIEW_H / zoom;
+    const centerX = cx != null ? cx : viewX + vw / 2;
+    const centerY = cy != null ? cy : viewY + vh / 2;
+    const nvw = MAP_VIEW_W / newZoom, nvh = MAP_VIEW_H / newZoom;
+    let nvx = centerX - nvw / 2;
+    let nvy = centerY - nvh / 2;
+    const cl = clampView(nvx, nvy, newZoom);
+    setZoom(newZoom); setViewX(cl.x); setViewY(cl.y);
+  }
+
+  function svgPointFromEvent(e) {
+    const svg = canvasRef.current;
     const rect = svg.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width * MAP_VIEW_W;
-    const y = (e.clientY - rect.top) / rect.height * MAP_VIEW_H;
-    setMyGuess({ x, y });
+    const relX = (e.clientX - rect.left) / rect.width;
+    const relY = (e.clientY - rect.top) / rect.height;
+    return { x: viewX + relX * (MAP_VIEW_W / zoom), y: viewY + relY * (MAP_VIEW_H / zoom) };
+  }
+
+  function onMapPointerDown(e) {
+    if (view !== 'playing') return;
+    const p = panRef.current;
+    p.active = true; p.moved = false;
+    p.startX = e.clientX; p.startY = e.clientY;
+    p.startVX = viewX; p.startVY = viewY;
+    if (canvasRef.current.setPointerCapture) { try { canvasRef.current.setPointerCapture(e.pointerId); } catch(err){} }
+  }
+  function onMapPointerMove(e) {
+    const p = panRef.current;
+    if (!p.active || zoom <= 1) return;
+    const dx = e.clientX - p.startX, dy = e.clientY - p.startY;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) p.moved = true;
+    const svg = canvasRef.current;
+    const rect = svg.getBoundingClientRect();
+    const scaleX = (MAP_VIEW_W / zoom) / rect.width;
+    const scaleY = (MAP_VIEW_H / zoom) / rect.height;
+    const cl = clampView(p.startVX - dx * scaleX, p.startVY - dy * scaleY, zoom);
+    setViewX(cl.x); setViewY(cl.y);
+  }
+  function onMapPointerUp(e) {
+    const p = panRef.current;
+    if (!p.active) return;
+    p.active = false;
+    if (canvasRef.current.releasePointerCapture) { try { canvasRef.current.releasePointerCapture(e.pointerId); } catch(err){} }
+    // Tap (bez výrazného pohybu) = umísti bod
+    if (!p.moved && !locked) {
+      const pt = svgPointFromEvent(e);
+      setMyGuess({ x: pt.x, y: pt.y });
+    }
   }
 
   function lockGuess() {
@@ -6831,8 +6919,20 @@ function MapBattleGame({ user, onExit }) {
           <div style={{fontSize:22,fontWeight:900,color:'#fff'}}>{place?.n}</div>
         </div>
 
-        <svg viewBox={`0 0 ${MAP_VIEW_W} ${MAP_VIEW_H}`} onPointerDown={handleMapClick}
-          style={{width:'100%',height:'auto',background:'#0a1530',borderRadius:12,border:'1px solid #1e2a4a',touchAction:'none',cursor:locked||showReveal?'default':'crosshair'}}>
+        {!showReveal && (
+          <div style={{display:'flex',gap:6,marginBottom:6,justifyContent:'center',alignItems:'center'}}>
+            <button onPointerDown={(e)=>{e.preventDefault();doZoom(1/1.6);}} style={{width:38,height:38,borderRadius:8,border:'1px solid #2a3a5a',background:'rgba(12,18,52,.9)',color:'#fff',fontSize:20,fontWeight:900,cursor:'pointer',touchAction:'manipulation'}}>−</button>
+            <div style={{fontSize:11,color:'#88aaff',minWidth:54,textAlign:'center'}}>{Math.round(zoom*100)}%</div>
+            <button onPointerDown={(e)=>{e.preventDefault();doZoom(1.6);}} style={{width:38,height:38,borderRadius:8,border:'1px solid #2a3a5a',background:'rgba(12,18,52,.9)',color:'#fff',fontSize:20,fontWeight:900,cursor:'pointer',touchAction:'manipulation'}}>+</button>
+            {zoom>1 && <button onPointerDown={(e)=>{e.preventDefault();setZoom(1);setViewX(0);setViewY(0);}} style={{marginLeft:6,padding:'8px 12px',borderRadius:8,border:'1px solid #2a3a5a',background:'rgba(12,18,52,.9)',color:'#88aaff',fontSize:11,cursor:'pointer',touchAction:'manipulation'}}>⟲ reset</button>}
+          </div>
+        )}
+        <svg ref={!showReveal ? canvasRef : null}
+          viewBox={`${showReveal?0:viewX} ${showReveal?0:viewY} ${showReveal?MAP_VIEW_W:MAP_VIEW_W/zoom} ${showReveal?MAP_VIEW_H:MAP_VIEW_H/zoom}`}
+          onPointerDown={showReveal?undefined:onMapPointerDown}
+          onPointerMove={showReveal?undefined:onMapPointerMove}
+          onPointerUp={showReveal?undefined:onMapPointerUp}
+          style={{width:'100%',height:'auto',background:'#0a1530',borderRadius:12,border:'1px solid #1e2a4a',touchAction:'none',cursor:locked||showReveal?'default':zoom>1?'grab':'crosshair'}}>
           <polygon points={CR_OUTLINE_PTS} fill="#16243f" stroke="#3a5a8a" strokeWidth="3"/>
           {/* Reveal: spojnice + správný bod + tipy ostatních */}
           {showReveal && results.map((r,i) => {
@@ -6869,7 +6969,7 @@ function MapBattleGame({ user, onExit }) {
             {!locked ? (
               <button onClick={lockGuess} disabled={!myGuess}
                 style={{width:'100%',padding:15,fontSize:16,fontWeight:900,letterSpacing:1,background:myGuess?'linear-gradient(135deg,#1a8a4a,#22cc66)':'#2a3a5a',color:'#fff',border:'none',borderRadius:12,cursor:myGuess?'pointer':'default',fontFamily:"'Orbitron',sans-serif"}}>
-                {myGuess ? '✓ POTVRDIT TIP' : 'Klikni na mapu'}
+                {myGuess ? '✓ POTVRDIT TIP' : (zoom>1?'Klepni pro umístění · táhni pro posun':'Klepni na mapu · + přiblíží')}
               </button>
             ) : (
               <div style={{textAlign:'center',color:'#44ffaa',fontSize:15,fontWeight:700,padding:14}}>✓ Tip potvrzen · čekání na ostatní…</div>

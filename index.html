@@ -224,7 +224,7 @@ const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const { useState, useEffect, useRef } = React;
-const APP_VERSION = 'v1.3';
+const APP_VERSION = 'v1.6';
 console.log('%c[INDYQ] ' + APP_VERSION, 'background:#1a3a8a;color:#fff;padding:4px 10px;border-radius:4px;font-weight:bold');
 
 // ─── KONSTANTY ───────────────────────────────────────
@@ -648,6 +648,7 @@ function App() {
       window.history.pushState({ app: true }, '');  // zabraň opuštění stránky
       // Priorita: nejhlubší aktivní úroveň navigace
       if (typeof window.__mapBack === 'function') { window.__mapBack(); return; }
+      if (typeof window.__quizBack === 'function') { window.__quizBack(); return; }
       if (typeof window.__minigamesBack === 'function') { window.__minigamesBack(); return; }
       // App úroveň
       const s = screenRef.current;
@@ -3888,7 +3889,7 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
 
   useEffect(() => {
     async function loadLeaders() {
-      const games = ['stopwatch','targets','balance','tower','slash','mapbattle'];
+      const games = ['stopwatch','targets','balance','tower','slash','mapbattle','quizbattle'];
       const result = {};
       const myBest = {};
       for (const game of games) {
@@ -3951,6 +3952,7 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
     { key:'tw',  emoji:'🏗️', title:'Tower Builder',     desc:'Skládej bloky co nejpřesněji',   color:'#ffaa44', boardKey:'board_tw', game:'tower'     },
     { key:'sl',  emoji:'⚔️', title:'Katana Master',      desc:'Sekej bloky správným směrem', color:'#44ffaa', boardKey:'board_sl', game:'slash'     },
     { key:'mp',  emoji:'🗺️', title:'Slepá mapa ČR',      desc:'Online multiplayer · hádej místa v ČR',   color:'#44ddff', boardKey:'board_mp', game:'mapbattle', multiplayer:true },
+    { key:'qb',  emoji:'🎉', title:'Kvízová aréna',      desc:'Kahoot styl · týmy i jednotlivci · 6 kategorií', color:'#aa55ff', boardKey:'board_qb', game:'quizbattle', multiplayer:true },
   ];
 
   return (
@@ -4104,6 +4106,7 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
 
       {/* SLEPÁ MAPA ČR - multiplayer */}
       {screen==='mp' && <MapBattleGame user={user} onExit={()=>setScreen('menu')}/>}
+      {screen==='qb' && <QuizBattleGame user={user} onExit={()=>setScreen('menu')}/>}
 
       {/* ŽEBŘÍČKY */}
       {screen==='board_sw' && <MiniBoard game="stopwatch" title="⏱ ZASTAVTE ČAS"     color="#4488ff" onBack={()=>setScreen('menu')}/>}
@@ -4112,6 +4115,7 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
       {screen==='board_tw' && <MiniBoard game="tower"     title="🏗️ TOWER BUILDER"     color="#ffaa44" onBack={()=>setScreen('menu')}/>}
       {screen==='board_sl' && <MiniBoard game="slash"     title="⚔️ KATANA MASTER"      color="#44ffaa" onBack={()=>setScreen('menu')}/>}
       {screen==='board_mp' && <MiniBoard game="mapbattle" title="🗺️ SLEPÁ MAPA ČR" color="#44ddff" onBack={()=>setScreen('menu')}/>}
+      {screen==='board_qb' && <MiniBoard game="quizbattle" title="🎉 KVÍZOVÁ ARÉNA" color="#aa55ff" onBack={()=>setScreen('menu')}/>}
     </div>
   );
 }
@@ -6370,11 +6374,19 @@ const CR_OUTLINE_PTS = CR_OUTLINE.map(([lo,la]) => `${lonToX(lo).toFixed(1)},${l
 
 // Statistiky přesnosti hráče (localStorage)
 function loadMapStats() {
+  const fresh = { v:2, games:0, rounds:0, sumKm:0, bestKm:null, worstKm:null, close25:0, perfect5:0, bullseye1:0, totalPts:0, curStreak:0, bestStreak:0, hist:[0,0,0,0,0], byType:{}, recent:[], days:{} };
   try {
     const raw = localStorage.getItem('indyq_mapstats');
-    if (raw) { const s = JSON.parse(raw); if (s && s.v === 1) return s; }
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s && s.v === 2) return s;
+      if (s && s.v === 1) {
+        // migrace v1 → v2 (doplň nové pole, zachovej staré)
+        return { ...fresh, ...s, v:2, worstKm:fresh.worstKm, bullseye1:0, curStreak:0, bestStreak:0, hist:[0,0,0,0,0], days:{} };
+      }
+    }
   } catch(e) {}
-  return { v:1, games:0, rounds:0, sumKm:0, bestKm:null, close25:0, perfect5:0, totalPts:0, byType:{}, recent:[] };
+  return fresh;
 }
 function saveMapStats(s) {
   try { localStorage.setItem('indyq_mapstats', JSON.stringify(s)); } catch(e) {}
@@ -6385,16 +6397,41 @@ function recordMapGuess(place, km, pts) {
   s.sumKm += km;
   s.totalPts += pts;
   if (s.bestKm === null || km < s.bestKm) s.bestKm = km;
-  if (km < 25) s.close25++;
+  if (s.worstKm === null || km > s.worstKm) s.worstKm = km;
+  if (km < 25) { s.close25++; s.curStreak = (s.curStreak||0) + 1; if (s.curStreak > (s.bestStreak||0)) s.bestStreak = s.curStreak; }
+  else s.curStreak = 0;
   if (km < 5) s.perfect5++;
+  if (km < 1) s.bullseye1 = (s.bullseye1||0) + 1;
+  if (!s.hist) s.hist = [0,0,0,0,0];
+  if (km < 10) s.hist[0]++; else if (km < 25) s.hist[1]++; else if (km < 50) s.hist[2]++; else if (km < 100) s.hist[3]++; else s.hist[4]++;
+  const day = new Date().toISOString().slice(0,10);
+  if (!s.days) s.days = {};
+  s.days[day] = (s.days[day]||0) + 1;
   const t = place.t || 'jiné';
   if (!s.byType[t]) s.byType[t] = { n:0, sumKm:0 };
   s.byType[t].n++;
   s.byType[t].sumKm += km;
   s.recent.unshift({ n:place.n, t, km:Math.round(km), pts, d:Date.now() });
-  s.recent = s.recent.slice(0, 25);
+  s.recent = s.recent.slice(0, 50);
   saveMapStats(s);
   return s;
+}
+
+// Achievementy - odvozené z aktuálních statistik
+function mapAchievements(s) {
+  const days = s.days ? Object.keys(s.days).length : 0;
+  return [
+    { id:'first',   icon:'🎯', name:'První tip',        desc:'Zahraj první kolo',             done: s.rounds >= 1 },
+    { id:'bullseye',icon:'🎪', name:'Přesná muška',      desc:'Tip blíž než 1 km',             done: (s.bullseye1||0) >= 1 },
+    { id:'perfect5',icon:'⭐', name:'Pětka',             desc:'5 tipů blíž než 5 km',          done: s.perfect5 >= 5 },
+    { id:'streak5', icon:'🔥', name:'Série 5',           desc:'5 tipů v řadě pod 25 km',       done: (s.bestStreak||0) >= 5 },
+    { id:'streak10',icon:'💎', name:'Série 10',          desc:'10 tipů v řadě pod 25 km',      done: (s.bestStreak||0) >= 10 },
+    { id:'rounds50',icon:'🗺️', name:'Cestovatel',        desc:'Zahraj 50 kol',                 done: s.rounds >= 50 },
+    { id:'rounds200',icon:'🌍',name:'Místopisec',        desc:'Zahraj 200 kol',                done: s.rounds >= 200 },
+    { id:'games10', icon:'🏁', name:'Soutěživý',         desc:'Dohraj 10 her',                 done: s.games >= 10 },
+    { id:'days3',   icon:'📅', name:'Pravidelný',        desc:'Hraj ve 3 různých dnech',       done: days >= 3 },
+    { id:'master',  icon:'🏆', name:'Mistr ČR',          desc:'Průměr pod 12 km (min. 20 kol)',done: s.rounds >= 20 && (s.sumKm/s.rounds) < 12 },
+  ];
 }
 function recordMapGameDone() {
   const s = loadMapStats();
@@ -6450,6 +6487,1112 @@ async function loadGlobalMapStats() {
 
 
 // ─── MAPA ČR - online multiplayer (Supabase Realtime) ──
+// ═══ KVÍZOVÁ ARÉNA - kategorie + otázky ═══
+const QUIZ_CATS = [
+  { id:'sport',    icon:'⚽', name:'Sport',    color:'#22cc66' },
+  { id:'filmy',    icon:'🎬', name:'Filmy',    color:'#ff4488' },
+  { id:'hudba',    icon:'🎵', name:'Hudba',    color:'#aa55ff' },
+  { id:'obecny',   icon:'🧠', name:'Obecný',   color:'#4488ff' },
+  { id:'divnosti', icon:'🤪', name:'Divnosti', color:'#ffaa22' },
+  { id:'priroda',  icon:'🌿', name:'Příroda',  color:'#44cc88' },
+];
+
+const QUIZ_QUESTIONS = [
+  // ─── SPORT (100) ───
+  { c:'sport', q:'Kolik hráčů má fotbalový tým na hřišti?', a:['11','10','9','12'], correct:0 },
+  { c:'sport', img:'⚽', q:'Pro jaký sport je tento míč?', a:['Fotbal','Basketbal','Volejbal','Ragby'], correct:0 },
+  { c:'sport', q:'V jakém sportu se dává „hattrick"?', a:['Fotbal','Šachy','Plavání','Lukostřelba'], correct:0 },
+  { c:'sport', q:'Kolik bodů má koš ze hry v basketbalu (mimo trojku)?', a:['2','3','1','4'], correct:0 },
+  { c:'sport', img:'🏒', q:'Jaký sport se hraje s touto holí?', a:['Lední hokej','Golf','Lakros','Kriket'], correct:0 },
+  { c:'sport', q:'Kolik kol má maximálně profi titulový zápas v boxu?', a:['12','10','15','8'], correct:0 },
+  { c:'sport', q:'Ze které země pochází bojové umění judo?', a:['Japonsko','Čína','Korea','Thajsko'], correct:0 },
+  { c:'sport', img:'🎾', q:'Jaký sport?', a:['Tenis','Badminton','Squash','Kriket'], correct:0 },
+  { c:'sport', q:'Jak často se konají letní olympijské hry?', a:['Každé 4 roky','Každé 2 roky','Každý rok','Každých 5 let'], correct:0 },
+  { c:'sport', q:'Kolik hráčů má volejbalový tým na hřišti?', a:['6','5','7','4'], correct:0 },
+  { c:'sport', img:'🏀', q:'Jaký sport?', a:['Basketbal','Házená','Vybíjená','Fotbal'], correct:0 },
+  { c:'sport', q:'Která země vyhrála fotbalové MS 2022?', a:['Argentina','Francie','Brazílie','Německo'], correct:0 },
+  { c:'sport', q:'Jaká je oficiální délka maratonu?', a:['42,195 km','40 km','45 km','38 km'], correct:0 },
+  { c:'sport', img:'🥊', q:'Jaký sport?', a:['Box','Karate','Judo','Šerm'], correct:0 },
+  { c:'sport', q:'V jakém sportu existuje pojem „par"?', a:['Golf','Tenis','Plavání','Atletika'], correct:0 },
+  { c:'sport', q:'Kolik prstenů má olympijský symbol?', a:['5','4','6','7'], correct:0 },
+  { c:'sport', q:'Kolik hráčů má hokejový tým na ledě (bez brankáře)?', a:['5','6','4','7'], correct:0 },
+  { c:'sport', q:'Ve kterém městě se konaly OH 2021 (přesunuté z 2020)?', a:['Tokio','Peking','Rio','Londýn'], correct:0 },
+  { c:'sport', q:'Jak se jmenuje nejslavnější cyklistický závod?', a:['Tour de France','Giro','Vuelta','Paříž-Roubaix'], correct:0 },
+  { c:'sport', img:'🏓', q:'Jaký sport?', a:['Stolní tenis','Tenis','Badminton','Squash'], correct:0 },
+  { c:'sport', q:'Který tenista drží rekord v počtu grandslamů (muži, k 2023)?', a:['Novak Djoković','Roger Federer','Rafael Nadal','Pete Sampras'], correct:0 },
+  { c:'sport', q:'Kolik trvá poločas ve fotbale?', a:['45 minut','40 minut','30 minut','60 minut'], correct:0 },
+  { c:'sport', q:'V jakém sportu se používá termín „smeč"?', a:['Volejbal','Fotbal','Hokej','Box'], correct:0 },
+  { c:'sport', q:'Která země vynalezla moderní fotbal?', a:['Anglie','Brazílie','Itálie','Německo'], correct:0 },
+  { c:'sport', img:'🏊', q:'Jaký sport?', a:['Plavání','Veslování','Potápění','Surfing'], correct:0 },
+  { c:'sport', q:'Kolik jamek má standardní golfové hřiště?', a:['18','9','12','24'], correct:0 },
+  { c:'sport', q:'Jak se jmenuje slavný argentinský fotbalista (zemřel 2020)?', a:['Diego Maradona','Lionel Messi','Pelé','Ronaldinho'], correct:0 },
+  { c:'sport', q:'Ve kterém sportu vyniká Usain Bolt?', a:['Sprint','Skok do dálky','Plavání','Maraton'], correct:0 },
+  { c:'sport', q:'Kolik setů musí vyhrát tenista na grandslamu (muži)?', a:['3','2','4','5'], correct:0 },
+  { c:'sport', img:'⛳', q:'Jaký sport?', a:['Golf','Kriket','Hokej','Polo'], correct:0 },
+  { c:'sport', q:'Která NHL trofej se uděluje vítězi play-off?', a:['Stanley Cup','Hart Trophy','Norris Trophy','Vezina'], correct:0 },
+  { c:'sport', q:'Kolik hráčů má ragbyový tým (ragby union)?', a:['15','11','13','9'], correct:0 },
+  { c:'sport', q:'V jakém sportu se objevuje „touchdown"?', a:['Americký fotbal','Baseball','Basketbal','Ragby'], correct:0 },
+  { c:'sport', q:'Která česká tenistka vyhrála Wimbledon 2011 a 2014?', a:['Petra Kvitová','Karolína Plíšková','Lucie Šafářová','Barbora Strýcová'], correct:0 },
+  { c:'sport', img:'🚴', q:'Jaký sport?', a:['Cyklistika','Motokros','Triatlon','Běh'], correct:0 },
+  { c:'sport', q:'Kolik bodů je trojka v basketbalu?', a:['3','2','4','1'], correct:0 },
+  { c:'sport', q:'Jak se jmenuje slavný basketbalista č. 23 (Chicago Bulls)?', a:['Michael Jordan','LeBron James','Kobe Bryant','Magic Johnson'], correct:0 },
+  { c:'sport', q:'Ve kterém sportu se uděluje „žlutý dres"?', a:['Cyklistika','Fotbal','Tenis','Atletika'], correct:0 },
+  { c:'sport', q:'Kolik metrů měří plavecký bazén (olympijský)?', a:['50 m','25 m','100 m','33 m'], correct:0 },
+  { c:'sport', img:'🏐', q:'Jaký sport?', a:['Volejbal','Basketbal','Házená','Vodní pólo'], correct:0 },
+  { c:'sport', q:'Která země je domovem sumo zápasu?', a:['Japonsko','Mongolsko','Čína','Korea'], correct:0 },
+  { c:'sport', q:'Jak se jmenuje hokejista, přezdívaný „Great One"?', a:['Wayne Gretzky','Mario Lemieux','Bobby Orr','Gordie Howe'], correct:0 },
+  { c:'sport', q:'Kolik hráčů má baseballový tým v poli?', a:['9','11','7','10'], correct:0 },
+  { c:'sport', q:'V jakém sportu vyniká Tiger Woods?', a:['Golf','Tenis','Box','Plavání'], correct:0 },
+  { c:'sport', img:'🤺', q:'Jaký sport?', a:['Šerm','Box','Karate','Lukostřelba'], correct:0 },
+  { c:'sport', q:'Kolik minut trvá basketbalový zápas v NBA (čtyři čtvrtiny)?', a:['48 minut','40 minut','60 minut','36 minut'], correct:0 },
+  { c:'sport', q:'Která země pořádala MS ve fotbale 2018?', a:['Rusko','Brazílie','Katar','Německo'], correct:0 },
+  { c:'sport', q:'Jak se jmenuje portugalská fotbalová hvězda (CR7)?', a:['Cristiano Ronaldo','Luís Figo','Eusébio','Rúben Dias'], correct:0 },
+  { c:'sport', q:'Ve kterém sportu se boduje „ace"?', a:['Tenis','Fotbal','Hokej','Box'], correct:0 },
+  { c:'sport', img:'🏇', q:'Jaký sport?', a:['Dostihy','Polo','Drezura','Parkur'], correct:0 },
+  { c:'sport', q:'Kolik gólů je „hattrick"?', a:['3','2','4','5'], correct:0 },
+  { c:'sport', q:'Která disciplína kombinuje plavání, kolo a běh?', a:['Triatlon','Biatlon','Pentatlon','Duatlon'], correct:0 },
+  { c:'sport', q:'Jak se jmenuje nejvyšší fotbalová soutěž v Anglii?', a:['Premier League','La Liga','Serie A','Bundesliga'], correct:0 },
+  { c:'sport', q:'Kolik je délka fotbalového zápasu (bez nastavení)?', a:['90 minut','80 minut','100 minut','120 minut'], correct:0 },
+  { c:'sport', img:'🎳', q:'Jaký sport?', a:['Bowling','Kuželky','Petanque','Curling'], correct:0 },
+  { c:'sport', q:'Ve kterém zimním sportu se střílí a běží na lyžích?', a:['Biatlon','Sjezd','Skoky','Bruslení'], correct:0 },
+  { c:'sport', q:'Která země vyhrála nejvíce titulů mistrů světa ve fotbale?', a:['Brazílie','Německo','Itálie','Argentina'], correct:0 },
+  { c:'sport', q:'Jak se jmenuje nejlepší český hokejista historie (NHL, „Dominátor")?', a:['Dominik Hašek','Jaromír Jágr','Patrik Eliáš','Petr Čech'], correct:0 },
+  { c:'sport', q:'Petr Čech byl brankářem v jakém sportu?', a:['Fotbal','Hokej','Házená','Florbal'], correct:0 },
+  { c:'sport', img:'🏸', q:'Jaký sport?', a:['Badminton','Tenis','Squash','Stolní tenis'], correct:0 },
+  { c:'sport', q:'Kolik kol má závod Formule 1 (typicky cca)?', a:['50–70','10','100','200'], correct:0 },
+  { c:'sport', q:'Která země je tradiční velmocí v kriketu?', a:['Indie','Brazílie','Rusko','Norsko'], correct:0 },
+  { c:'sport', q:'Jak se jmenuje slavný jamajský sprinter (8× zlato OH)?', a:['Usain Bolt','Carl Lewis','Justin Gatlin','Tyson Gay'], correct:0 },
+  { c:'sport', q:'Ve kterém sportu je „birdie" a „eagle"?', a:['Golf','Tenis','Lukostřelba','Kriket'], correct:0 },
+  { c:'sport', img:'⛷️', q:'Jaký sport?', a:['Lyžování','Snowboarding','Bruslení','Sáňkování'], correct:0 },
+  { c:'sport', q:'Kolik hráčů má házenkářský tým na hřišti?', a:['7','6','5','8'], correct:0 },
+  { c:'sport', q:'Jak se jmenuje slavná tenistka (USA, 23 grandslamů)?', a:['Serena Williams','Venus Williams','Maria Šarapovová','Steffi Graf'], correct:0 },
+  { c:'sport', q:'Která země vynalezla basketbal?', a:['USA','Kanada','Anglie','Francie'], correct:0 },
+  { c:'sport', q:'V jakém sportu se používají rukavice a hodí se „uppercut"?', a:['Box','Tenis','Golf','Plavání'], correct:0 },
+  { c:'sport', img:'🛹', q:'Jaký sport?', a:['Skateboarding','Surfing','Snowboard','Bmx'], correct:0 },
+  { c:'sport', q:'Kolik je hráčů ve florbalovém týmu na hřišti (s brankářem)?', a:['6','5','7','4'], correct:0 },
+  { c:'sport', q:'Která země hostila OH 2016?', a:['Brazílie','Čína','Velká Británie','Řecko'], correct:0 },
+  { c:'sport', q:'Jak se jmenuje slavný americký plavec (23 zlatých OH)?', a:['Michael Phelps','Ryan Lochte','Ian Thorpe','Mark Spitz'], correct:0 },
+  { c:'sport', q:'V jakém sportu se objeví „knockout" (K.O.)?', a:['Box','Fotbal','Tenis','Golf'], correct:0 },
+  { c:'sport', img:'🤿', q:'Jaký sport (vodní)?', a:['Potápění','Plavání','Vodní pólo','Surfing'], correct:0 },
+  { c:'sport', q:'Kolik bodů je gól ve fotbale?', a:['1','2','3','0'], correct:0 },
+  { c:'sport', q:'Která soutěž je vrcholem evropského klubového fotbalu?', a:['Liga mistrů','Evropská liga','Konferenční liga','Superpohár'], correct:0 },
+  { c:'sport', q:'Jak se jmenuje slavný F1 jezdec se 7 tituly (Mercedes)?', a:['Lewis Hamilton','Max Verstappen','Sebastian Vettel','Fernando Alonso'], correct:0 },
+  { c:'sport', q:'Ve kterém sportu se hraje na „greenu"?', a:['Golf','Tenis','Fotbal','Hokej'], correct:0 },
+  { c:'sport', img:'🥋', q:'Jaký druh sportu (oblečení)?', a:['Bojová umění','Plavání','Cyklistika','Tenis'], correct:0 },
+  { c:'sport', q:'Kolik gólů musí padnout pro výhru ve volejbalu (set, do)?', a:['25 bodů','21 bodů','15 bodů','11 bodů'], correct:0 },
+  { c:'sport', q:'Která země je domovem tanga i fotbalisty Messiho?', a:['Argentina','Brazílie','Španělsko','Uruguay'], correct:0 },
+  { c:'sport', q:'V jakém sportu je „love" skóre nula?', a:['Tenis','Golf','Fotbal','Box'], correct:0 },
+  { c:'sport', q:'Jak se jmenuje legendární brazilský fotbalista (3× MS)?', a:['Pelé','Garrincha','Zico','Sócrates'], correct:0 },
+  { c:'sport', q:'Kolik kuželek se sráží v bowlingu?', a:['10','9','12','8'], correct:0 },
+  { c:'sport', img:'🏑', q:'Jaký sport?', a:['Pozemní hokej','Lední hokej','Lakros','Kriket'], correct:0 },
+  { c:'sport', q:'Která česká hokejová akce přinesla zlato na OH 1998?', a:['Nagano','Salt Lake City','Turín','Vancouver'], correct:0 },
+  { c:'sport', q:'V jakém sportu se objevuje „slam dunk"?', a:['Basketbal','Volejbal','Tenis','Házená'], correct:0 },
+  { c:'sport', q:'Jak se jmenuje nejvyšší soutěž Formule (mistrovství světa)?', a:['Formule 1','Formule E','IndyCar','MotoGP'], correct:0 },
+  { c:'sport', q:'Kolik metrů je nejkratší sprinterská trať na OH?', a:['100 m','60 m','200 m','50 m'], correct:0 },
+  { c:'sport', img:'🥇', q:'Co symbolizuje tato medaile?', a:['1. místo','2. místo','3. místo','Účast'], correct:0 },
+  { c:'sport', q:'Která země vyhrála EURO 2021 (fotbal)?', a:['Itálie','Anglie','Francie','Španělsko'], correct:0 },
+  { c:'sport', q:'V jakém sportu se používá „raketa" a „volej"?', a:['Tenis','Hokej','Fotbal','Box'], correct:0 },
+  { c:'sport', q:'Jak se jmenuje zápas dvou boxerů?', a:['Mač / zápas','Set','Round','Kolo'], correct:0 },
+  { c:'sport', q:'Kolik je hráčů v poli v americkém fotbalu (jeden tým)?', a:['11','9','13','15'], correct:0 },
+  { c:'sport', q:'Která země je velmocí ve stolním tenisu?', a:['Čína','Brazílie','Norsko','Egypt'], correct:0 },
+  { c:'sport', q:'Jak se nazývá souboj ve fotbale o míč hlavou?', a:['Hlavička','Smeč','Volej','Driblink'], correct:0 },
+  { c:'sport', q:'Ve kterém sportu se objevuje „eso" při podání?', a:['Tenis','Fotbal','Hokej','Golf'], correct:0 },
+  // ─── FILMY (100) ───
+  { c:'filmy', q:'Kdo režíroval film Titanic?', a:['James Cameron','Steven Spielberg','Christopher Nolan','Quentin Tarantino'], correct:0 },
+  { c:'filmy', img:'🦁👑', q:'Jaký animovaný film?', a:['Lví král','Madagaskar','Tarzan','Kniha džunglí'], correct:0 },
+  { c:'filmy', q:'Z jakého filmu je hláška „Já jsem tvůj otec"?', a:['Star Wars','Star Trek','Matrix','Avatar'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje hlavní hrdina Pána prstenů?', a:['Frodo','Bilbo','Aragorn','Legolas'], correct:0 },
+  { c:'filmy', img:'🕷️🦸', q:'Jaký superhrdina?', a:['Spider-Man','Batman','Superman','Hulk'], correct:0 },
+  { c:'filmy', q:'Kdo hrál Jacka ve filmu Titanic?', a:['Leonardo DiCaprio','Brad Pitt','Tom Cruise','Johnny Depp'], correct:0 },
+  { c:'filmy', q:'Kolik dílů má původní (první) trilogie Star Wars?', a:['3','6','9','4'], correct:0 },
+  { c:'filmy', img:'❄️⛄', q:'Jaký animovaný film?', a:['Ledové království','Doba ledová','Happy Feet','Coco'], correct:0 },
+  { c:'filmy', q:'Ve kterém fiktivním městě působí Batman?', a:['Gotham','Metropolis','Star City','Central City'], correct:0 },
+  { c:'filmy', q:'Kdo je autorem knih o Harrym Potterovi?', a:['J. K. Rowlingová','Tolkien','Stephen King','G. R. R. Martin'], correct:0 },
+  { c:'filmy', img:'🧙‍♂️⚡', q:'Jaký filmový hrdina?', a:['Harry Potter','Gandalf','Merlin','Dumbledore'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje pirát z „Pirátů z Karibiku"?', a:['Jack Sparrow','Hector Barbossa','Will Turner','Davy Jones'], correct:0 },
+  { c:'filmy', img:'🦖', q:'Jaký film?', a:['Jurský park','Godzilla','King Kong','Doba ledová'], correct:0 },
+  { c:'filmy', q:'Kdo režíroval Pulp Fiction?', a:['Quentin Tarantino','Martin Scorsese','David Fincher','Ridley Scott'], correct:0 },
+  { c:'filmy', q:'Jakou barvu má pilulka „pravdy" v Matrixu?', a:['Červená','Modrá','Zelená','Žlutá'], correct:0 },
+  { c:'filmy', img:'🤖❤️', q:'Jaký animovaný film o robotovi?', a:['WALL-E','Big Hero 6','Iron Giant','Transformers'], correct:0 },
+  { c:'filmy', q:'Kdo hrál Forresta Gumpa?', a:['Tom Hanks','Tom Cruise','Kevin Costner','Robin Williams'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje vesmírná loď v Avengers? (Avengers velitelství)', a:['Avengers Tower','Enterprise','Millennium Falcon','Serenity'], correct:0 },
+  { c:'filmy', q:'Kdo je režisér filmů Inception a Interstellar?', a:['Christopher Nolan','James Cameron','Ridley Scott','Denis Villeneuve'], correct:0 },
+  { c:'filmy', img:'🐠🔍', q:'Jaký animovaný film (hledání rybky)?', a:['Hledá se Nemo','Žralohlídka','Rybky','Velká žraločí'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje mimozemšťan z filmu z roku 1982 (Spielberg)?', a:['E.T.','Alf','Yoda','Stitch'], correct:0 },
+  { c:'filmy', q:'Která řada filmů má hrdinu jménem James Bond?', a:['Agent 007','Mission Impossible','Bourne','Kingsman'], correct:0 },
+  { c:'filmy', img:'🦇', q:'Jaký superhrdina (symbol)?', a:['Batman','Spider-Man','Superman','Daredevil'], correct:0 },
+  { c:'filmy', q:'Kdo hrál hlavní roli ve filmu Gladiátor?', a:['Russell Crowe','Brad Pitt','Mel Gibson','Tom Cruise'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje žlutá postavička z filmu Já, padouch?', a:['Mimoň','Smurf','Pokémon','Teletubbie'], correct:0 },
+  { c:'filmy', q:'Která země vyrábí „Bollywood" filmy?', a:['Indie','Čína','Japonsko','Korea'], correct:0 },
+  { c:'filmy', img:'🚢🧊', q:'Jaký film (loď a ledovec)?', a:['Titanic','Poseidon','Vlajka','Vzpoura na Bounty'], correct:0 },
+  { c:'filmy', q:'Kdo hrál Wolverina v X-Men?', a:['Hugh Jackman','Ryan Reynolds','Chris Evans','Henry Cavill'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje robot z filmu Star Wars (zlatý)?', a:['C-3PO','R2-D2','BB-8','K-2SO'], correct:0 },
+  { c:'filmy', q:'Který film vyhrál Oscara za nejlepší film 2020 (korejský)?', a:['Parazit','1917','Joker','Irčan'], correct:0 },
+  { c:'filmy', img:'🐭🏰', q:'Jaká filmová společnost (myš + zámek)?', a:['Disney','Pixar','Warner','Universal'], correct:0 },
+  { c:'filmy', q:'Kdo režíroval Schindlerův seznam?', a:['Steven Spielberg','Roman Polanski','Stanley Kubrick','Oliver Stone'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje had z Knihy džunglí?', a:['Kaa','Baghíra','Balú','Šér Chán'], correct:0 },
+  { c:'filmy', q:'Která trilogie se odehrává ve Středozemi?', a:['Pán prstenů','Star Wars','Matrix','Hunger Games'], correct:0 },
+  { c:'filmy', img:'👻🚫', q:'Jaký film (duchové + zákaz)?', a:['Krotitelé duchů','Casper','Duch','Sixth Sense'], correct:0 },
+  { c:'filmy', q:'Kdo hrál Neo v Matrixu?', a:['Keanu Reeves','Tom Cruise','Will Smith','Brad Pitt'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje klaun z hororu Stephena Kinga?', a:['Pennywise','Joker','Krusty','Bobo'], correct:0 },
+  { c:'filmy', q:'Která postava říká „I\'ll be back"?', a:['Terminátor','Rambo','John Wick','RoboCop'], correct:0 },
+  { c:'filmy', img:'🦸‍♂️🇺🇸', q:'Jaký superhrdina (americký)?', a:['Captain America','Superman','Iron Man','Thor'], correct:0 },
+  { c:'filmy', q:'Kdo režíroval Avatar (2009)?', a:['James Cameron','Peter Jackson','George Lucas','Ridley Scott'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje had... pardon, lev z Lvího krále (mladý)?', a:['Simba','Mufasa','Scar','Nala'], correct:0 },
+  { c:'filmy', q:'Která série filmů má „Dominica Toretta" a auta?', a:['Rychle a zběsile','Need for Speed','Drive','Baby Driver'], correct:0 },
+  { c:'filmy', img:'🧊👑', q:'Jaký animák (královna ledu)?', a:['Ledové království','Sněhová královna','Zima','Mráz'], correct:0 },
+  { c:'filmy', q:'Kdo hrál Hannibala Lectera?', a:['Anthony Hopkins','Al Pacino','Robert De Niro','Jack Nicholson'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje archeolog s bičem a kloboukem?', a:['Indiana Jones','Lara Croft','Nathan Drake','Allan Quatermain'], correct:0 },
+  { c:'filmy', q:'Která planeta je domovem Supermana?', a:['Krypton','Mars','Vulkán','Tatooine'], correct:0 },
+  { c:'filmy', img:'🍫🏭', q:'Jaký film (čokoláda + továrna)?', a:['Karlík a továrna na čokoládu','Charlie','Sladkosti','Cukrárna'], correct:0 },
+  { c:'filmy', q:'Kdo hrál Iron Mana?', a:['Robert Downey Jr.','Chris Evans','Mark Ruffalo','Chris Hemsworth'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje pohádková zelená zrůda z bažin (DreamWorks)?', a:['Shrek','Hulk','Grinch','Yoda'], correct:0 },
+  { c:'filmy', q:'Která série má kouzelnickou školu Bradavice?', a:['Harry Potter','Letopisy Narnie','Hobit','Eragon'], correct:0 },
+  { c:'filmy', img:'🐝🎬', q:'Jaký animovaný film (včela)?', a:['Pan Včelka (Bee Movie)','Včelka Mája','Méďové','Mravenci'], correct:0 },
+  { c:'filmy', q:'Kdo režíroval Vykoupení z věznice Shawshank?', a:['Frank Darabont','Martin Scorsese','Steven Spielberg','Clint Eastwood'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje malý zelený Jedi mistr?', a:['Yoda','Obi-Wan','Mace Windu','Qui-Gon'], correct:0 },
+  { c:'filmy', q:'Která řada má hrdiny „Avengers"?', a:['Marvel','DC','Star Wars','Transformers'], correct:0 },
+  { c:'filmy', img:'🤡', q:'Jaký film (komiksový padouch)?', a:['Joker','It','Maska','Pennywise'], correct:0 },
+  { c:'filmy', q:'Kdo hrál kapitána Jacka Sparrowa?', a:['Johnny Depp','Orlando Bloom','Geoffrey Rush','Javier Bardem'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje studio známé animáky jako Toy Story?', a:['Pixar','DreamWorks','Illumination','Ghibli'], correct:0 },
+  { c:'filmy', q:'Která planeta je domovem hrdiny Avatara (modří lidé)?', a:['Pandora','Mars','Krypton','Tatooine'], correct:0 },
+  { c:'filmy', img:'🦈', q:'Jaký slavný thriller (Spielberg)?', a:['Čelisti','Sharknado','Meg','Hluboké modro'], correct:0 },
+  { c:'filmy', q:'Kdo hrál Trinity v Matrixu?', a:['Carrie-Anne Moss','Uma Thurman','Mila Jovovich','Charlize Theron'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje robot R2 z Star Wars?', a:['R2-D2','C-3PO','BB-8','WALL-E'], correct:0 },
+  { c:'filmy', q:'Která pohádka má skleněný střevíček?', a:['Popelka','Sněhurka','Šípková Růženka','Locika'], correct:0 },
+  { c:'filmy', img:'🦇🃏', q:'Jaký film (netopýr vs. karta)?', a:['Batman','Joker','Suicide Squad','Penguin'], correct:0 },
+  { c:'filmy', q:'Kdo režíroval Kill Bill?', a:['Quentin Tarantino','Robert Rodriguez','John Woo','Guy Ritchie'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje mamut z Doby ledové?', a:['Manny','Sid','Diego','Scrat'], correct:0 },
+  { c:'filmy', q:'Která série má „prsten moci"?', a:['Pán prstenů','Harry Potter','Letopisy Narnie','Zaklínač'], correct:0 },
+  { c:'filmy', img:'👽', q:'Jaký žánr s mimozemšťany?', a:['Sci-fi','Western','Romance','Muzikál'], correct:0 },
+  { c:'filmy', q:'Kdo hrál Thora v Marvel filmech?', a:['Chris Hemsworth','Chris Evans','Chris Pratt','Tom Hiddleston'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje liška/lenochod z animáku Zootropolis?', a:['Nick (liška)','Sid','Manny','Bambi'], correct:0 },
+  { c:'filmy', q:'Která planeta je poušť v Star Wars (domov Luka)?', a:['Tatooine','Hoth','Endor','Naboo'], correct:0 },
+  { c:'filmy', img:'🐧🕴️', q:'Jaký animák (tančící tučňák)?', a:['Happy Feet','Madagaskar','Tučňáci z Mad.','Pingu'], correct:0 },
+  { c:'filmy', q:'Kdo hrál Jokera ve filmu Joker (2019)?', a:['Joaquin Phoenix','Heath Ledger','Jared Leto','Jack Nicholson'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje hrdina Hunger Games?', a:['Katniss','Tris','Hermiona','Bella'], correct:0 },
+  { c:'filmy', q:'Která série má „Vin Diesela" a auta?', a:['Rychle a zběsile','Transformers','Drive','Mad Max'], correct:0 },
+  { c:'filmy', img:'🍕🐢', q:'Jací hrdinové (pizza + želvy)?', a:['Želvy Ninja','Pokémon','Digimon','Mutanti'], correct:0 },
+  { c:'filmy', q:'Kdo režíroval Vetřelce (1979)?', a:['Ridley Scott','James Cameron','John Carpenter','David Lynch'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje král pirátů... kapitán s hákem?', a:['Kapitán Hook','Barbossa','Sparrow','Long John Silver'], correct:0 },
+  { c:'filmy', q:'Která série má kouzelný svět s „Pokémony"?', a:['Pokémon','Digimon','Yu-Gi-Oh','Bakugan'], correct:0 },
+  { c:'filmy', img:'🧝‍♂️🏹', q:'Jaká postava (elf s lukem)?', a:['Legolas','Robin Hood','Hawkeye','Katniss'], correct:0 },
+  { c:'filmy', q:'Kdo hrál Captaina Americu?', a:['Chris Evans','Chris Hemsworth','Sebastian Stan','Anthony Mackie'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje sněhulák z Ledového království?', a:['Olaf','Sven','Kristoff','Hans'], correct:0 },
+  { c:'filmy', q:'Která řada má „John Wicka"?', a:['John Wick','Taken','Bourne','Equalizer'], correct:0 },
+  { c:'filmy', img:'🦕🌋', q:'Jaký film (dinosauři + ostrov)?', a:['Jurský park','Doba ledová','Dinosaurus','Země pravěku'], correct:0 },
+  { c:'filmy', q:'Kdo režíroval Forrest Gump?', a:['Robert Zemeckis','Ron Howard','Rob Reiner','Barry Levinson'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje had Kaa z jakého filmu?', a:['Kniha džunglí','Tarzan','Madagaskar','Lví král'], correct:0 },
+  { c:'filmy', q:'Která postava má kladívko Mjölnir?', a:['Thor','Hulk','Loki','Odin'], correct:0 },
+  { c:'filmy', img:'🐼🥋', q:'Jaký animák (panda + kung-fu)?', a:['Kung Fu Panda','Po','Madagaskar','Panda'], correct:0 },
+  { c:'filmy', q:'Kdo hrál Black Widow v Marvel?', a:['Scarlett Johansson','Brie Larson','Elizabeth Olsen','Zoe Saldana'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje hrdina filmu Drtivá porážka... pardon, Rocky?', a:['Rocky Balboa','Apollo Creed','Ivan Drago','Mickey'], correct:0 },
+  { c:'filmy', q:'Která série má „Dominika" a rodinu závodníků?', a:['Rychle a zběsile','Need for Speed','Drive','Gran Turismo'], correct:0 },
+  { c:'filmy', img:'🧞', q:'Jaká bytost (z lampy)?', a:['Džin (Aladin)','Duch','Skřet','Elf'], correct:0 },
+  { c:'filmy', q:'Kdo režíroval Star Wars: Epizodu IV (1977)?', a:['George Lucas','Steven Spielberg','Irvin Kershner','J.J. Abrams'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje lev, otec Simby?', a:['Mufasa','Scar','Rafiki','Zazu'], correct:0 },
+  { c:'filmy', q:'Která řada má hrdinu Ethana Hunta?', a:['Mission Impossible','James Bond','Bourne','Kingsman'], correct:0 },
+  { c:'filmy', img:'🦸‍♀️', q:'Jaká hrdinka (žena se super silou)?', a:['Wonder Woman','Black Widow','Supergirl','Captain Marvel'], correct:0 },
+  { c:'filmy', q:'Kdo hrál Joker v Temném rytíři (2008)?', a:['Heath Ledger','Joaquin Phoenix','Jared Leto','Jack Nicholson'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje slon ze Disney klasiky (létá s ušima)?', a:['Dumbo','Manny','Horton','Babar'], correct:0 },
+  { c:'filmy', q:'Která série má „kostky cukru"... pardon, „kostku" Rubikovu? (žádná) — Kdo hrál Jamese Bonda nejdéle?', a:['Roger Moore','Sean Connery','Daniel Craig','Pierce Brosnan'], correct:0 },
+  // ─── HUDBA (100) ───
+  { c:'hudba', q:'Kolik strun má klasická kytara?', a:['6','4','5','7'], correct:0 },
+  { c:'hudba', img:'🎸', q:'Jaký hudební nástroj?', a:['Kytara','Housle','Banjo','Mandolína'], correct:0 },
+  { c:'hudba', q:'Která kapela složila „Bohemian Rhapsody"?', a:['Queen','The Beatles','Pink Floyd','The Rolling Stones'], correct:0 },
+  { c:'hudba', img:'🎹', q:'Jaký nástroj?', a:['Klavír','Akordeon','Cembalo','Varhany'], correct:0 },
+  { c:'hudba', q:'Kolik různých tónů má durová stupnice?', a:['7','8','5','12'], correct:0 },
+  { c:'hudba', q:'Z jaké země pochází skupina ABBA?', a:['Švédsko','Norsko','Dánsko','Finsko'], correct:0 },
+  { c:'hudba', img:'🥁', q:'Jaký nástroj?', a:['Bicí','Konga','Tympány','Djembe'], correct:0 },
+  { c:'hudba', q:'Kdo nazpíval slavný hit „Thriller"?', a:['Michael Jackson','Prince','Elvis Presley','Madonna'], correct:0 },
+  { c:'hudba', img:'🎺', q:'Jaký nástroj?', a:['Trumpeta','Pozoun','Tuba','Lesní roh'], correct:0 },
+  { c:'hudba', q:'Jaký hudební žánr proslavil Bob Marley?', a:['Reggae','Jazz','Blues','Rock'], correct:0 },
+  { c:'hudba', q:'Kolik členů měli The Beatles?', a:['4','3','5','2'], correct:0 },
+  { c:'hudba', img:'🎻', q:'Jaký nástroj?', a:['Housle','Viola','Cello','Kontrabas'], correct:0 },
+  { c:'hudba', q:'Co znamená „a cappella"?', a:['Zpěv bez nástrojů','Sólo','Opera','Duet'], correct:0 },
+  { c:'hudba', q:'Kdo složil 9. symfonii („Óda na radost")?', a:['Beethoven','Mozart','Bach','Chopin'], correct:0 },
+  { c:'hudba', q:'Který nástroj má klapky a hraje se foukáním?', a:['Klarinet','Kytara','Buben','Klavír'], correct:0 },
+  { c:'hudba', img:'🎤', q:'Co tento předmět umožňuje?', a:['Zesílit hlas','Hrát melodii','Bubnovat','Ladit'], correct:0 },
+  { c:'hudba', q:'Jaký nástroj měl slavně Jimi Hendrix?', a:['Elektrická kytara','Klavír','Saxofon','Bicí'], correct:0 },
+  { c:'hudba', q:'Která zpěvačka má přezdívku „Královna popu"?', a:['Madonna','Beyoncé','Lady Gaga','Rihanna'], correct:0 },
+  { c:'hudba', q:'Kolik kláves má klavír (standardní)?', a:['88','76','61','100'], correct:0 },
+  { c:'hudba', img:'🎷', q:'Jaký nástroj?', a:['Saxofon','Klarinet','Trumpeta','Flétna'], correct:0 },
+  { c:'hudba', q:'Z jaké země pochází kapela The Beatles?', a:['Anglie','USA','Irsko','Austrálie'], correct:0 },
+  { c:'hudba', q:'Jaký žánr hrají Metallica?', a:['Metal','Pop','Jazz','Reggae'], correct:0 },
+  { c:'hudba', q:'Kdo složil operu Figarova svatba?', a:['Mozart','Verdi','Wagner','Puccini'], correct:0 },
+  { c:'hudba', img:'🪕', q:'Jaký nástroj?', a:['Banjo','Kytara','Mandolína','Loutna'], correct:0 },
+  { c:'hudba', q:'Co je „tempo" v hudbě?', a:['Rychlost skladby','Hlasitost','Výška tónu','Barva'], correct:0 },
+  { c:'hudba', q:'Která britská kapela složila „Stairway to Heaven"?', a:['Led Zeppelin','Queen','Deep Purple','The Who'], correct:0 },
+  { c:'hudba', q:'Jak se jmenuje basový klíč hudby?', a:['F klíč','G klíč','C klíč','D klíč'], correct:0 },
+  { c:'hudba', q:'Který král rokenrolu zemřel v roce 1977?', a:['Elvis Presley','Chuck Berry','Little Richard','Buddy Holly'], correct:0 },
+  { c:'hudba', img:'🪗', q:'Jaký nástroj?', a:['Akordeon','Klavír','Varhany','Harmonium'], correct:0 },
+  { c:'hudba', q:'Kolik smyčců má smyčcové kvarteto?', a:['4','3','5','2'], correct:0 },
+  { c:'hudba', q:'Jaký žánr je spojen s New Orleans a improvizací?', a:['Jazz','Country','Reggae','Techno'], correct:0 },
+  { c:'hudba', q:'Kdo složil „Pro Elišku" (Für Elise)?', a:['Beethoven','Mozart','Chopin','Liszt'], correct:0 },
+  { c:'hudba', img:'🎼', q:'Co tento symbol představuje?', a:['Notovou osnovu','Text písně','Tanec','Akordy'], correct:0 },
+  { c:'hudba', q:'Která zpěvačka zpívá „Rolling in the Deep"?', a:['Adele','Beyoncé','Rihanna','Sia'], correct:0 },
+  { c:'hudba', q:'Jak se nazývá skupina tří tónů znějících současně?', a:['Akord','Stupnice','Interval','Melodie'], correct:0 },
+  { c:'hudba', q:'Z jaké země pochází hudební styl flamenco?', a:['Španělsko','Itálie','Portugalsko','Mexiko'], correct:0 },
+  { c:'hudba', img:'🎶', q:'Co tyto symboly představují?', a:['Hudbu / noty','Slova','Smích','Ticho'], correct:0 },
+  { c:'hudba', q:'Kdo byl známý hluchý skladatel?', a:['Beethoven','Mozart','Bach','Vivaldi'], correct:0 },
+  { c:'hudba', q:'Jaký nástroj se ladí pomocí pražců a kolíčků?', a:['Kytara','Buben','Flétna','Klavír'], correct:0 },
+  { c:'hudba', q:'Která kapela má album „The Dark Side of the Moon"?', a:['Pink Floyd','The Beatles','Queen','Genesis'], correct:0 },
+  { c:'hudba', q:'Co je „forte" v hudbě?', a:['Hlasitě','Tiše','Rychle','Pomalu'], correct:0 },
+  { c:'hudba', img:'📯', q:'Jaký nástroj (dechový)?', a:['Lesní roh','Trumpeta','Tuba','Pozoun'], correct:0 },
+  { c:'hudba', q:'Který český skladatel napsal „Mou vlast"?', a:['Bedřich Smetana','Antonín Dvořák','Leoš Janáček','Bohuslav Martinů'], correct:0 },
+  { c:'hudba', q:'Jak se jmenuje album s nejvíce prodejemi (Michael Jackson)?', a:['Thriller','Bad','Dangerous','Off the Wall'], correct:0 },
+  { c:'hudba', q:'Která kapela zpívá „We Will Rock You"?', a:['Queen','AC/DC','KISS','The Who'], correct:0 },
+  { c:'hudba', q:'Co je „piano" v hudební dynamice?', a:['Tiše','Hlasitě','Rychle','Vesele'], correct:0 },
+  { c:'hudba', img:'🪘', q:'Jaký nástroj?', a:['Buben','Kytara','Klavír','Trumpeta'], correct:0 },
+  { c:'hudba', q:'Který český skladatel napsal „Novosvětskou symfonii"?', a:['Antonín Dvořák','Bedřich Smetana','Leoš Janáček','Josef Suk'], correct:0 },
+  { c:'hudba', q:'Jaký žánr hraje Eminem?', a:['Rap / hip-hop','Rock','Jazz','Country'], correct:0 },
+  { c:'hudba', q:'Kolik dob má 4/4 takt?', a:['4','3','2','6'], correct:0 },
+  { c:'hudba', q:'Která skupina zpívá „Hotel California"?', a:['Eagles','Queen','The Doors','Fleetwood Mac'], correct:0 },
+  { c:'hudba', q:'Jak se jmenuje nejvyšší ženský pěvecký hlas?', a:['Soprán','Alt','Mezzosoprán','Tenor'], correct:0 },
+  { c:'hudba', q:'Z jaké země pochází K-pop?', a:['Jižní Korea','Japonsko','Čína','Thajsko'], correct:0 },
+  { c:'hudba', img:'🎙️', q:'K čemu slouží tento předmět?', a:['Nahrávání / zpěv','Hraní na strunách','Bubnování','Dirigování'], correct:0 },
+  { c:'hudba', q:'Která kapela měla zpěváka Freddieho Mercuryho?', a:['Queen','The Beatles','Led Zeppelin','U2'], correct:0 },
+  { c:'hudba', q:'Jaký nejhlubší ženský hlas?', a:['Alt','Soprán','Tenor','Bas'], correct:0 },
+  { c:'hudba', q:'Kdo složil „Čtvero ročních období"?', a:['Vivaldi','Bach','Mozart','Händel'], correct:0 },
+  { c:'hudba', q:'Která zpěvačka má hit „Bad Guy"?', a:['Billie Eilish','Dua Lipa','Ariana Grande','Olivia Rodrigo'], correct:0 },
+  { c:'hudba', img:'🎚️', q:'Co se s tímto zařízením dělá?', a:['Mixuje zvuk','Hraje melodii','Bubnuje','Zpívá'], correct:0 },
+  { c:'hudba', q:'Jaký nástroj se hraje smyčcem a je největší ve smyčcové sekci?', a:['Kontrabas','Housle','Viola','Cello'], correct:0 },
+  { c:'hudba', q:'Která skupina složila „Smells Like Teen Spirit"?', a:['Nirvana','Pearl Jam','Soundgarden','Green Day'], correct:0 },
+  { c:'hudba', q:'Co je „melodie"?', a:['Sled tónů','Rytmus','Hlasitost','Tempo'], correct:0 },
+  { c:'hudba', q:'Z jaké země pochází tango?', a:['Argentina','Brazílie','Španělsko','Itálie'], correct:0 },
+  { c:'hudba', q:'Jaký nejnižší mužský hlas?', a:['Bas','Tenor','Baryton','Alt'], correct:0 },
+  { c:'hudba', img:'🪈', q:'Jaký nástroj?', a:['Flétna','Klarinet','Saxofon','Trumpeta'], correct:0 },
+  { c:'hudba', q:'Která kapela hrála „Sweet Child O\' Mine"?', a:['Guns N\' Roses','AC/DC','Bon Jovi','Aerosmith'], correct:0 },
+  { c:'hudba', q:'Kolik černých kláves je v jedné oktávě klavíru?', a:['5','7','3','6'], correct:0 },
+  { c:'hudba', q:'Jaký žánr je spojen s kovbojskou tematikou?', a:['Country','Reggae','Techno','Opera'], correct:0 },
+  { c:'hudba', q:'Kdo dirigoval... pardon, kdo skládal symfonie a byl zázračné dítě?', a:['Mozart','Bach','Beethoven','Chopin'], correct:0 },
+  { c:'hudba', q:'Která zpěvačka má hit „Shake It Off"?', a:['Taylor Swift','Katy Perry','Selena Gomez','Miley Cyrus'], correct:0 },
+  { c:'hudba', img:'🎵', q:'Co tento symbol představuje?', a:['Notu','Text','Pauzu','Akord'], correct:0 },
+  { c:'hudba', q:'Jak se nazývá rychlé opakování jednoho tónu na bicí?', a:['Vířivka / roll','Akord','Glissando','Staccato'], correct:0 },
+  { c:'hudba', q:'Která britská skupina složila „With or Without You"?', a:['U2','Coldplay','Oasis','Radiohead'], correct:0 },
+  { c:'hudba', q:'Co je „rytmus" v hudbě?', a:['Časové uspořádání tónů','Výška tónu','Hlasitost','Barva'], correct:0 },
+  { c:'hudba', q:'Z jaké země pochází didgeridoo?', a:['Austrálie','Afrika','Indie','Brazílie'], correct:0 },
+  { c:'hudba', q:'Jaký nástroj má pedály, manuály a píšťaly?', a:['Varhany','Klavír','Akordeon','Cembalo'], correct:0 },
+  { c:'hudba', q:'Která kapela zpívá „Yellow" a „Viva la Vida"?', a:['Coldplay','U2','Muse','Keane'], correct:0 },
+  { c:'hudba', q:'Co je „oktáva"?', a:['Interval 8 tónů','Akord','Stupnice','Klíč'], correct:0 },
+  { c:'hudba', img:'🎧', q:'K čemu slouží tento předmět?', a:['Poslech hudby','Hraní','Zpěv','Nahrávání'], correct:0 },
+  { c:'hudba', q:'Která zpěvačka je známá hity „Umbrella" a „Diamonds"?', a:['Rihanna','Beyoncé','Adele','Sia'], correct:0 },
+  { c:'hudba', q:'Jaký žánr se hraje s počítačem a syntezátory (taneční)?', a:['Elektronická / techno','Folk','Klasika','Blues'], correct:0 },
+  { c:'hudba', q:'Kdo složil „Labutí jezero"?', a:['Čajkovskij','Beethoven','Chopin','Brahms'], correct:0 },
+  { c:'hudba', q:'Která americká kapela hraje „Californication"?', a:['Red Hot Chili Peppers','Linkin Park','Foo Fighters','Blink-182'], correct:0 },
+  { c:'hudba', q:'Co je „sólo" v hudbě?', a:['Hra jednoho hráče','Duet','Sbor','Orchestr'], correct:0 },
+  { c:'hudba', q:'Jaký nástroj má dvě paličky a kovové desky?', a:['Činely','Buben','Xylofon','Triangl'], correct:0 },
+  { c:'hudba', q:'Která kapela zpívá „Don\'t Stop Believin\'"?', a:['Journey','Foreigner','Toto','Survivor'], correct:0 },
+  { c:'hudba', q:'Jak se jmenuje vedoucí orchestru?', a:['Dirigent','Sólista','Koncertní mistr','Skladatel'], correct:0 },
+  { c:'hudba', q:'Z jaké země pochází styl samba?', a:['Brazílie','Argentina','Kuba','Mexiko'], correct:0 },
+  { c:'hudba', img:'🎛️', q:'K čemu slouží tento mixážní pult?', a:['Úprava zvuku','Hraní melodie','Bubnování','Zpěv'], correct:0 },
+  { c:'hudba', q:'Která zpěvačka má hit „Poker Face"?', a:['Lady Gaga','Madonna','Katy Perry','Pink'], correct:0 },
+  { c:'hudba', q:'Jaký nástroj je největší v orchestru (dechový žesťový)?', a:['Tuba','Trumpeta','Pozoun','Lesní roh'], correct:0 },
+  { c:'hudba', q:'Která kapela hraje „Highway to Hell"?', a:['AC/DC','Metallica','Iron Maiden','Black Sabbath'], correct:0 },
+  { c:'hudba', q:'Co je „interval" v hudbě?', a:['Vzdálenost mezi tóny','Pauza','Tempo','Dynamika'], correct:0 },
+  { c:'hudba', q:'Jaký český zpěvák je „Mistr" (zemřel 2019)?', a:['Karel Gott','Waldemar Matuška','Karel Kryl','Petr Muk'], correct:0 },
+  { c:'hudba', q:'Která skupina zpívá „Wonderwall"?', a:['Oasis','Blur','Radiohead','Pulp'], correct:0 },
+  { c:'hudba', q:'Jaký nástroj má 47 strun a hraje se prsty (orchestrální)?', a:['Harfa','Kytara','Klavír','Cembalo'], correct:0 },
+  { c:'hudba', q:'Která zpěvačka má album „21" a „25"?', a:['Adele','Beyoncé','Taylor Swift','Lana Del Rey'], correct:0 },
+  // ─── OBECNÝ (100) ───
+  { c:'obecny', q:'Jaké je hlavní město Austrálie?', a:['Canberra','Sydney','Melbourne','Brisbane'], correct:0 },
+  { c:'obecny', img:'🇫🇷', q:'Které země je tato vlajka?', a:['Francie','Itálie','Nizozemsko','Rusko'], correct:0 },
+  { c:'obecny', q:'Kolik je na Zemi světadílů?', a:['7','5','6','8'], correct:0 },
+  { c:'obecny', q:'Která planeta je nejblíže Slunci?', a:['Merkur','Venuše','Mars','Země'], correct:0 },
+  { c:'obecny', img:'🇯🇵', q:'Které země je tato vlajka?', a:['Japonsko','Čína','Korea','Vietnam'], correct:0 },
+  { c:'obecny', q:'Kolik kostí má dospělý člověk?', a:['206','201','210','198'], correct:0 },
+  { c:'obecny', q:'Která řeka je nejdelší na světě?', a:['Nil','Amazonka','Mississippi','Dunaj'], correct:0 },
+  { c:'obecny', img:'🇩🇪', q:'Které země je tato vlajka?', a:['Německo','Belgie','Rakousko','Maďarsko'], correct:0 },
+  { c:'obecny', q:'Kdo namaloval Monu Lisu?', a:['Leonardo da Vinci','Michelangelo','Picasso','Rembrandt'], correct:0 },
+  { c:'obecny', q:'Kolik dní má přestupný rok?', a:['366','365','364','367'], correct:0 },
+  { c:'obecny', img:'🇮🇹', q:'Které země je tato vlajka?', a:['Itálie','Maďarsko','Mexiko','Irsko'], correct:0 },
+  { c:'obecny', q:'Jaká je chemická značka zlata?', a:['Au','Zl','Go','Ag'], correct:0 },
+  { c:'obecny', q:'Kolik je 8 × 7?', a:['56','54','63','49'], correct:0 },
+  { c:'obecny', img:'🇨🇿', q:'Které země je tato vlajka?', a:['Česko','Slovensko','Polsko','Rusko'], correct:0 },
+  { c:'obecny', q:'Která je největší planeta sluneční soustavy?', a:['Jupiter','Saturn','Neptun','Země'], correct:0 },
+  { c:'obecny', q:'Kolik má pravý úhel stupňů?', a:['90','45','180','60'], correct:0 },
+  { c:'obecny', q:'Jaké je hlavní město Francie?', a:['Paříž','Lyon','Marseille','Nice'], correct:0 },
+  { c:'obecny', q:'Který kov je tekutý za pokojové teploty?', a:['Rtuť','Železo','Zlato','Hliník'], correct:0 },
+  { c:'obecny', img:'🇪🇸', q:'Které země je tato vlajka?', a:['Španělsko','Portugalsko','Itálie','Mexiko'], correct:0 },
+  { c:'obecny', q:'Kolik kontinentů začíná na písmeno A?', a:['3 (Asie, Afrika, Amerika...)','2','1','4'], correct:0 },
+  { c:'obecny', q:'Jaký je nejvyšší vrchol světa?', a:['Mount Everest','K2','Mont Blanc','Kilimandžáro'], correct:0 },
+  { c:'obecny', q:'Která planeta se nazývá „Rudá planeta"?', a:['Mars','Venuše','Jupiter','Merkur'], correct:0 },
+  { c:'obecny', q:'Kolik je 12 × 12?', a:['144','124','132','156'], correct:0 },
+  { c:'obecny', img:'🇬🇧', q:'Které země je tato vlajka?', a:['Velká Británie','USA','Austrálie','Nový Zéland'], correct:0 },
+  { c:'obecny', q:'Jaké je hlavní město Japonska?', a:['Tokio','Kjóto','Ósaka','Nagoja'], correct:0 },
+  { c:'obecny', q:'Kolik smyslů má tradičně člověk?', a:['5','4','6','7'], correct:0 },
+  { c:'obecny', q:'Která je nejlidnatější země světa?', a:['Indie','Čína','USA','Indonésie'], correct:0 },
+  { c:'obecny', img:'🇺🇸', q:'Které země je tato vlajka?', a:['USA','Velká Británie','Libérie','Malajsie'], correct:0 },
+  { c:'obecny', q:'Jaká je chemická značka kyslíku?', a:['O','Ox','K','Ky'], correct:0 },
+  { c:'obecny', q:'Kolik stupňů má kruh?', a:['360','180','90','270'], correct:0 },
+  { c:'obecny', q:'Která je největší poušť světa?', a:['Antarktida (ledová)','Sahara','Gobi','Kalahari'], correct:0 },
+  { c:'obecny', q:'Jaké je hlavní město Itálie?', a:['Řím','Milán','Benátky','Neapol'], correct:0 },
+  { c:'obecny', img:'🇵🇱', q:'Které země je tato vlajka?', a:['Polsko','Monako','Indonésie','Rakousko'], correct:0 },
+  { c:'obecny', q:'Kolik je dní v roce (nepřestupném)?', a:['365','366','360','364'], correct:0 },
+  { c:'obecny', q:'Který oceán je největší?', a:['Tichý','Atlantský','Indický','Severní ledový'], correct:0 },
+  { c:'obecny', q:'Kdo napsal hru Romeo a Julie?', a:['Shakespeare','Molière','Goethe','Dante'], correct:0 },
+  { c:'obecny', q:'Jaká je chemická značka vody?', a:['H2O','CO2','O2','HO'], correct:0 },
+  { c:'obecny', img:'🇨🇦', q:'Které země je tato vlajka (s javorovým listem)?', a:['Kanada','USA','Švýcarsko','Dánsko'], correct:0 },
+  { c:'obecny', q:'Kolik je 100 děleno 4?', a:['25','20','40','50'], correct:0 },
+  { c:'obecny', q:'Jaké je hlavní město Německa?', a:['Berlín','Mnichov','Hamburk','Frankfurt'], correct:0 },
+  { c:'obecny', q:'Která je nejmenší planeta sluneční soustavy?', a:['Merkur','Mars','Venuše','Pluto'], correct:0 },
+  { c:'obecny', q:'Kolik je hodin v jednom dni?', a:['24','12','48','20'], correct:0 },
+  { c:'obecny', img:'🇧🇷', q:'Které země je tato vlajka?', a:['Brazílie','Argentina','Kolumbie','Portugalsko'], correct:0 },
+  { c:'obecny', q:'Kdo formuloval teorii relativity?', a:['Albert Einstein','Isaac Newton','Nikola Tesla','Galileo'], correct:0 },
+  { c:'obecny', q:'Jaké je hlavní město Španělska?', a:['Madrid','Barcelona','Sevilla','Valencie'], correct:0 },
+  { c:'obecny', q:'Kolik kontinentů je na jižní polokouli celých?', a:['2 (Austrálie, Antarktida)','3','1','4'], correct:0 },
+  { c:'obecny', q:'Jaká je chemická značka železa?', a:['Fe','Ir','Že','Fr'], correct:0 },
+  { c:'obecny', img:'🇨🇳', q:'Které země je tato vlajka?', a:['Čína','Vietnam','Korea','Japonsko'], correct:0 },
+  { c:'obecny', q:'Kolik je odmocnina ze 64?', a:['8','6','7','9'], correct:0 },
+  { c:'obecny', q:'Která je nejdelší řeka v Evropě?', a:['Volha','Dunaj','Rýn','Dněpr'], correct:0 },
+  { c:'obecny', q:'Jaké je hlavní město Ruska?', a:['Moskva','Petrohrad','Kyjev','Minsk'], correct:0 },
+  { c:'obecny', q:'Který vědec objevil gravitaci (jablko)?', a:['Isaac Newton','Einstein','Galileo','Kepler'], correct:0 },
+  { c:'obecny', img:'🇲🇽', q:'Které země je tato vlajka?', a:['Mexiko','Itálie','Maďarsko','Irsko'], correct:0 },
+  { c:'obecny', q:'Kolik je 15 % ze 200?', a:['30','20','45','15'], correct:0 },
+  { c:'obecny', q:'Jaký je nejmenší stát na světě?', a:['Vatikán','Monako','San Marino','Lichtenštejnsko'], correct:0 },
+  { c:'obecny', q:'Které moře odděluje Evropu a Afriku (na západě)?', a:['Středozemní','Černé','Baltské','Severní'], correct:0 },
+  { c:'obecny', q:'Kdo byl prvním člověkem na Měsíci?', a:['Neil Armstrong','Buzz Aldrin','Jurij Gagarin','John Glenn'], correct:0 },
+  { c:'obecny', img:'🇷🇺', q:'Které země je tato vlajka?', a:['Rusko','Slovinsko','Slovensko','Srbsko'], correct:0 },
+  { c:'obecny', q:'Jaké je hlavní město USA?', a:['Washington, D.C.','New York','Los Angeles','Chicago'], correct:0 },
+  { c:'obecny', q:'Kolik centimetrů je 1 metr?', a:['100','10','1000','50'], correct:0 },
+  { c:'obecny', q:'Která země má nejvíce obyvatel v Evropě?', a:['Rusko','Německo','Francie','Itálie'], correct:0 },
+  { c:'obecny', q:'Jaký je chemický symbol pro sodík?', a:['Na','So','Sd','S'], correct:0 },
+  { c:'obecny', img:'🇰🇷', q:'Které země je tato vlajka (jižní)?', a:['Jižní Korea','Japonsko','Čína','Mongolsko'], correct:0 },
+  { c:'obecny', q:'Kolik je 7 × 8?', a:['56','54','64','48'], correct:0 },
+  { c:'obecny', q:'Jaké je hlavní město Velké Británie?', a:['Londýn','Manchester','Edinburgh','Liverpool'], correct:0 },
+  { c:'obecny', q:'Který kontinent je nejlidnatější?', a:['Asie','Afrika','Evropa','Amerika'], correct:0 },
+  { c:'obecny', q:'Kolik planet má sluneční soustava?', a:['8','9','7','10'], correct:0 },
+  { c:'obecny', img:'🇳🇱', q:'Které země je tato vlajka?', a:['Nizozemsko','Lucembursko','Francie','Rusko'], correct:0 },
+  { c:'obecny', q:'Jaká je chemická značka uhlíku?', a:['C','Uh','Ca','U'], correct:0 },
+  { c:'obecny', q:'Kdo objevil Ameriku (1492)?', a:['Kryštof Kolumbus','Vasco da Gama','Magalhães','Marco Polo'], correct:0 },
+  { c:'obecny', q:'Jaké je hlavní město Polska?', a:['Varšava','Krakov','Gdaňsk','Vratislav'], correct:0 },
+  { c:'obecny', q:'Kolik je polovina z 250?', a:['125','120','130','150'], correct:0 },
+  { c:'obecny', q:'Která hora je nejvyšší v Africe?', a:['Kilimandžáro','Mount Kenya','Atlas','Ruwenzori'], correct:0 },
+  { c:'obecny', img:'🇸🇰', q:'Které země je tato vlajka?', a:['Slovensko','Slovinsko','Rusko','Chorvatsko'], correct:0 },
+  { c:'obecny', q:'Jaký plyn dýcháme (nejvíce v ovzduší)?', a:['Dusík','Kyslík','Oxid uhličitý','Vodík'], correct:0 },
+  { c:'obecny', q:'Jaké je hlavní město Číny?', a:['Peking','Šanghaj','Hongkong','Kanton'], correct:0 },
+  { c:'obecny', q:'Kolik je 9 × 9?', a:['81','72','99','91'], correct:0 },
+  { c:'obecny', q:'Která země je největší rozlohou?', a:['Rusko','Kanada','Čína','USA'], correct:0 },
+  { c:'obecny', q:'Kdo napsal Hamleta?', a:['Shakespeare','Dickens','Tolstoj','Hugo'], correct:0 },
+  { c:'obecny', img:'🇮🇪', q:'Které země je tato vlajka?', a:['Irsko','Itálie','Pobřeží slonoviny','Maďarsko'], correct:0 },
+  { c:'obecny', q:'Jaká je chemická značka stříbra?', a:['Ag','St','Si','Sr'], correct:0 },
+  { c:'obecny', q:'Kolik je 1000 milimetrů v metrech?', a:['1','10','100','0,1'], correct:0 },
+  { c:'obecny', q:'Která řeka protéká Prahou?', a:['Vltava','Labe','Morava','Ohře'], correct:0 },
+  { c:'obecny', q:'Jaké je hlavní město Egypta?', a:['Káhira','Alexandrie','Luxor','Gíza'], correct:0 },
+  { c:'obecny', q:'Kolik stran má šestiúhelník?', a:['6','5','7','8'], correct:0 },
+  { c:'obecny', q:'Který je nejmenší kontinent?', a:['Austrálie','Evropa','Antarktida','Amerika'], correct:0 },
+  { c:'obecny', img:'🇬🇷', q:'Které země je tato vlajka?', a:['Řecko','Izrael','Finsko','Argentina'], correct:0 },
+  { c:'obecny', q:'Jaký je hlavní jazyk Brazílie?', a:['Portugalština','Španělština','Angličtina','Italština'], correct:0 },
+  { c:'obecny', q:'Kolik je 6 × 6?', a:['36','30','42','48'], correct:0 },
+  { c:'obecny', q:'Která planeta má nejvýraznější prstence?', a:['Saturn','Jupiter','Uran','Neptun'], correct:0 },
+  { c:'obecny', q:'Jaké je hlavní město Kanady?', a:['Ottawa','Toronto','Vancouver','Montreal'], correct:0 },
+  { c:'obecny', q:'Kdo vynalezl žárovku (komerčně)?', a:['Thomas Edison','Nikola Tesla','Benjamin Franklin','Alexander Bell'], correct:0 },
+  { c:'obecny', q:'Jaký je nejhlubší oceánský příkop?', a:['Mariánský','Tonžský','Filipínský','Japonský'], correct:0 },
+  { c:'obecny', img:'🇸🇪', q:'Které země je tato vlajka?', a:['Švédsko','Norsko','Finsko','Dánsko'], correct:0 },
+  { c:'obecny', q:'Kolik je 20 % ze 150?', a:['30','25','35','40'], correct:0 },
+  { c:'obecny', q:'Která země vynalezla papír?', a:['Čína','Egypt','Řecko','Indie'], correct:0 },
+  { c:'obecny', q:'Jaké je hlavní město Řecka?', a:['Athény','Sparta','Soluň','Korint'], correct:0 },
+  // ─── DIVNOSTI (100) ───
+  { c:'divnosti', q:'Která potravina prakticky nikdy nezkazí?', a:['Med','Mléko','Chleba','Maso'], correct:0 },
+  { c:'divnosti', img:'🐙', q:'Kolik srdcí má chobotnice?', a:['3','1','2','4'], correct:0 },
+  { c:'divnosti', q:'Které zvíře nedokáže vyplazit jazyk?', a:['Krokodýl','Pes','Kočka','Žába'], correct:0 },
+  { c:'divnosti', q:'Kolik hodin denně spí žirafa (přibližně)?', a:['~2 hodiny','8 hodin','12 hodin','5 hodin'], correct:0 },
+  { c:'divnosti', img:'🍌', q:'Čím je botanicky banán?', a:['Bobule','Ovoce (ne bobule)','Zelenina','Ořech'], correct:0 },
+  { c:'divnosti', q:'Jaký je nejtvrdší přírodní materiál?', a:['Diamant','Žula','Ocel','Titan'], correct:0 },
+  { c:'divnosti', q:'Lidské tělo obsahuje víc bakterií, nebo vlastních buněk?', a:['Bakterií','Buněk','Stejně','Žádné'], correct:0 },
+  { c:'divnosti', img:'🦩', q:'Proč jsou plameňáci růžoví?', a:['Kvůli potravě','Genetika','Od slunce','Z vody'], correct:0 },
+  { c:'divnosti', q:'Jak dlouho vydrží med jedlý?', a:['Tisíce let','Rok','10 let','Měsíc'], correct:0 },
+  { c:'divnosti', img:'🌶️', q:'Co měří Scovilleho stupnice?', a:['Pálivost','Sladkost','Kyselost','Hořkost'], correct:0 },
+  { c:'divnosti', q:'Co je rychlejší než lidské mrknutí?', a:['Blesk','Hlemýžď','Mrak','Východ slunce'], correct:0 },
+  { c:'divnosti', img:'🐝', q:'Kolik km uletí včely pro množství medu na 1 sklenici?', a:['Tisíce km','Stovky km','Desítky km','Pár km'], correct:0 },
+  { c:'divnosti', q:'Které zvíře má modrou krev?', a:['Chobotnice','Pes','Slon','Krokodýl'], correct:0 },
+  { c:'divnosti', img:'🦥', q:'Jak se jmenuje toto pomalé zvíře?', a:['Lenochod','Mýval','Koala','Vakoveverka'], correct:0 },
+  { c:'divnosti', q:'Kolik žaludků má kráva?', a:['4 (oddíly)','1','2','3'], correct:0 },
+  { c:'divnosti', q:'Co roste celý život člověka?', a:['Nehty a vlasy','Kosti','Mozek','Srdce'], correct:0 },
+  { c:'divnosti', q:'Které zvíře nikdy nespí (vůbec)?', a:['Žralok (musí plavat)','Slon','Pes','Kočka'], correct:0 },
+  { c:'divnosti', q:'Jaká je nejmenší kost v lidském těle?', a:['Třmínek (v uchu)','Článek prstu','Nosní kost','Žebro'], correct:0 },
+  { c:'divnosti', img:'🐌', q:'Jak dlouho může spát hlemýžď?', a:['I roky','Hodinu','Den','Týden'], correct:0 },
+  { c:'divnosti', q:'Které zvíře dokáže přežít ve vesmíru?', a:['Želvuška','Krysa','Šváb','Mravenec'], correct:0 },
+  { c:'divnosti', q:'Kolik chutí rozeznává lidský jazyk (základních)?', a:['5','4','3','6'], correct:0 },
+  { c:'divnosti', q:'Co je „akrofobie"?', a:['Strach z výšek','Strach z pavouků','Strach z vody','Strach z tmy'], correct:0 },
+  { c:'divnosti', img:'🦴', q:'Kolik kostí má novorozenec (víc než dospělý)?', a:['~300','206','150','500'], correct:0 },
+  { c:'divnosti', q:'Které zvíře má otisky tlapek podobné lidským prstům?', a:['Koala','Gorila','Šimpanz','Medvěd'], correct:0 },
+  { c:'divnosti', q:'Jaká barva se lidskému oku jeví nejviditelnější?', a:['Žlutozelená','Modrá','Červená','Fialová'], correct:0 },
+  { c:'divnosti', q:'Co je „bibliofobie"?', a:['Strach z knih','Strach z hmyzu','Strach z davu','Strach z ohně'], correct:0 },
+  { c:'divnosti', img:'🦷', q:'Kolik zubů má dospělý člověk (s osmičkami)?', a:['32','28','30','24'], correct:0 },
+  { c:'divnosti', q:'Které zvíře má nejdelší život (přes 400 let)?', a:['Žralok grónský','Slon','Velryba','Želva'], correct:0 },
+  { c:'divnosti', q:'Co dělá banán radioaktivním (lehce)?', a:['Draslík','Cukr','Voda','Vláknina'], correct:0 },
+  { c:'divnosti', q:'Jaké zvíře nemůže skákat?', a:['Slon','Klokan','Žába','Zajíc'], correct:0 },
+  { c:'divnosti', img:'👅', q:'Je otisk jazyka jedinečný jako otisk prstu?', a:['Ano','Ne','Jen u dvojčat','Jen u zvířat'], correct:0 },
+  { c:'divnosti', q:'Kolik procent mozku člověk používá?', a:['Skoro celý (ne 10%)','10 %','5 %','50 %'], correct:0 },
+  { c:'divnosti', q:'Které zvíře pláče slzami (kromě člověka, kvůli emocím se říká)?', a:['Žádné jako člověk','Pes','Slon','Delfín'], correct:0 },
+  { c:'divnosti', q:'Co je nejhlasitější zvíře na Zemi?', a:['Plejtvák / vorvaň','Lev','Slon','Vlk'], correct:0 },
+  { c:'divnosti', img:'❤️', q:'Kolikrát za den průměrně bije lidské srdce?', a:['~100 000×','10 000×','1 000×','1 milion×'], correct:0 },
+  { c:'divnosti', q:'Co je „somnifobie"?', a:['Strach ze spánku','Strach z hadů','Strach z létání','Strach z davů'], correct:0 },
+  { c:'divnosti', q:'Které zvíře má zuby celý život dorůstající?', a:['Hlodavci (myš, bobr)','Pes','Kočka','Slon'], correct:0 },
+  { c:'divnosti', q:'Jak dlouhý je tenký střevo dospělého člověka?', a:['~6 metrů','1 metr','3 metry','10 metrů'], correct:0 },
+  { c:'divnosti', img:'🐜', q:'Kolikanásobek své váhy unese mravenec?', a:['Až 50×','2×','5×','100×'], correct:0 },
+  { c:'divnosti', q:'Která planeta by plavala ve vodě (kdyby byla nádrž)?', a:['Saturn','Jupiter','Mars','Země'], correct:0 },
+  { c:'divnosti', q:'Co je jediná potravina, kterou vyrábí hmyz a jí ji lidé?', a:['Med','Cukr','Mléko','Sůl'], correct:0 },
+  { c:'divnosti', q:'Které zvíře má největší oči na světě?', a:['Oliheň obrovská','Slon','Sova','Velryba'], correct:0 },
+  { c:'divnosti', q:'Kolik chuťových buněk má průměrný člověk (cca)?', a:['Tisíce','Stovky','Miliony','Desítky'], correct:0 },
+  { c:'divnosti', img:'🧠', q:'Z čeho je mozek převážně tvořen?', a:['Z vody (~75 %)','Z tuku','Ze svalů','Z kostí'], correct:0 },
+  { c:'divnosti', q:'Které zvíře nemá mozek, ale žije?', a:['Medúza','Žába','Hlemýžď','Pavouk'], correct:0 },
+  { c:'divnosti', q:'Co je „triskaidekafobie"?', a:['Strach z čísla 13','Strach z trojúhelníků','Strach z pátku','Strach z koček'], correct:0 },
+  { c:'divnosti', q:'Které ovoce má víc cukru než citron?', a:['Jahoda','Citron je nejsladší','Limetka','Žádné'], correct:0 },
+  { c:'divnosti', img:'🦈', q:'Jak dlouho existují žraloci (déle než stromy)?', a:['~400 milionů let','1 milion let','10 000 let','50 milionů let'], correct:0 },
+  { c:'divnosti', q:'Které zvíře se dorozumívá tancem?', a:['Včela','Pes','Kočka','Kůň'], correct:0 },
+  { c:'divnosti', q:'Kolik váží lidský mozek (přibližně)?', a:['~1,4 kg','0,5 kg','3 kg','5 kg'], correct:0 },
+  { c:'divnosti', q:'Co se stane s tělem, když kýchneme s otevřenýma očima?', a:['Nic zvláštního','Oči vypadnou','Oslepneme','Omdlíme'], correct:0 },
+  { c:'divnosti', img:'🌊', q:'Kolik procent lidského těla tvoří voda?', a:['~60 %','30 %','90 %','10 %'], correct:0 },
+  { c:'divnosti', q:'Které zvíře dokáže regenerovat ztracené končetiny?', a:['Mlok / hvězdice','Pes','Pták','Slon'], correct:0 },
+  { c:'divnosti', q:'Co je „klaustrofobie"?', a:['Strach z uzavřených prostor','Strach z výšek','Strach z davů','Strach z vody'], correct:0 },
+  { c:'divnosti', q:'Jaké zvíře má jazyk delší než vlastní tělo?', a:['Chameleon','Žirafa','Mravenečník','Pes'], correct:0 },
+  { c:'divnosti', q:'Kolik nových buněk vytvoří tělo denně (řádově)?', a:['Miliardy','Tisíce','Stovky','Desítky'], correct:0 },
+  { c:'divnosti', img:'🥚', q:'Která ptačí vejce jsou největší na světě?', a:['Pštrosí','Slepičí','Kachní','Husí'], correct:0 },
+  { c:'divnosti', q:'Které zvíře vidí více barev než člověk?', a:['Krevetka (rak-kudlanka)','Pes','Kočka','Kůň'], correct:0 },
+  { c:'divnosti', q:'Co je „aerofobie"?', a:['Strach z létání','Strach z výšek','Strach z vody','Strach z aut'], correct:0 },
+  { c:'divnosti', q:'Která část těla nikdy nepřestane růst?', a:['Uši a nos (chrupavka)','Ruce','Nohy','Oči'], correct:0 },
+  { c:'divnosti', img:'🐢', q:'Jak staré mohou být želvy?', a:['Přes 150 let','30 let','50 let','80 let'], correct:0 },
+  { c:'divnosti', q:'Co dělá Coca-Colu hnědou?', a:['Karamel (barvivo)','Káva','Čokoláda','Kola ořech'], correct:0 },
+  { c:'divnosti', q:'Které zvíře spí jen pár minut denně?', a:['Žirafa','Pes','Kočka','Lev'], correct:0 },
+  { c:'divnosti', q:'Kolik km cév má lidské tělo (přibližně)?', a:['~100 000 km','1 000 km','10 km','milion km'], correct:0 },
+  { c:'divnosti', img:'🦒', q:'Kolik krčních obratlů má žirafa (stejně jako člověk)?', a:['7','12','20','30'], correct:0 },
+  { c:'divnosti', q:'Co je nejstarší živý organismus (typ)?', a:['Strom / houba','Slon','Želva','Velryba'], correct:0 },
+  { c:'divnosti', q:'Které zvíře umí měnit pohlaví?', a:['Někteří ryby (klaun)','Pes','Slon','Pták'], correct:0 },
+  { c:'divnosti', q:'Co je „nyktofobie"?', a:['Strach ze tmy','Strach z výšek','Strach z hmyzu','Strach z davu'], correct:0 },
+  { c:'divnosti', q:'Které zvíře nemá hlasivky, ale syčí?', a:['Had','Pes','Kočka','Kůň'], correct:0 },
+  { c:'divnosti', img:'💧', q:'Kolik vody by měl člověk vypít denně (doporučení)?', a:['~2 litry','5 litrů','0,5 litru','10 litrů'], correct:0 },
+  { c:'divnosti', q:'Které zvíře má otisk nosu jedinečný jako lidský otisk prstu?', a:['Pes','Kočka','Kůň','Kráva'], correct:0 },
+  { c:'divnosti', q:'Co je nejsušší místo na Zemi?', a:['Poušť Atacama','Sahara','Antarktida','Death Valley'], correct:0 },
+  { c:'divnosti', q:'Kolik svalů použijeme k úsměvu (přibližně, méně než zamračení)?', a:['Méně než k mračení','Stejně','Víc','Žádné'], correct:0 },
+  { c:'divnosti', img:'🐘', q:'Je pravda, že sloni se bojí myší?', a:['Je to mýtus','Ano, panicky','Jen afričtí','Jen mláďata'], correct:0 },
+  { c:'divnosti', q:'Které zvíře produkuje hranaté výkaly?', a:['Vombat','Králík','Koza','Ovce'], correct:0 },
+  { c:'divnosti', q:'Co je „arachnofobie"?', a:['Strach z pavouků','Strach z hadů','Strach z výšek','Strach z vody'], correct:0 },
+  { c:'divnosti', q:'Jaký orgán dokáže člověk přežít i bez části?', a:['Játra (regenerují)','Srdce','Mozek','Plíce celé'], correct:0 },
+  { c:'divnosti', q:'Které zvíře má 32 mozků (segmentových)?', a:['Pijavice','Žížala','Hlemýžď','Medúza'], correct:0 },
+  { c:'divnosti', img:'🌙', q:'Vidíme z Země vždy stejnou stranu Měsíce?', a:['Ano','Ne','Jen v úplňku','Mění se denně'], correct:0 },
+  { c:'divnosti', q:'Kolik bakterií žije v lidských ústech (řádově druhů)?', a:['Stovky druhů','Desítky','Tisíce','Jednotky'], correct:0 },
+  { c:'divnosti', q:'Které zvíře dokáže spát s jednou polovinou mozku?', a:['Delfín','Pes','Kočka','Kůň'], correct:0 },
+  { c:'divnosti', q:'Co je „glossofobie"?', a:['Strach z mluvení na veřejnosti','Strach z jazyků','Strach z jídla','Strach z davu'], correct:0 },
+  { c:'divnosti', q:'Které ovoce pluje a které klesá ve vodě (jablko)?', a:['Jablko plave','Jablko klesá','Záleží na barvě','Vždy klesá'], correct:0 },
+  { c:'divnosti', img:'🔥', q:'Jaká je barva nejteplejšího plamene?', a:['Modrá','Červená','Žlutá','Oranžová'], correct:0 },
+  { c:'divnosti', q:'Které zvíře má srdce v hlavě?', a:['Kreveta','Žába','Hlemýžď','Medúza'], correct:0 },
+  { c:'divnosti', q:'Co je nejběžnější prvek ve vesmíru?', a:['Vodík','Kyslík','Uhlík','Železo'], correct:0 },
+  { c:'divnosti', q:'Kolik váží mrak (kupovitý, přibližně obrovsky)?', a:['Stovky tun','100 kg','1 tuna','10 kg'], correct:0 },
+  { c:'divnosti', img:'🍯', q:'Co se stane s medem, když ztvrdne (zkrystalizuje)?', a:['Je stále jedlý','Zkazil se','Je jedovatý','Musí se vyhodit'], correct:0 },
+  { c:'divnosti', q:'Které zvíře nepije vodu (získává z potravy)?', a:['Klokaní krysa','Velbloud','Slon','Lev'], correct:0 },
+  { c:'divnosti', q:'Co je „ofidiofobie"?', a:['Strach z hadů','Strach z pavouků','Strach z výšek','Strach z vody'], correct:0 },
+  { c:'divnosti', q:'Které zvíře má jazyk těžší než slon (modrá velryba)?', a:['Modrá velryba','Žralok','Slon','Hroch'], correct:0 },
+  { c:'divnosti', q:'Kolik vajíček naklade královna včela za den?', a:['Až 2000','100','10','500'], correct:0 },
+  { c:'divnosti', img:'⚡', q:'Jak horký je blesk (proti povrchu Slunce)?', a:['Teplejší než Slunce','Chladnější','Stejný','Vlažný'], correct:0 },
+  { c:'divnosti', q:'Které zvíře má nejvíce zubů?', a:['Hlemýžď (tisíce)','Žralok','Krokodýl','Pes'], correct:0 },
+  { c:'divnosti', q:'Co se nikdy nestane se sklem (je to pomalá kapalina?)?', a:['Sklo je pevná látka (mýtus)','Stéká dolů','Vypařuje se','Roztaje samo'], correct:0 },
+  { c:'divnosti', q:'Které zvíře přežije zmrznutí a rozmrznutí?', a:['Žába (některé druhy)','Pes','Kočka','Myš'], correct:0 },
+  { c:'divnosti', q:'Kolik snů má člověk za noc (přibližně)?', a:['Několik (3–6)','1','10','Žádný'], correct:0 },
+  // ─── PŘÍRODA (100) ───
+  { c:'priroda', img:'🦫', q:'Které zvíře staví na řekách hráze?', a:['Bobr','Vydra','Krysa','Nutrie'], correct:0 },
+  { c:'priroda', q:'Kolik komor (oddílů) má lidské srdce?', a:['4','2','3','1'], correct:0 },
+  { c:'priroda', img:'🌻', q:'Která květina se otáčí za sluncem?', a:['Slunečnice','Růže','Tulipán','Kopretina'], correct:0 },
+  { c:'priroda', q:'Jaký plyn uvolňují rostliny při fotosyntéze?', a:['Kyslík','Oxid uhličitý','Dusík','Vodík'], correct:0 },
+  { c:'priroda', img:'🐘', q:'Které je největší suchozemské zvíře?', a:['Slon','Žirafa','Nosorožec','Hroch'], correct:0 },
+  { c:'priroda', q:'Kolik nohou má pavouk?', a:['8','6','10','4'], correct:0 },
+  { c:'priroda', img:'🦒', q:'Které zvíře má nejdelší krk?', a:['Žirafa','Pštros','Velbloud','Lama'], correct:0 },
+  { c:'priroda', q:'Co vyrábějí včely z nektaru?', a:['Med','Mléko','Hedvábí','Vosk'], correct:0 },
+  { c:'priroda', img:'🌲', q:'Který strom je jehličnatý (stálezelený)?', a:['Smrk','Dub','Bříza','Javor'], correct:0 },
+  { c:'priroda', q:'Jaké je největší zvíře na Zemi?', a:['Modrá velryba','Slon','Žralok','Nosorožec'], correct:0 },
+  { c:'priroda', img:'🐧', q:'Na které polokouli žijí tučňáci ve volné přírodě?', a:['Jižní','Severní','Obou','Ani jedné'], correct:0 },
+  { c:'priroda', q:'Kolik srdečních oblouků („srdcí") má žížala?', a:['5 párů','1','2','10'], correct:0 },
+  { c:'priroda', img:'🍄', q:'Do které říše patří houby?', a:['Vlastní říše','Rostliny','Živočichové','Bakterie'], correct:0 },
+  { c:'priroda', q:'Který pták neumí létat?', a:['Pštros','Vrabec','Orel','Holub'], correct:0 },
+  { c:'priroda', img:'🐢', q:'Co nese želva na zádech?', a:['Krunýř','Ulitu','Skořápku','Štít'], correct:0 },
+  { c:'priroda', q:'Kolik procent zemského povrchu pokrývá voda (zhruba)?', a:['71 %','50 %','60 %','85 %'], correct:0 },
+  { c:'priroda', img:'🦁', q:'Jak se nazývá samec lva podle hřívy?', a:['Lev','Tygr','Leopard','Gepard'], correct:0 },
+  { c:'priroda', q:'Co potřebují rostliny k fotosyntéze?', a:['Světlo, vodu, CO2','Jen vodu','Jen půdu','Jen teplo'], correct:0 },
+  { c:'priroda', img:'🐬', q:'Je delfín ryba, nebo savec?', a:['Savec','Ryba','Obojživelník','Plaz'], correct:0 },
+  { c:'priroda', q:'Jaký je nejrychlejší suchozemský živočich?', a:['Gepard','Lev','Kůň','Antilopa'], correct:0 },
+  { c:'priroda', q:'Který orgán pumpuje krev?', a:['Srdce','Plíce','Játra','Ledviny'], correct:0 },
+  { c:'priroda', img:'🦅', q:'Jaký pták je symbolem síly a má ostrý zrak?', a:['Orel','Vrabec','Holub','Sýkorka'], correct:0 },
+  { c:'priroda', q:'Jak se nazývá přeměna housenky v motýla?', a:['Metamorfóza','Fotosyntéza','Mutace','Symbióza'], correct:0 },
+  { c:'priroda', q:'Které zvíře je největší kočkovitá šelma?', a:['Tygr','Lev','Leopard','Jaguár'], correct:0 },
+  { c:'priroda', img:'🐝', q:'Co opylují včely?', a:['Květy','Listy','Kořeny','Kůru'], correct:0 },
+  { c:'priroda', q:'Jaký plyn potřebujeme k dýchání?', a:['Kyslík','Dusík','Oxid uhličitý','Helium'], correct:0 },
+  { c:'priroda', q:'Která část rostliny saje vodu z půdy?', a:['Kořeny','Listy','Květy','Plody'], correct:0 },
+  { c:'priroda', img:'🦉', q:'Jaký pták je aktivní v noci a otáčí hlavou?', a:['Sova','Orel','Holub','Vrabec'], correct:0 },
+  { c:'priroda', q:'Které zvíře je nejvyšší na světě?', a:['Žirafa','Slon','Velbloud','Pštros'], correct:0 },
+  { c:'priroda', q:'Jak se jmenuje vědní obor o zvířatech?', a:['Zoologie','Botanika','Geologie','Ekologie'], correct:0 },
+  { c:'priroda', img:'🐺', q:'Jaký předek má domácí pes?', a:['Vlk','Liška','Šakal','Kojot'], correct:0 },
+  { c:'priroda', q:'Co je „herbivor"?', a:['Býložravec','Masožravec','Všežravec','Hmyzožravec'], correct:0 },
+  { c:'priroda', q:'Který savec dokáže létat?', a:['Netopýr','Veverka','Kočka','Pes'], correct:0 },
+  { c:'priroda', img:'🦊', q:'Jak se jmenuje toto zvíře s ryšavým ocasem?', a:['Liška','Vlk','Pes','Kojot'], correct:0 },
+  { c:'priroda', q:'Kolik nohou má hmyz?', a:['6','8','4','10'], correct:0 },
+  { c:'priroda', q:'Jaký je největší orgán lidského těla?', a:['Kůže','Játra','Plíce','Srdce'], correct:0 },
+  { c:'priroda', img:'🐻', q:'Které zvíře v zimě spí (zimní spánek)?', a:['Medvěd','Lev','Slon','Žirafa'], correct:0 },
+  { c:'priroda', q:'Co dělají listy stromů na podzim?', a:['Mění barvu a opadávají','Rostou','Kvetou','Tvrdnou'], correct:0 },
+  { c:'priroda', q:'Které zvíře je obojživelník?', a:['Žába','Had','Ještěrka','Krokodýl'], correct:0 },
+  { c:'priroda', img:'🦈', q:'Je žralok ryba, nebo savec?', a:['Ryba','Savec','Obojživelník','Plaz'], correct:0 },
+  { c:'priroda', q:'Jaký strom plodí žaludy?', a:['Dub','Bříza','Smrk','Vrba'], correct:0 },
+  { c:'priroda', q:'Které zvíře má chobot?', a:['Slon','Nosorožec','Hroch','Žirafa'], correct:0 },
+  { c:'priroda', img:'🐸', q:'Co je toto zvíře (skáče, žije u vody)?', a:['Žába','Ještěrka','Had','Mlok'], correct:0 },
+  { c:'priroda', q:'Jak se jmenuje vědní obor o rostlinách?', a:['Botanika','Zoologie','Geologie','Anatomie'], correct:0 },
+  { c:'priroda', q:'Který pták je symbolem míru?', a:['Holubice','Orel','Sova','Páv'], correct:0 },
+  { c:'priroda', img:'🐅', q:'Jaká kočkovitá šelma má pruhy?', a:['Tygr','Lev','Gepard','Puma'], correct:0 },
+  { c:'priroda', q:'Co je „karnivor"?', a:['Masožravec','Býložravec','Všežravec','Rostlinožravec'], correct:0 },
+  { c:'priroda', q:'Které mládě patří kočce?', a:['Kotě','Štěně','Hříbě','Tele'], correct:0 },
+  { c:'priroda', img:'🦌', q:'Které zvíře má parohy?', a:['Jelen','Kůň','Osel','Zebra'], correct:0 },
+  { c:'priroda', q:'Jaká je největší ryba na světě?', a:['Žralok velrybí','Tuňák','Marlín','Sumec'], correct:0 },
+  { c:'priroda', q:'Co potřebuje oheň k hoření?', a:['Kyslík','Dusík','Vodu','CO2'], correct:0 },
+  { c:'priroda', img:'🦔', q:'Jaké zvíře má bodliny a stočí se do klubíčka?', a:['Ježek','Krtek','Myš','Veverka'], correct:0 },
+  { c:'priroda', q:'Které zvíře žije ve vodě i na souši?', a:['Žába','Pes','Kočka','Pták'], correct:0 },
+  { c:'priroda', q:'Jaká je nejvyšší tráva na světě?', a:['Bambus','Pšenice','Kukuřice','Rákos'], correct:0 },
+  { c:'priroda', img:'🐍', q:'Jaké zvíře nemá nohy a plazí se?', a:['Had','Ještěrka','Žába','Mlok'], correct:0 },
+  { c:'priroda', q:'Které zvíře produkuje hedvábí?', a:['Bourec morušový','Včela','Pavouk','Mravenec'], correct:0 },
+  { c:'priroda', q:'Co dýchají ryby?', a:['Kyslík z vody (žábrami)','Vzduch','Oxid uhličitý','Dusík'], correct:0 },
+  { c:'priroda', img:'🌳', q:'Jaká část stromu je pod zemí?', a:['Kořeny','Koruna','Větve','Listy'], correct:0 },
+  { c:'priroda', q:'Které zvíře má sloní paměť (přísloví)?', a:['Slon','Pes','Kočka','Kůň'], correct:0 },
+  { c:'priroda', q:'Jaký je nejjedovatější živočich (řada druhů)?', a:['Žabka pralesnička','Pes','Kočka','Holub'], correct:0 },
+  { c:'priroda', img:'🦓', q:'Jaké zvíře má černobílé pruhy?', a:['Zebra','Kůň','Osel','Tygr'], correct:0 },
+  { c:'priroda', q:'Kolik křídel má motýl?', a:['4','2','6','8'], correct:0 },
+  { c:'priroda', q:'Co je největší planeta, kde by mohl být život (zatím známo)?', a:['Země','Mars','Jupiter','Venuše'], correct:0 },
+  { c:'priroda', img:'🐨', q:'Jaké zvíře žije v Austrálii a jí eukalyptus?', a:['Koala','Panda','Lenochod','Medvěd'], correct:0 },
+  { c:'priroda', q:'Které zvíře je největší primát?', a:['Gorila','Šimpanz','Orangutan','Pavián'], correct:0 },
+  { c:'priroda', q:'Jak se jmenuje proces, kdy voda mění skupenství na páru?', a:['Vypařování','Tání','Tuhnutí','Kondenzace'], correct:0 },
+  { c:'priroda', img:'🦜', q:'Jaký pták umí napodobovat lidskou řeč?', a:['Papoušek','Vrabec','Sova','Orel'], correct:0 },
+  { c:'priroda', q:'Které zvíře nese mláďata ve vaku?', a:['Klokan','Lev','Slon','Pes'], correct:0 },
+  { c:'priroda', q:'Co je „fotosyntéza"?', a:['Tvorba živin ze světla','Dýchání','Trávení','Spánek'], correct:0 },
+  { c:'priroda', img:'🦏', q:'Jaké zvíře má roh na nose?', a:['Nosorožec','Slon','Hroch','Buvol'], correct:0 },
+  { c:'priroda', q:'Které zvíře je symbolem moudrosti?', a:['Sova','Páv','Holub','Vrána'], correct:0 },
+  { c:'priroda', q:'Jaká je nejtěžší kočkovitá šelma?', a:['Tygr','Lev','Leopard','Gepard'], correct:0 },
+  { c:'priroda', img:'🐊', q:'Jaký velký plaz žije v řekách a má silné čelisti?', a:['Krokodýl','Had','Ještěrka','Želva'], correct:0 },
+  { c:'priroda', q:'Co je „ekosystém"?', a:['Společenství organismů a prostředí','Jeden druh','Krajina','Počasí'], correct:0 },
+  { c:'priroda', q:'Který hmyz žije v úlu?', a:['Včela','Mravenec','Moucha','Komár'], correct:0 },
+  { c:'priroda', img:'🦇', q:'Jaký savec létá a orientuje se echolokací?', a:['Netopýr','Sova','Vlaštovka','Veverka'], correct:0 },
+  { c:'priroda', q:'Které zvíře je nejmenší pták?', a:['Kolibřík','Vrabec','Sýkorka','Střízlík'], correct:0 },
+  { c:'priroda', q:'Co tvoří většinu atmosféry Země?', a:['Dusík','Kyslík','CO2','Vodík'], correct:0 },
+  { c:'priroda', img:'🦚', q:'Jaký pták rozevírá barevný ocas?', a:['Páv','Krocan','Bažant','Orel'], correct:0 },
+  { c:'priroda', q:'Která rostlina je masožravá?', a:['Mucholapka','Růže','Tulipán','Kopretina'], correct:0 },
+  { c:'priroda', q:'Které zvíře přenáší malárii?', a:['Komár','Moucha','Včela','Mravenec'], correct:0 },
+  { c:'priroda', img:'🐳', q:'Je velryba ryba, nebo savec?', a:['Savec','Ryba','Obojživelník','Plaz'], correct:0 },
+  { c:'priroda', q:'Jaký je nejvyšší strom na světě (druh)?', a:['Sekvoj','Dub','Smrk','Bříza'], correct:0 },
+  { c:'priroda', q:'Které zvíře mění barvu podle okolí?', a:['Chameleon','Pes','Kočka','Kůň'], correct:0 },
+  { c:'priroda', img:'🦛', q:'Jaké velké zvíře žije v afrických řekách?', a:['Hroch','Slon','Nosorožec','Buvol'], correct:0 },
+  { c:'priroda', q:'Kolik nohou má stonožka (ne přesně sto, ale hodně)?', a:['Mnoho párů','100 přesně','6','8'], correct:0 },
+  { c:'priroda', q:'Co je „savana"?', a:['Travnatá krajina','Poušť','Prales','Tundra'], correct:0 },
+  { c:'priroda', img:'🐆', q:'Jaká nejrychlejší kočkovitá šelma má skvrny?', a:['Gepard','Lev','Tygr','Puma'], correct:0 },
+  { c:'priroda', q:'Které zvíře má osm chapadel?', a:['Chobotnice','Hvězdice','Medúza','Krab'], correct:0 },
+  { c:'priroda', q:'Jak se jmenuje samice koně?', a:['Klisna','Kráva','Ovce','Koza'], correct:0 },
+  { c:'priroda', img:'🦦', q:'Jaké zvíře plave na zádech a používá kameny?', a:['Vydra','Bobr','Tuleň','Lachtan'], correct:0 },
+  { c:'priroda', q:'Která rostlina je symbolem Japonska (květ)?', a:['Sakura (třešeň)','Růže','Tulipán','Lotos'], correct:0 },
+  { c:'priroda', q:'Které zvíře má nejlepší čich?', a:['Pes','Kočka','Kůň','Pták'], correct:0 },
+  { c:'priroda', img:'🐉', q:'Jak se jmenuje největší ještěr na světě?', a:['Varan komodský','Leguán','Chameleon','Gekon'], correct:0 },
+  { c:'priroda', q:'Co je „tundra"?', a:['Studená bezlesá krajina','Prales','Poušť','Savana'], correct:0 },
+  { c:'priroda', q:'Které zvíře nosí ulitu jako domeček?', a:['Hlemýžď','Žába','Myš','Pavouk'], correct:0 },
+  { c:'priroda', q:'Jaký je nejhlubší kořenový systém (typ rostlin)?', a:['Stromy','Mechy','Řasy','Houby'], correct:0 },
+  { c:'priroda', q:'Které zvíře produkuje nejvíce kyslíku (oceán)?', a:['Fytoplankton / řasy','Velryba','Žralok','Delfín'], correct:0 },
+  // ─── DOPLŇKOVÉ (dorovnání na 100+) ───
+  { c:'sport', q:'Která země vyhrála hokejové MS 2024?', a:['Česko','Švýcarsko','Kanada','Švédsko'], correct:0 },
+  { c:'sport', q:'V jakém sportu se objevuje „dvojchyba"?', a:['Tenis','Fotbal','Hokej','Basketbal'], correct:0 },
+  { c:'sport', q:'Kolik gólů znamená „čisté konto" brankáře?', a:['0 obdržených','1','5','10'], correct:0 },
+  { c:'sport', img:'🏆', q:'Co symbolizuje tato trofej?', a:['Vítězství','Účast','Porážku','Remízu'], correct:0 },
+  { c:'filmy', q:'Kdo režíroval trilogii Pán prstenů?', a:['Peter Jackson','George Lucas','James Cameron','Ridley Scott'], correct:0 },
+  { c:'filmy', q:'Jak se jmenuje fiktivní planeta v Avatarovi?', a:['Pandora','Krypton','Tatooine','Vulkán'], correct:0 },
+  { c:'filmy', q:'Která postava je „Temný rytíř"?', a:['Batman','Superman','Spider-Man','Iron Man'], correct:0 },
+  { c:'filmy', img:'🎥', q:'Co tento přístroj dělá?', a:['Natáčí film','Hraje hudbu','Tiskne','Fotí jen sebe'], correct:0 },
+  { c:'hudba', q:'Kolik tónů je v chromatické stupnici?', a:['12','7','8','5'], correct:0 },
+  { c:'hudba', q:'Která kapela má píseň „Imagine" (John Lennon)?', a:['Sólo John Lennon','Queen','U2','Beatles jako celek'], correct:0 },
+  { c:'hudba', q:'Jaký nástroj se hraje paličkami na kovové trubky?', a:['Zvonkohra','Kytara','Klavír','Flétna'], correct:0 },
+  { c:'hudba', img:'🔔', q:'Jaký zvuk vydává tento předmět?', a:['Zvonění','Bubnování','Pískání','Hučení'], correct:0 },
+  { c:'obecny', q:'Kolik je 11 × 11?', a:['121','111','131','144'], correct:0 },
+  { c:'obecny', q:'Která barva vznikne smícháním modré a žluté?', a:['Zelená','Oranžová','Fialová','Hnědá'], correct:0 },
+  { c:'obecny', q:'Jaký je nejstudenější kontinent?', a:['Antarktida','Evropa','Asie','Austrálie'], correct:0 },
+  { c:'obecny', img:'🇦🇹', q:'Které země je tato vlajka?', a:['Rakousko','Lotyšsko','Libanon','Polsko'], correct:0 },
+  { c:'divnosti', q:'Které zvíře má jazyk modré barvy?', a:['Žirafa','Pes','Kočka','Kráva'], correct:0 },
+  { c:'divnosti', q:'Co je nejběžnější jméno na světě?', a:['Mohamed','Jan','David','Petr'], correct:0 },
+  { c:'divnosti', q:'Které zvíře se dožívá nejdéle (savec)?', a:['Velryba grónská','Pes','Slon','Kůň'], correct:0 },
+  { c:'divnosti', img:'🍅', q:'Je rajče ovoce, nebo zelenina (botanicky)?', a:['Ovoce (bobule)','Zelenina','Ani jedno','Kořen'], correct:0 },
+  { c:'priroda', q:'Jaký je nejmenší savec na světě?', a:['Netopýr / rejsek','Myš','Krtek','Veverka'], correct:0 },
+  { c:'priroda', q:'Co je „opylování"?', a:['Přenos pylu','Klíčení','Růst kořenů','Opadávání listů'], correct:0 },
+  { c:'priroda', q:'Které zvíře je největší pták?', a:['Pštros','Orel','Albatros','Kondor'], correct:0 },
+  { c:'priroda', img:'🌵', q:'Která rostlina roste v poušti a zadržuje vodu?', a:['Kaktus','Růže','Smrk','Tulipán'], correct:0 },
+];
+
+function QuizBattleGame({ user, onExit }) {
+  const [view, setView] = useState('menu');   // menu | lobby | playing | reveal | final
+  const [roomCode, setRoomCode] = useState('');
+  const [joinCode, setJoinCode] = useState('');
+  const [isHost, setIsHost] = useState(false);
+  const [players, setPlayers] = useState({});
+  const [myId] = useState(() => 'q_' + Math.random().toString(36).slice(2, 9));
+  const myName = user?.name || 'Hráč';
+  const [error, setError] = useState('');
+  const [connecting, setConnecting] = useState(false);
+
+  // Nastavení (host)
+  const [selCats, setSelCats] = useState(['sport','filmy','hudba','obecny','divnosti','priroda']);
+  const selCatsRef = useRef(selCats);
+  const [numQ, setNumQ] = useState(10);
+  const numQRef = useRef(10);
+  const [teamMode, setTeamMode] = useState(false);
+  const teamModeRef = useRef(false);
+  const [myTeam, setMyTeam] = useState('red');
+
+  // Hra
+  const [qIndex, setQIndex] = useState(0);
+  const [totalQ, setTotalQ] = useState(10);
+  const [question, setQuestion] = useState(null);
+  const [myAnswer, setMyAnswer] = useState(null);
+  const [revealData, setRevealData] = useState(null);
+  const [deadline, setDeadline] = useState(0);
+  const [now, setNow] = useState(Date.now());
+  const [scores, setScores] = useState({});
+
+  const chanRef = useRef(null);
+  const questionsRef = useRef([]);
+  const answersRef = useRef({});
+  const scoresRef = useRef({});
+  const revealedRef = useRef(false);
+  const qTimerRef = useRef(null);
+  const curQRef = useRef(0);
+  const myAnswerRef = useRef(null);
+  const myScoreRef = useRef(0);
+
+  useEffect(() => { selCatsRef.current = selCats; }, [selCats]);
+  useEffect(() => { numQRef.current = numQ; }, [numQ]);
+  useEffect(() => { teamModeRef.current = teamMode; }, [teamMode]);
+
+  const QTIME = 20000;
+  const viewRef = useRef(view);
+  useEffect(() => { viewRef.current = view; }, [view]);
+
+  // Časovač
+  useEffect(() => {
+    if (view !== 'playing') return;
+    const t = setInterval(() => setNow(Date.now()), 100);
+    return () => clearInterval(t);
+  }, [view]);
+  const timeLeft = Math.max(0, Math.ceil((deadline - now) / 1000));
+
+  // Zpět tlačítko
+  useEffect(() => {
+    window.__quizBack = () => {
+      const v = viewRef.current;
+      if (v === 'menu') { onExit(); }
+      else { if (chanRef.current) { try { db.removeChannel(chanRef.current); } catch(e){} chanRef.current = null; } setView('menu'); }
+    };
+    return () => { window.__quizBack = null; };
+  }, []);
+
+  function genCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    return Array.from({length:4}, () => chars[Math.floor(Math.random()*chars.length)]).join('');
+  }
+
+  function setupChannel(code, asHost) {
+    const channel = db.channel('quizbattle-' + code, {
+      config: { presence: { key: myId }, broadcast: { self: true } },
+    });
+    channel.on('presence', { event: 'sync' }, () => {
+      const state = channel.presenceState();
+      const pl = {};
+      Object.keys(state).forEach(k => { const m = state[k][0]; pl[k] = { name:m.name, team:m.team||'red' }; });
+      setPlayers(pl);
+    });
+    channel.on('broadcast', { event: 'settings' }, ({ payload }) => {
+      if (payload.cats) setSelCats(payload.cats);
+      if (typeof payload.numQ === 'number') setNumQ(payload.numQ);
+      if (typeof payload.teamMode === 'boolean') setTeamMode(payload.teamMode);
+    });
+    channel.on('broadcast', { event: 'question' }, ({ payload }) => {
+      setQuestion(payload.q); setQIndex(payload.index); setTotalQ(payload.total);
+      setDeadline(payload.deadline); setMyAnswer(null); myAnswerRef.current = null;
+      setRevealData(null); setNow(Date.now()); setView('playing');
+    });
+    channel.on('broadcast', { event: 'reveal' }, ({ payload }) => {
+      setRevealData(payload); setScores(payload.scores || {});
+      const mine = payload.scores && payload.scores[myId];
+      if (typeof mine === 'number') myScoreRef.current = mine;
+      setView('reveal');
+    });
+    channel.on('broadcast', { event: 'game_over' }, ({ payload }) => {
+      setScores(payload.scores || {});
+      const finalScore = (payload.scores && payload.scores[myId]) != null ? payload.scores[myId] : myScoreRef.current;
+      if (user && finalScore > 0) {
+        db.from('minigame_scores').insert({
+          id: Date.now().toString(), user_id: user.id, user_name: myName,
+          game: 'quizbattle', score: finalScore, detail: null, played_at: new Date().toISOString(),
+        }).then(({ error }) => { if (error) console.error('quiz score:', error.message); });
+      }
+      setRevealData(payload); setView('final');
+    });
+    channel.on('broadcast', { event: 'restart_lobby' }, () => {
+      scoresRef.current = {}; setScores({}); setRevealData(null); setQIndex(0); setView('lobby');
+    });
+    if (asHost) {
+      channel.on('broadcast', { event: 'answer' }, ({ payload }) => {
+        if (revealedRef.current) return;
+        answersRef.current[payload.id] = payload;
+        const playerCount = Object.keys(channel.presenceState()).length;
+        if (Object.keys(answersRef.current).length >= playerCount) hostReveal(curQRef.current);
+      });
+    }
+    channel.subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await channel.track({ name: myName, team: myTeam });
+        setConnecting(false);
+      }
+    });
+    chanRef.current = channel;
+    return channel;
+  }
+
+  function hostCreate() {
+    if (!user) { setError('Pro multiplayer se musíš přihlásit'); return; }
+    const code = genCode(); setRoomCode(code); setIsHost(true); setConnecting(true);
+    setupChannel(code, true); setView('lobby');
+  }
+  function joinRoom() {
+    if (!user) { setError('Pro multiplayer se musíš přihlásit'); return; }
+    if (joinCode.length !== 4) { setError('Zadej 4místný kód'); return; }
+    setError(''); setRoomCode(joinCode); setIsHost(false); setConnecting(true);
+    setupChannel(joinCode, false); setView('lobby');
+  }
+  function leaveRoom() {
+    if (chanRef.current) { try { db.removeChannel(chanRef.current); } catch(e){} chanRef.current = null; }
+    setView('menu'); setPlayers({}); setRoomCode(''); setJoinCode(''); setIsHost(false);
+  }
+  function changeTeam(t) {
+    setMyTeam(t);
+    if (chanRef.current) chanRef.current.track({ name: myName, team: t });
+  }
+
+  function hostStartGame() {
+    const cats = selCatsRef.current.length ? selCatsRef.current : QUIZ_CATS.map(c=>c.id);
+    let all = QUIZ_QUESTIONS.filter(q => cats.includes(q.c));
+    // Střídání: preferuj otázky nepoužité v posledních hrách
+    let usedQ = [];
+    try { usedQ = JSON.parse(localStorage.getItem('indyq_quiz_used') || '[]'); } catch(e) {}
+    const qKey = q => q.c + '|' + q.q;
+    let fresh = all.filter(q => !usedQ.includes(qKey(q)));
+    // pokud nezbývá dost čerstvých, resetuj historii
+    if (fresh.length < numQRef.current) { usedQ = []; fresh = all; }
+    let pool = fresh.sort(() => Math.random() - 0.5).slice(0, numQRef.current);
+    // zamíchej pořadí odpovědí u každé otázky (správná ať není pořád první)
+    pool = pool.map(q => {
+      const correctText = q.a[q.correct];
+      const shuffledA = [...q.a].sort(() => Math.random() - 0.5);
+      return { ...q, a: shuffledA, correct: shuffledA.indexOf(correctText) };
+    });
+    // ulož použité otázky (drž posledních ~250)
+    const newUsed = [...usedQ, ...pool.map(qKey)].slice(-250);
+    try { localStorage.setItem('indyq_quiz_used', JSON.stringify(newUsed)); } catch(e) {}
+    questionsRef.current = pool;
+    const sc = {};
+    Object.keys(players).forEach(id => sc[id] = 0);
+    scoresRef.current = sc;
+    hostStartQuestion(0);
+  }
+  function hostStartQuestion(i) {
+    answersRef.current = {}; revealedRef.current = false; curQRef.current = i;
+    const q = questionsRef.current[i];
+    const deadline = Date.now() + QTIME;
+    // pošli otázku BEZ správné odpovědi
+    const pubQ = { q: q.q, a: q.a, img: q.img || null, c: q.c };
+    chanRef.current.send({ type:'broadcast', event:'question', payload:{ q:pubQ, index:i, total:questionsRef.current.length, deadline } });
+    if (qTimerRef.current) clearTimeout(qTimerRef.current);
+    qTimerRef.current = setTimeout(() => hostReveal(i), QTIME + 600);
+  }
+  function hostReveal(i) {
+    if (revealedRef.current) return;
+    revealedRef.current = true;
+    if (qTimerRef.current) { clearTimeout(qTimerRef.current); qTimerRef.current = null; }
+    const q = questionsRef.current[i];
+    const pstate = chanRef.current.presenceState();
+    const perPlayer = {};
+    Object.keys(pstate).forEach(id => {
+      const ans = answersRef.current[id];
+      let correct = false, pts = 0;
+      if (ans && ans.choice === q.correct) {
+        correct = true;
+        pts = Math.round(500 + 500 * Math.max(0, Math.min(1, (ans.remainingMs||0) / QTIME)));
+      }
+      scoresRef.current[id] = (scoresRef.current[id] || 0) + pts;
+      perPlayer[id] = { choice: ans ? ans.choice : null, correct, pts, name: pstate[id][0].name, team: pstate[id][0].team||'red' };
+    });
+    chanRef.current.send({ type:'broadcast', event:'reveal', payload:{ correct:q.correct, perPlayer, scores:scoresRef.current, index:i } });
+    setTimeout(() => {
+      if (i + 1 < questionsRef.current.length) hostStartQuestion(i + 1);
+      else {
+        const pstate2 = chanRef.current.presenceState();
+        const names = {}, teams = {};
+        Object.keys(pstate2).forEach(id => { names[id] = pstate2[id][0].name; teams[id] = pstate2[id][0].team||'red'; });
+        chanRef.current.send({ type:'broadcast', event:'game_over', payload:{ scores:scoresRef.current, names, teams } });
+      }
+    }, 4500);
+  }
+
+  function submitAnswer(choice) {
+    if (myAnswerRef.current !== null || view !== 'playing') return;
+    const remainingMs = Math.max(0, deadline - Date.now());
+    setMyAnswer(choice); myAnswerRef.current = choice;
+    if (navigator.vibrate) navigator.vibrate(20);
+    chanRef.current.send({ type:'broadcast', event:'answer', payload:{ id:myId, choice, remainingMs } });
+  }
+
+  const playerList = Object.entries(players);
+  const ANS_COLORS = ['#e8413a','#1a7ee8','#e8a31a','#22b04a'];
+  const ANS_SHAPES = ['▲','◆','●','■'];
+
+  // ═══ RENDER ═══
+  if (view === 'menu') {
+    return (
+      <div style={{maxWidth:430,margin:'0 auto',position:'relative'}}>
+        <div style={{position:'absolute',top:-30,left:'50%',transform:'translateX(-50%)',width:280,height:200,background:'radial-gradient(ellipse,rgba(170,85,255,.18),transparent 70%)',pointerEvents:'none',filter:'blur(8px)'}}/>
+        <div className="mb-card-rise" style={{textAlign:'center',marginBottom:22,position:'relative'}}>
+          <div style={{fontSize:60,marginBottom:6,animation:'mbFloat 3.5s ease-in-out infinite',filter:'drop-shadow(0 4px 16px rgba(170,85,255,.4))'}}>🎉</div>
+          <div style={{fontSize:23,fontWeight:900,color:'#fff',fontFamily:"'Orbitron',sans-serif",letterSpacing:1,textShadow:'0 0 24px rgba(170,85,255,.5)'}}>KVÍZOVÁ ARÉNA</div>
+          <div style={{fontSize:12,color:'#c9a4f0',marginTop:6,letterSpacing:.5}}>Online kvíz v reálném čase · 2–20 hráčů</div>
+          <div style={{display:'inline-block',fontSize:10,color:'#a890d0',marginTop:8,padding:'4px 12px',background:'rgba(170,85,255,.08)',border:'1px solid rgba(170,85,255,.2)',borderRadius:20}}>⚡ Rychlá správná odpověď = víc bodů</div>
+        </div>
+        <div className="mb-card-rise" style={{animationDelay:'.06s',background:'linear-gradient(135deg,rgba(30,20,50,.9),rgba(20,12,40,.7))',backdropFilter:'blur(8px)',border:'1px solid #3a2a5a',borderRadius:14,padding:'13px 16px',marginBottom:16,display:'flex',alignItems:'center',gap:12,boxShadow:'0 4px 20px rgba(0,0,0,.25)'}}>
+          <div style={{width:42,height:42,borderRadius:'50%',background:'linear-gradient(135deg,#7722cc,#aa55ff)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,boxShadow:'0 0 16px rgba(170,85,255,.4)'}}>👤</div>
+          <div style={{textAlign:'left'}}>
+            <div style={{fontSize:10,color:'#aa88dd',letterSpacing:1.5}}>HRAJEŠ JAKO</div>
+            <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>{myName}</div>
+          </div>
+        </div>
+        <button className="mb-btn mb-card-rise" onClick={hostCreate} style={{animationDelay:'.1s',width:'100%',padding:17,fontSize:16,fontWeight:900,letterSpacing:1,background:'linear-gradient(135deg,#7722cc,#aa55ff)',color:'#fff',border:'none',borderRadius:13,marginBottom:12,fontFamily:"'Orbitron',sans-serif",boxShadow:'0 4px 20px rgba(170,85,255,.3)'}}>🎮 VYTVOŘIT KVÍZ</button>
+        <div className="mb-card-rise" style={{animationDelay:'.14s',display:'flex',gap:8,alignItems:'stretch'}}>
+          <input value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} placeholder="KÓD" maxLength={4}
+            style={{flex:1,padding:'12px',borderRadius:11,border:'1px solid #3a2a5a',background:'#150a28',color:'#fff',fontSize:18,textAlign:'center',letterSpacing:4,fontFamily:"'Orbitron',sans-serif",boxSizing:'border-box',outline:'none'}}/>
+          <button className="mb-btn" onClick={joinRoom} style={{padding:'12px 22px',fontSize:14,fontWeight:900,background:'linear-gradient(135deg,#5522aa,#8844dd)',color:'#fff',border:'none',borderRadius:11}}>PŘIPOJIT</button>
+        </div>
+        {error && <div style={{color:'#ff6644',fontSize:12,marginTop:10,textAlign:'center',animation:'shake .4s'}}>{error}</div>}
+        <button className="mb-btn" onClick={onExit} style={{width:'100%',marginTop:14,padding:10,background:'transparent',border:'1px solid #3a2a5a',color:'#998',borderRadius:9,fontSize:13}}>← Zpět</button>
+      </div>
+    );
+  }
+
+  if (view === 'lobby') {
+    const hostId = Object.keys(players)[0];
+    const redCount = playerList.filter(([id,p])=>p.team==='red').length;
+    const blueCount = playerList.filter(([id,p])=>p.team==='blue').length;
+    return (
+      <div style={{maxWidth:440,margin:'0 auto',textAlign:'center'}}>
+        <div className="mb-card-rise" style={{marginBottom:16}}>
+          <div style={{fontSize:11,color:'#aa88dd',letterSpacing:3,marginBottom:8}}>KÓD MÍSTNOSTI</div>
+          <div style={{display:'inline-block',padding:'10px 28px',background:'linear-gradient(135deg,rgba(170,85,255,.14),rgba(120,40,200,.06))',border:'2px solid rgba(170,85,255,.35)',borderRadius:16,boxShadow:'0 0 30px rgba(170,85,255,.2)'}}>
+            <div style={{fontSize:46,fontWeight:900,color:'#cc99ff',fontFamily:"'Orbitron',sans-serif",letterSpacing:10,textShadow:'0 0 20px rgba(170,85,255,.5)',marginRight:-10}}>{roomCode}</div>
+          </div>
+          <div style={{fontSize:12,color:'#887',marginTop:10}}>{connecting ? '⟳ Připojuji…' : '📤 Sdílej kód s ostatními'}</div>
+        </div>
+
+        {/* Režim hry */}
+        <div className="mb-card-rise" style={{animationDelay:'.05s',background:'linear-gradient(135deg,rgba(30,20,50,.9),rgba(20,12,40,.7))',backdropFilter:'blur(8px)',border:'1px solid #3a2a5a',borderRadius:14,padding:14,marginBottom:12}}>
+          <div style={{fontSize:11,color:'#aa88dd',letterSpacing:1.5,marginBottom:10}}>REŽIM</div>
+          {isHost ? (
+            <div style={{display:'flex',gap:8}}>
+              <button className="mb-btn" onClick={()=>{ setTeamMode(false); if(chanRef.current) chanRef.current.send({type:'broadcast',event:'settings',payload:{teamMode:false}}); }}
+                style={{flex:1,padding:'10px',borderRadius:10,border:'none',cursor:'pointer',fontSize:13,fontWeight:800,background:!teamMode?'linear-gradient(135deg,#7722cc,#aa55ff)':'rgba(60,40,90,.4)',color:!teamMode?'#fff':'#998'}}>👤 Jednotlivci</button>
+              <button className="mb-btn" onClick={()=>{ setTeamMode(true); if(chanRef.current) chanRef.current.send({type:'broadcast',event:'settings',payload:{teamMode:true}}); }}
+                style={{flex:1,padding:'10px',borderRadius:10,border:'none',cursor:'pointer',fontSize:13,fontWeight:800,background:teamMode?'linear-gradient(135deg,#7722cc,#aa55ff)':'rgba(60,40,90,.4)',color:teamMode?'#fff':'#998'}}>🚩 Týmy</button>
+            </div>
+          ) : (
+            <div style={{fontSize:15,fontWeight:800,color:'#fff'}}>{teamMode ? '🚩 Týmy' : '👤 Jednotlivci'}</div>
+          )}
+          {teamMode && (
+            <div style={{display:'flex',gap:8,marginTop:10}}>
+              <button className="mb-btn" onClick={()=>changeTeam('red')} style={{flex:1,padding:'9px',borderRadius:10,border:`2px solid ${myTeam==='red'?'#ff5544':'transparent'}`,cursor:'pointer',fontSize:13,fontWeight:800,background:'rgba(232,65,58,.18)',color:'#ff8877'}}>🔴 Červení ({redCount})</button>
+              <button className="mb-btn" onClick={()=>changeTeam('blue')} style={{flex:1,padding:'9px',borderRadius:10,border:`2px solid ${myTeam==='blue'?'#4488ff':'transparent'}`,cursor:'pointer',fontSize:13,fontWeight:800,background:'rgba(26,126,232,.18)',color:'#88bbff'}}>🔵 Modří ({blueCount})</button>
+            </div>
+          )}
+        </div>
+
+        {/* Kategorie */}
+        <div className="mb-card-rise" style={{animationDelay:'.08s',background:'linear-gradient(135deg,rgba(30,20,50,.9),rgba(20,12,40,.7))',backdropFilter:'blur(8px)',border:'1px solid #3a2a5a',borderRadius:14,padding:14,marginBottom:12}}>
+          <div style={{fontSize:11,color:'#aa88dd',letterSpacing:1.5,marginBottom:10}}>KATEGORIE {isHost && <span style={{color:'#667',fontSize:9}}>(klikni pro výběr)</span>}</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:7}}>
+            {QUIZ_CATS.map(cat => {
+              const on = selCats.includes(cat.id);
+              return (
+                <button key={cat.id} className="mb-btn" disabled={!isHost}
+                  onClick={()=>{ if(!isHost) return; const next = on ? selCats.filter(x=>x!==cat.id) : [...selCats,cat.id]; if(next.length===0) return; setSelCats(next); if(chanRef.current) chanRef.current.send({type:'broadcast',event:'settings',payload:{cats:next}}); }}
+                  style={{padding:'10px 4px',borderRadius:10,border:`1px solid ${on?cat.color:'#332244'}`,cursor:isHost?'pointer':'default',fontSize:11,fontWeight:700,background:on?`${cat.color}28`:'rgba(30,20,50,.5)',color:on?'#fff':'#778',opacity:on?1:0.55,transition:'all .2s'}}>
+                  <div style={{fontSize:20}}>{cat.icon}</div>{cat.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Počet otázek */}
+        <div className="mb-card-rise" style={{animationDelay:'.1s',background:'linear-gradient(135deg,rgba(30,20,50,.9),rgba(20,12,40,.7))',backdropFilter:'blur(8px)',border:'1px solid #3a2a5a',borderRadius:14,padding:14,marginBottom:12}}>
+          <div style={{fontSize:11,color:'#aa88dd',letterSpacing:1.5,marginBottom:10}}>POČET OTÁZEK</div>
+          {isHost ? (
+            <div style={{display:'flex',alignItems:'center',gap:12,justifyContent:'center'}}>
+              <button className="mb-btn" onClick={()=>{ const v=Math.max(5,numQ-5); setNumQ(v); if(chanRef.current) chanRef.current.send({type:'broadcast',event:'settings',payload:{numQ:v}}); }} disabled={numQ<=5}
+                style={{width:40,height:40,borderRadius:11,border:'1px solid #3a2a5a',background:numQ<=5?'#221a35':'rgba(170,85,255,.15)',color:numQ<=5?'#445':'#bb99ee',fontSize:22,fontWeight:900}}>−</button>
+              <div style={{fontSize:34,fontWeight:900,color:'#cc99ff',fontFamily:"'Orbitron',sans-serif",minWidth:54,textAlign:'center',textShadow:'0 0 16px rgba(170,85,255,.4)'}}>{numQ}</div>
+              <button className="mb-btn" onClick={()=>{ const v=Math.min(20,numQ+5); setNumQ(v); if(chanRef.current) chanRef.current.send({type:'broadcast',event:'settings',payload:{numQ:v}}); }} disabled={numQ>=20}
+                style={{width:40,height:40,borderRadius:11,border:'1px solid #3a2a5a',background:numQ>=20?'#221a35':'rgba(170,85,255,.15)',color:numQ>=20?'#445':'#bb99ee',fontSize:22,fontWeight:900}}>+</button>
+            </div>
+          ) : <div style={{fontSize:30,fontWeight:900,color:'#cc99ff',fontFamily:"'Orbitron',sans-serif"}}>{numQ}</div>}
+        </div>
+
+        {/* Hráči */}
+        <div className="mb-card-rise" style={{animationDelay:'.12s',background:'linear-gradient(135deg,rgba(30,20,50,.9),rgba(20,12,40,.7))',backdropFilter:'blur(8px)',border:'1px solid #3a2a5a',borderRadius:14,padding:14,marginBottom:14}}>
+          <div style={{fontSize:11,color:'#aa88dd',letterSpacing:1.5,marginBottom:10}}>HRÁČI ({playerList.length})</div>
+          <div style={{display:'flex',flexWrap:'wrap',gap:6,justifyContent:'center'}}>
+            {playerList.map(([id,p])=>(
+              <div key={id} style={{display:'flex',alignItems:'center',gap:5,padding:'5px 10px',background:teamMode?(p.team==='blue'?'rgba(26,126,232,.18)':'rgba(232,65,58,.18)'):'rgba(170,85,255,.1)',border:`1px solid ${teamMode?(p.team==='blue'?'rgba(68,136,255,.3)':'rgba(255,85,68,.3)'):'rgba(170,85,255,.2)'}`,borderRadius:20,fontSize:13}}>
+                <span>{id===hostId?'👑':teamMode?(p.team==='blue'?'🔵':'🔴'):'👤'}</span>
+                <span style={{color:'#fff',fontWeight:600}}>{p.name}{id===myId?' (ty)':''}</span>
+              </div>
+            ))}
+            {playerList.length === 0 && <div style={{color:'#667',fontSize:13}}>Čekám na hráče…</div>}
+          </div>
+        </div>
+
+        {isHost ? (
+          <button className="mb-btn" onClick={hostStartGame} disabled={playerList.length < 1}
+            style={{width:'100%',padding:17,fontSize:16,fontWeight:900,letterSpacing:1,background:playerList.length<1?'#2a2240':'linear-gradient(135deg,#7722cc,#aa55ff)',color:'#fff',border:'none',borderRadius:13,cursor:playerList.length<1?'default':'pointer',fontFamily:"'Orbitron',sans-serif",boxShadow:playerList.length<1?'none':'0 4px 20px rgba(170,85,255,.3)'}}>🚀 SPUSTIT KVÍZ</button>
+        ) : (
+          <div style={{color:'#aa88dd',fontSize:14,padding:14}}>⏳ Čekání na hosta…</div>
+        )}
+        <button className="mb-btn" onClick={leaveRoom} style={{width:'100%',marginTop:12,padding:10,background:'transparent',border:'1px solid #3a2a5a',color:'#887',borderRadius:9,fontSize:13}}>← Opustit</button>
+      </div>
+    );
+  }
+
+  if (view === 'playing' || view === 'reveal') {
+    const showReveal = view === 'reveal';
+    const cat = QUIZ_CATS.find(c => c.id === question?.c);
+    const myRes = showReveal && revealData ? revealData.perPlayer[myId] : null;
+    return (
+      <div style={{maxWidth:600,margin:'0 auto'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+          <div style={{fontSize:12,color:'#aa88dd',fontWeight:700}}>{cat?.icon} {cat?.name}</div>
+          <div style={{fontSize:12,color:'#aa88dd'}}>Otázka {qIndex+1}/{totalQ}</div>
+        </div>
+
+        {/* Časomíra */}
+        {!showReveal && (
+          <div style={{height:8,background:'rgba(40,30,60,.8)',borderRadius:4,overflow:'hidden',marginBottom:14}}>
+            <div style={{height:'100%',width:`${(timeLeft/(QTIME/1000))*100}%`,background:timeLeft<=5?'linear-gradient(90deg,#cc2222,#ff5544)':'linear-gradient(90deg,#7722cc,#aa55ff)',transition:'width .3s linear',borderRadius:4}}/>
+          </div>
+        )}
+
+        {/* Otázka */}
+        <div className="mb-card-rise" style={{textAlign:'center',marginBottom:16,padding:'18px 16px',background:'linear-gradient(135deg,rgba(30,20,50,.95),rgba(20,12,40,.85))',border:`1px solid ${cat?.color||'#3a2a5a'}55`,borderRadius:16,boxShadow:'0 6px 24px rgba(0,0,0,.3)'}}>
+          {question?.img && <div style={{fontSize:72,marginBottom:10,lineHeight:1,filter:'drop-shadow(0 4px 12px rgba(0,0,0,.4))'}}>{question.img}</div>}
+          <div style={{fontSize:question?.img?17:20,fontWeight:800,color:'#fff',lineHeight:1.35}}>{question?.q}</div>
+        </div>
+
+        {!showReveal && timeLeft > 0 && (
+          <div style={{textAlign:'center',fontSize:30,fontWeight:900,color:timeLeft<=5?'#ff5544':'#cc99ff',fontFamily:"'Orbitron',sans-serif",marginBottom:14}}>{timeLeft}</div>
+        )}
+
+        {/* Odpovědi - Kahoot styl */}
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+          {question?.a.map((ans,i) => {
+            const isCorrect = showReveal && revealData && i === revealData.correct;
+            const isMine = myAnswer === i;
+            const dim = showReveal && !isCorrect;
+            return (
+              <button key={i} className={!showReveal && myAnswer===null ? 'mb-btn' : ''}
+                onClick={()=>submitAnswer(i)}
+                disabled={showReveal || myAnswer!==null}
+                style={{
+                  padding:'16px 12px',borderRadius:14,border:isMine && !showReveal ? '3px solid #fff' : (isCorrect?'3px solid #fff':'none'),
+                  background:dim?`${ANS_COLORS[i]}44`:ANS_COLORS[i],
+                  color:'#fff',fontSize:16,fontWeight:800,cursor:(showReveal||myAnswer!==null)?'default':'pointer',
+                  opacity:dim?0.45:1,transition:'all .3s',minHeight:64,display:'flex',alignItems:'center',gap:10,textAlign:'left',
+                  boxShadow:isCorrect?`0 0 24px ${ANS_COLORS[i]}`:'0 3px 10px rgba(0,0,0,.3)',transform:isCorrect?'scale(1.03)':'scale(1)',
+                }}>
+                <span style={{fontSize:22,opacity:.85}}>{ANS_SHAPES[i]}</span>
+                <span style={{flex:1}}>{ans}</span>
+                {showReveal && isCorrect && <span style={{fontSize:22}}>✓</span>}
+                {showReveal && isMine && !isCorrect && <span style={{fontSize:22}}>✗</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Feedback po odpovědi */}
+        {!showReveal && myAnswer !== null && (
+          <div style={{textAlign:'center',marginTop:16,fontSize:14,color:'#aa88dd',animation:'mbCardRise .3s'}}>✓ Odpověď odeslána · čekání na ostatní…</div>
+        )}
+        {showReveal && myRes && (
+          <div className="mb-card-rise" style={{textAlign:'center',marginTop:16,padding:'12px',borderRadius:12,background:myRes.correct?'rgba(34,176,74,.15)':'rgba(232,65,58,.12)',border:`1px solid ${myRes.correct?'rgba(34,176,74,.4)':'rgba(232,65,58,.3)'}`}}>
+            <div style={{fontSize:16,fontWeight:800,color:myRes.correct?'#44dd66':'#ff7766'}}>
+              {myRes.correct ? `🎉 Správně! +${myRes.pts} bodů` : (myRes.choice===null ? '⏰ Nestihl jsi odpovědět' : '❌ Špatně')}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (view === 'final') {
+    // Individuální nebo týmové pořadí
+    const names = revealData?.names || {};
+    const teams = revealData?.teams || {};
+    const sc = scores || {};
+    if (teamMode) {
+      let red=0, blue=0;
+      Object.keys(sc).forEach(id => { if(teams[id]==='blue') blue+=sc[id]; else red+=sc[id]; });
+      const redWin = red >= blue;
+      return (
+        <div style={{maxWidth:440,margin:'0 auto',textAlign:'center'}}>
+          <div style={{fontSize:48,marginBottom:8}}>🏆</div>
+          <div style={{fontSize:22,fontWeight:900,color:'#fff',fontFamily:"'Orbitron',sans-serif",marginBottom:18}}>VÝSLEDEK TÝMŮ</div>
+          <div className="mb-card-rise" style={{padding:'18px',borderRadius:16,marginBottom:10,background:redWin?'linear-gradient(135deg,rgba(232,65,58,.25),rgba(232,65,58,.1))':'rgba(232,65,58,.12)',border:`2px solid ${redWin?'#ff5544':'rgba(232,65,58,.3)'}`,boxShadow:redWin?'0 0 30px rgba(232,65,58,.25)':'none'}}>
+            <div style={{fontSize:18,fontWeight:900,color:'#ff8877'}}>{redWin?'👑 ':''}🔴 Červení</div>
+            <div style={{fontSize:34,fontWeight:900,color:'#fff',fontFamily:"'Orbitron',sans-serif"}}>{red.toLocaleString()}</div>
+          </div>
+          <div className="mb-card-rise" style={{animationDelay:'.08s',padding:'18px',borderRadius:16,marginBottom:18,background:!redWin?'linear-gradient(135deg,rgba(26,126,232,.25),rgba(26,126,232,.1))':'rgba(26,126,232,.12)',border:`2px solid ${!redWin?'#4488ff':'rgba(26,126,232,.3)'}`,boxShadow:!redWin?'0 0 30px rgba(26,126,232,.25)':'none'}}>
+            <div style={{fontSize:18,fontWeight:900,color:'#88bbff'}}>{!redWin?'👑 ':''}🔵 Modří</div>
+            <div style={{fontSize:34,fontWeight:900,color:'#fff',fontFamily:"'Orbitron',sans-serif"}}>{blue.toLocaleString()}</div>
+          </div>
+          {isHost ? (
+            <button className="mb-btn" onClick={()=>{ chanRef.current.send({type:'broadcast',event:'restart_lobby',payload:{}}); }} style={{width:'100%',padding:15,fontSize:16,fontWeight:900,background:'linear-gradient(135deg,#7722cc,#aa55ff)',color:'#fff',border:'none',borderRadius:13,fontFamily:"'Orbitron',sans-serif"}}>🔄 HRÁT ZNOVU</button>
+          ) : <div style={{color:'#aa88dd',fontSize:14,padding:14}}>⏳ Čekání na hosta…</div>}
+          <button className="mb-btn" onClick={leaveRoom} style={{width:'100%',marginTop:10,padding:12,background:'transparent',border:'1px solid #3a2a5a',color:'#887',borderRadius:10,fontSize:14}}>← Odejít</button>
+        </div>
+      );
+    }
+    const ranking = Object.keys(sc).map(id => ({ id, name:names[id]||'?', score:sc[id] })).sort((a,b)=>b.score-a.score);
+    const medals = ['🥇','🥈','🥉'];
+    return (
+      <div style={{maxWidth:440,margin:'0 auto',textAlign:'center'}}>
+        <div style={{fontSize:48,marginBottom:8}}>🏆</div>
+        <div style={{fontSize:22,fontWeight:900,color:'#fff',fontFamily:"'Orbitron',sans-serif",marginBottom:4}}>KONEČNÉ POŘADÍ</div>
+        <div style={{fontSize:12,color:'#aa88dd',marginBottom:18}}>{totalQ} otázek · {ranking.length} {ranking.length===1?'hráč':ranking.length<5?'hráči':'hráčů'}</div>
+        {ranking.map((r,i) => (
+          <div key={r.id} className="mb-card-rise" style={{animationDelay:`${i*.08}s`,display:'flex',alignItems:'center',gap:12,padding:'13px 16px',background:i===0?'linear-gradient(135deg,rgba(255,215,0,.18),rgba(170,85,255,.08))':'rgba(30,20,50,.8)',border:`1px solid ${i===0?'rgba(255,215,0,.45)':r.id===myId?'rgba(170,85,255,.3)':'#2a2244'}`,borderRadius:13,marginBottom:8,boxShadow:i===0?'0 0 24px rgba(255,215,0,.18)':'none'}}>
+            <span style={{fontSize:26,filter:i<3?'drop-shadow(0 0 6px rgba(255,215,0,.5))':'none'}}>{medals[i]||`${i+1}.`}</span>
+            <span style={{color:'#fff',fontWeight:700,fontSize:16,flex:1,textAlign:'left'}}>{r.name}{r.id===myId?' (ty)':''}</span>
+            <span style={{fontSize:19,fontWeight:900,color:'#ffd700',fontFamily:"'Orbitron',sans-serif"}}>{r.score.toLocaleString()}</span>
+          </div>
+        ))}
+        {isHost ? (
+          <button className="mb-btn" onClick={()=>{ chanRef.current.send({type:'broadcast',event:'restart_lobby',payload:{}}); }} style={{width:'100%',marginTop:18,padding:15,fontSize:16,fontWeight:900,background:'linear-gradient(135deg,#7722cc,#aa55ff)',color:'#fff',border:'none',borderRadius:13,fontFamily:"'Orbitron',sans-serif"}}>🔄 HRÁT ZNOVU</button>
+        ) : <div style={{marginTop:18,color:'#aa88dd',fontSize:14}}>⏳ Čekání na hosta…</div>}
+        <button className="mb-btn" onClick={leaveRoom} style={{width:'100%',marginTop:10,padding:12,background:'transparent',border:'1px solid #3a2a5a',color:'#887',borderRadius:10,fontSize:14}}>← Odejít</button>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+
+const TRAIN_CATS = {
+  'vše': { icon:'🌐', fn:null },
+  'města': { icon:'🏙️', fn:t => t === 'město' },
+  'památky': { icon:'🏰', fn:t => ['hrad','zámek','klášter'].includes(t) },
+  'příroda': { icon:'⛰️', fn:t => ['hora','příroda','jezero','řeka','přehrada','jeskyně'].includes(t) },
+};
+
 function MapBattleGame({ user, onExit }) {
   const [view, setView] = useState('menu');   // menu | lobby | playing | reveal | final
   const [roomCode, setRoomCode] = useState('');
@@ -6485,6 +7628,9 @@ function MapBattleGame({ user, onExit }) {
   const [trainSumKm, setTrainSumKm] = useState(0);
   const [trainBest, setTrainBest] = useState(null);
   const trainUsedRef = useRef([]);
+  const [trainCat, setTrainCat] = useState('vše');
+  const trainCatRef = useRef('vše');
+  useEffect(() => { trainCatRef.current = trainCat; }, [trainCat]);
 
   const canvasRef = useRef(null);
   const chanRef = useRef(null);
@@ -6729,8 +7875,10 @@ function MapBattleGame({ user, onExit }) {
   }
 
   function pickTrainPlace() {
-    let pool = CR_PLACES.filter(p => !trainUsedRef.current.includes(p.n));
-    if (pool.length === 0) { trainUsedRef.current = []; pool = [...CR_PLACES]; }
+    const cat = TRAIN_CATS[trainCatRef.current];
+    const base = (cat && cat.fn) ? CR_PLACES.filter(p => cat.fn(p.t)) : CR_PLACES;
+    let pool = base.filter(p => !trainUsedRef.current.includes(p.n));
+    if (pool.length === 0) { trainUsedRef.current = []; pool = [...base]; }
     const place = pool[Math.floor(Math.random() * pool.length)];
     trainUsedRef.current.push(place.n);
     setTrainPlace(place);
@@ -7041,6 +8189,71 @@ function MapBattleGame({ user, onExit }) {
                 <div style={{fontSize:9,color:'#556'}}>🎯 zásahů</div>
               </div>
             </div>
+            {/* Série + rekordy */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+              <div style={{background:'linear-gradient(135deg,rgba(255,120,40,.14),rgba(12,18,52,.8))',border:'1px solid rgba(255,140,60,.3)',borderRadius:10,padding:'10px 8px',textAlign:'center'}}>
+                <div style={{fontSize:9,color:'#ffaa66',letterSpacing:.5}}>🔥 SÉRIE</div>
+                <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:20,fontWeight:900,color:'#ff8844'}}>{st.curStreak||0}</div>
+                <div style={{fontSize:9,color:'#556'}}>nej: {st.bestStreak||0}</div>
+              </div>
+              <div style={{background:'rgba(12,18,52,.8)',border:'1px solid #1e2a4a',borderRadius:10,padding:'10px 8px',textAlign:'center'}}>
+                <div style={{fontSize:9,color:'#88aaff',letterSpacing:.5}}>🎪 MUŠKA</div>
+                <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:20,fontWeight:900,color:'#44ddff'}}>{st.bullseye1||0}</div>
+                <div style={{fontSize:9,color:'#556'}}>&lt;1 km</div>
+              </div>
+              <div style={{background:'rgba(12,18,52,.8)',border:'1px solid #1e2a4a',borderRadius:10,padding:'10px 8px',textAlign:'center'}}>
+                <div style={{fontSize:9,color:'#88aaff',letterSpacing:.5}}>😅 NEJHORŠÍ</div>
+                <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:20,fontWeight:900,color:'#ff8866'}}>{st.worstKm!=null?Math.round(st.worstKm):'—'}</div>
+                <div style={{fontSize:9,color:'#556'}}>km mimo</div>
+              </div>
+            </div>
+            {/* Histogram vzdáleností */}
+            {st.hist && st.rounds > 0 && (
+              <div style={{background:'rgba(12,18,52,.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:14,marginBottom:12}}>
+                <div style={{fontSize:11,color:'#88aaff',letterSpacing:1,marginBottom:12}}>ROZLOŽENÍ TIPŮ</div>
+                <div style={{display:'flex',alignItems:'flex-end',gap:6,height:90}}>
+                  {[['0–10','#44ffaa'],['10–25','#88dd66'],['25–50','#ffd700'],['50–100','#ff9944'],['100+','#ff5544']].map(([lbl,col],i)=>{
+                    const maxH = Math.max(...st.hist, 1);
+                    const h = (st.hist[i] / maxH) * 70;
+                    return (
+                      <div key={i} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
+                        <div style={{fontSize:10,color:col,fontWeight:700}}>{st.hist[i]}</div>
+                        <div style={{width:'100%',height:Math.max(3,h),background:`linear-gradient(180deg,${col},${col}88)`,borderRadius:'4px 4px 0 0',transition:'height .5s',boxShadow:`0 0 8px ${col}66`}}/>
+                        <div style={{fontSize:8,color:'#778'}}>{lbl}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div style={{fontSize:9,color:'#556',textAlign:'center',marginTop:8}}>km od cíle</div>
+              </div>
+            )}
+            {/* Achievementy */}
+            {(() => {
+              const ach = mapAchievements(st);
+              const doneCount = ach.filter(a=>a.done).length;
+              return (
+                <div style={{background:'rgba(12,18,52,.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:14,marginBottom:12}}>
+                  <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+                    <div style={{fontSize:11,color:'#88aaff',letterSpacing:1}}>ODZNAKY</div>
+                    <div style={{fontSize:11,color:'#ffd700',fontWeight:700}}>{doneCount}/{ach.length}</div>
+                  </div>
+                  <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8}}>
+                    {ach.map(a=>(
+                      <div key={a.id} title={a.name+' — '+a.desc}
+                        style={{aspectRatio:'1',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:2,background:a.done?'linear-gradient(135deg,rgba(255,215,0,.16),rgba(68,170,255,.06))':'rgba(20,28,56,.6)',border:`1px solid ${a.done?'rgba(255,215,0,.35)':'rgba(40,55,90,.5)'}`,borderRadius:10,opacity:a.done?1:0.4,transition:'all .3s',boxShadow:a.done?'0 0 12px rgba(255,215,0,.15)':'none'}}>
+                        <div style={{fontSize:22,filter:a.done?'none':'grayscale(1)'}}>{a.done?a.icon:'🔒'}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{fontSize:9,color:'#667',textAlign:'center',marginTop:10,lineHeight:1.5}}>
+                    {ach.filter(a=>!a.done).slice(0,1).map(a=>(
+                      <span key={a.id}>Další: <strong style={{color:'#aab'}}>{a.icon} {a.name}</strong> — {a.desc}</span>
+                    ))}
+                    {doneCount === ach.length && <span style={{color:'#ffd700'}}>🎉 Všechny odznaky získány!</span>}
+                  </div>
+                </div>
+              );
+            })()}
             <div style={{background:'rgba(12,18,52,.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:14,marginBottom:12}}>
               <div style={{fontSize:11,color:'#88aaff',letterSpacing:1,marginBottom:10}}>PŘESNOST PODLE TYPU</div>
               {typeRows.map(r => {
@@ -7195,6 +8408,16 @@ function MapBattleGame({ user, onExit }) {
             {avgKm!=null && <span>⌀ <strong style={{color:'#fff'}}>{Math.round(avgKm)} km</strong></span>}
             {trainBest!=null && <span>nej: <strong style={{color:'#44ffaa'}}>{Math.round(trainBest)} km</strong></span>}
           </div>
+        </div>
+
+        {/* Filtr kategorií */}
+        <div style={{display:'flex',gap:5,marginBottom:8,background:'rgba(12,18,52,.6)',borderRadius:10,padding:4}}>
+          {Object.entries(TRAIN_CATS).map(([key,cat])=>(
+            <button key={key} className="mb-btn" onClick={()=>{ if(trainCat!==key){ setTrainCat(key); trainCatRef.current=key; trainUsedRef.current=[]; setTrainCount(0); setTrainSumKm(0); setTrainBest(null); setTimeout(pickTrainPlace,0); } }}
+              style={{flex:1,padding:'7px 4px',borderRadius:7,border:'none',cursor:'pointer',fontSize:11,fontWeight:700,background:trainCat===key?'linear-gradient(135deg,#8a5a1a,#cc9622)':'transparent',color:trainCat===key?'#fff':'#778',transition:'all .2s'}}>
+              {cat.icon} {key.charAt(0).toUpperCase()+key.slice(1)}
+            </button>
+          ))}
         </div>
 
         <div style={{textAlign:'center',marginBottom:8,padding:'10px',background:'rgba(255,170,68,.1)',border:'1px solid rgba(255,170,68,.3)',borderRadius:10}}>

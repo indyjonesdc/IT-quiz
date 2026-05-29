@@ -6428,7 +6428,7 @@ function MapBattleGame({ user, onExit }) {
   const [connecting, setConnecting] = useState(false);
 
   const [round, setRound] = useState(0);
-  const [totalRounds] = useState(5);
+  const [totalRounds, setTotalRounds] = useState(5);
   const [place, setPlace] = useState(null);     // aktuální místo
   const [myGuess, setMyGuess] = useState(null);  // {x,y}
   const [locked, setLocked] = useState(false);
@@ -6512,6 +6512,7 @@ function MapBattleGame({ user, onExit }) {
     });
 
     channel.on('broadcast', { event: 'round_start' }, ({ payload }) => {
+      if (payload.totalRounds) setTotalRounds(payload.totalRounds);
       setPlace(payload.place);
       setRound(payload.round);
       setMyGuess(null);
@@ -6520,6 +6521,11 @@ function MapBattleGame({ user, onExit }) {
       setRoundDeadline(payload.deadline);
       setZoom(1); setViewX(0); setViewY(0);
       setView('playing');
+    });
+
+    // Host broadcastuje změnu nastavení (počet kol)
+    channel.on('broadcast', { event: 'settings' }, ({ payload }) => {
+      if (typeof payload.totalRounds === 'number') setTotalRounds(payload.totalRounds);
     });
 
     channel.on('broadcast', { event: 'reveal' }, ({ payload }) => {
@@ -6625,7 +6631,7 @@ function MapBattleGame({ user, onExit }) {
     curRoundRef.current = r;
     const place = placesRef.current[r];
     const deadline = Date.now() + 60000; // 60s limit
-    chanRef.current.send({ type:'broadcast', event:'round_start', payload:{ round:r, place:{n:place.n,t:place.t,lat:place.lat,lon:place.lon}, deadline } });
+    chanRef.current.send({ type:'broadcast', event:'round_start', payload:{ round:r, place:{n:place.n,t:place.t,lat:place.lat,lon:place.lon}, deadline, totalRounds } });
     // Fallback: vyhodnoť po vypršení času (pokud někdo nepotvrdí)
     if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
     revealTimerRef.current = setTimeout(() => hostReveal(r), 60500);
@@ -7082,6 +7088,27 @@ function MapBattleGame({ user, onExit }) {
             </div>
           ))}
           {playerList.length === 0 && <div style={{color:'#556',fontSize:13}}>Čekám na hráče…</div>}
+        </div>
+        {/* Výběr počtu kol */}
+        <div style={{background:'rgba(12,18,52,.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:14,marginBottom:16}}>
+          <div style={{fontSize:11,color:'#88aaff',letterSpacing:1,marginBottom:10}}>POČET KOL</div>
+          {isHost ? (
+            <div style={{display:'flex',alignItems:'center',gap:12,justifyContent:'center'}}>
+              <button onClick={() => { const v = Math.max(5, totalRounds - 1); setTotalRounds(v); if (chanRef.current) chanRef.current.send({type:'broadcast',event:'settings',payload:{totalRounds:v}}); }}
+                disabled={totalRounds <= 5}
+                style={{width:38,height:38,borderRadius:10,border:'1px solid #2a3a5a',background:totalRounds<=5?'#1a2240':'rgba(68,170,255,.15)',color:totalRounds<=5?'#445':'#88aaff',fontSize:20,fontWeight:900,cursor:totalRounds<=5?'default':'pointer'}}>−</button>
+              <div style={{fontSize:32,fontWeight:900,color:'#ffd700',fontFamily:"'Orbitron',sans-serif",minWidth:50,textAlign:'center'}}>{totalRounds}</div>
+              <button onClick={() => { const v = Math.min(15, totalRounds + 1); setTotalRounds(v); if (chanRef.current) chanRef.current.send({type:'broadcast',event:'settings',payload:{totalRounds:v}}); }}
+                disabled={totalRounds >= 15}
+                style={{width:38,height:38,borderRadius:10,border:'1px solid #2a3a5a',background:totalRounds>=15?'#1a2240':'rgba(68,170,255,.15)',color:totalRounds>=15?'#445':'#88aaff',fontSize:20,fontWeight:900,cursor:totalRounds>=15?'default':'pointer'}}>+</button>
+            </div>
+          ) : (
+            <div style={{textAlign:'center'}}>
+              <div style={{fontSize:32,fontWeight:900,color:'#ffd700',fontFamily:"'Orbitron',sans-serif"}}>{totalRounds}</div>
+              <div style={{fontSize:11,color:'#556',marginTop:2}}>nastavuje host</div>
+            </div>
+          )}
+          <div style={{fontSize:10,color:'#556',marginTop:8,textAlign:'center'}}>5–15 kol</div>
         </div>
         {isHost ? (
           <button onClick={hostStartGame} disabled={playerList.length < 2}

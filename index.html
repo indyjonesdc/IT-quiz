@@ -6429,6 +6429,9 @@ function MapBattleGame({ user, onExit }) {
 
   const [round, setRound] = useState(0);
   const [totalRounds, setTotalRounds] = useState(5);
+  const totalRoundsRef = useRef(5);
+  useEffect(() => { totalRoundsRef.current = totalRounds; }, [totalRounds]);
+  const myScoreRef = useRef(0);  // lokální záloha mého skóre (z reveal payload)
   const [place, setPlace] = useState(null);     // aktuální místo
   const [myGuess, setMyGuess] = useState(null);  // {x,y}
   const [locked, setLocked] = useState(false);
@@ -6530,10 +6533,11 @@ function MapBattleGame({ user, onExit }) {
 
     channel.on('broadcast', { event: 'reveal' }, ({ payload }) => {
       setResults(payload.results);
-      // Zaznamenej můj výsledek do statistik
+      // Zaznamenej můj výsledek do statistik + ulož své celkové skóre lokálně
       const mine = payload.results.find(r => r.id === myId);
-      if (mine && mine.km != null && payload.place) {
-        recordMapGuess(payload.place, mine.km, mine.pts);
+      if (mine) {
+        if (mine.km != null && payload.place) recordMapGuess(payload.place, mine.km, mine.pts);
+        if (typeof mine.totalScore === 'number') myScoreRef.current = mine.totalScore;
       }
       // Aktualizuj lokální skóre z payloadu
       const sc = {};
@@ -6548,16 +6552,26 @@ function MapBattleGame({ user, onExit }) {
     });
 
     channel.on('broadcast', { event: 'game_over' }, ({ payload }) => {
+      console.log('[MAP] Přišlo game_over', { myId, user: user?.id, payload });
       recordMapGameDone();
       syncMapStatsToCloud(myName);  // sdílení statistik online
-      // Ulož moje finální skóre do žebříčku (stejný formát jako ostatní minihry)
-      const mine = payload.standings.find(s => s.id === myId);
-      if (mine && user) {
+      // Najdi mé skóre v standings, jinak použij lokální zálohu z reveal
+      const mineInStand = payload.standings.find(s => s.id === myId);
+      const finalScore = mineInStand ? mineInStand.totalScore : myScoreRef.current;
+      console.log('[MAP] Skóre k uložení:', finalScore, '(z standings:', mineInStand?.totalScore, ', z lokální zálohy:', myScoreRef.current, ')');
+      if (!user) {
+        console.warn('[MAP] ⚠️ user není přihlášený – skóre se neuloží do žebříčku');
+      } else if (finalScore <= 0) {
+        console.warn('[MAP] ⚠️ skóre je 0 – neukládá se');
+      } else {
         db.from('minigame_scores').insert({
           id: Date.now().toString(), user_id: user.id, user_name: myName,
-          game: 'mapbattle', score: mine.totalScore, detail: null,
+          game: 'mapbattle', score: finalScore, detail: null,
           played_at: new Date().toISOString(),
-        }).then(({ error }) => { if (error) console.error('mapbattle score:', error.message); });
+        }).then(({ error }) => {
+          if (error) console.error('[MAP] ❌ insert selhal:', error.message, error);
+          else console.log('[MAP] ✅ Skóre', finalScore, 'uloženo do žebříčku');
+        });
       }
       setResults(payload.standings);
       setView('final');
@@ -6610,13 +6624,14 @@ function MapBattleGame({ user, onExit }) {
   function hostStartGame() {
     // Vyber místa která ještě nebyla použita
     let pool = CR_PLACES.filter(p => !usedPlacesRef.current.includes(p.n));
-    if (pool.length < totalRounds) {
+    const tr = totalRoundsRef.current;
+    if (pool.length < tr) {
       // Došla nepoužitá místa - reset historie
       usedPlacesRef.current = [];
       pool = [...CR_PLACES];
     }
     const shuffled = pool.sort(() => Math.random() - 0.5);
-    placesRef.current = shuffled.slice(0, totalRounds);
+    placesRef.current = shuffled.slice(0, tr);
     usedPlacesRef.current.push(...placesRef.current.map(p => p.n));
     // Init skóre
     const sc = {};
@@ -6631,7 +6646,7 @@ function MapBattleGame({ user, onExit }) {
     curRoundRef.current = r;
     const place = placesRef.current[r];
     const deadline = Date.now() + 60000; // 60s limit
-    chanRef.current.send({ type:'broadcast', event:'round_start', payload:{ round:r, place:{n:place.n,t:place.t,lat:place.lat,lon:place.lon}, deadline, totalRounds } });
+    chanRef.current.send({ type:'broadcast', event:'round_start', payload:{ round:r, place:{n:place.n,t:place.t,lat:place.lat,lon:place.lon}, deadline, totalRounds: totalRoundsRef.current } });
     // Fallback: vyhodnoť po vypršení času (pokud někdo nepotvrdí)
     if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
     revealTimerRef.current = setTimeout(() => hostReveal(r), 60500);
@@ -6665,11 +6680,12 @@ function MapBattleGame({ user, onExit }) {
 
     // Po 6s další kolo nebo konec
     setTimeout(() => {
-      if (r + 1 < totalRounds) hostStartRound(r + 1);
+      if (r + 1 < totalRoundsRef.current) hostStartRound(r + 1);
       else {
         const standings = Object.keys(scoresRef.current).map(id => ({
           id, name: (pstate[id] && pstate[id][0].name) || '?', totalScore: scoresRef.current[id],
         })).sort((a,b) => b.totalScore - a.totalScore);
+        console.log('[MAP] HOST posílá game_over, standings:', standings);
         chanRef.current.send({ type:'broadcast', event:'game_over', payload:{ standings } });
       }
     }, 6000);

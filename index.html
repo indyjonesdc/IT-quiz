@@ -92,6 +92,7 @@ body{font-family:'Inter', sans-serif;color:#e0e8ff;overflow-x:hidden}
 <div id="root"></div>
 
 <script type="text/babel">
+console.log('%c[INDYQ] Aktuální verze: ' + new Date('2026-05-29T10:11:22.138537').toLocaleString('cs'), 'background:#1a3a8a;color:#fff;padding:4px 10px;border-radius:4px;font-weight:bold');
 // ═══════════════════════════════════════════════════════
 // ⚙️  KONFIGURACE — VYPLŇ SVÉ SUPABASE ÚDAJE
 // ═══════════════════════════════════════════════════════
@@ -6625,6 +6626,7 @@ function MapBattleGame({ user, onExit }) {
     // Vyber místa která ještě nebyla použita
     let pool = CR_PLACES.filter(p => !usedPlacesRef.current.includes(p.n));
     const tr = totalRoundsRef.current;
+    console.log('[MAP] >>> hostStartGame: nastaveno kol = ' + tr + ' (state totalRounds = ' + totalRounds + ')');
     if (pool.length < tr) {
       // Došla nepoužitá místa - reset historie
       usedPlacesRef.current = [];
@@ -6680,7 +6682,9 @@ function MapBattleGame({ user, onExit }) {
 
     // Po 6s další kolo nebo konec
     setTimeout(() => {
-      if (r + 1 < totalRoundsRef.current) hostStartRound(r + 1);
+      const tr = totalRoundsRef.current;
+      console.log('[MAP] === Konec kola ' + (r+1) + ' ===  | nastaveno kol: ' + tr + ' | pokračovat: ' + (r + 1 < tr));
+      if (r + 1 < tr) hostStartRound(r + 1);
       else {
         const standings = Object.keys(scoresRef.current).map(id => ({
           id, name: (pstate[id] && pstate[id][0].name) || '?', totalScore: scoresRef.current[id],

@@ -6290,6 +6290,23 @@ const CR_RIVERS = [
   { n:'Jizera', pts:[[15.35,50.72],[15.20,50.55],[15.00,50.42],[14.88,50.28],[14.80,50.20]] },
 ];
 // Hlavní přehrady ČR s reálnými GPS [lat, lon, velikost]
+const CR_MOUNTAINS = [
+  {n:'Sněžka',         lat:50.7361, lon:15.7401, h:1603},
+  {n:'Praděd',         lat:50.0833, lon:17.2333, h:1492},
+  {n:'Plechý',         lat:48.7777, lon:13.8523, h:1378},
+  {n:'Lysá hora',      lat:49.5466, lon:18.4467, h:1323},
+  {n:'Boubín',         lat:48.9794, lon:13.8228, h:1362},
+  {n:'Klínovec',       lat:50.3964, lon:12.9685, h:1244},
+  {n:'Smrk',           lat:50.8616, lon:15.2436, h:1124},
+  {n:'Velká Deštná',   lat:50.3056, lon:16.3667, h:1115},
+  {n:'Čerchov',        lat:49.3858, lon:12.7833, h:1042},
+  {n:'Tok (Brdy)',     lat:49.7167, lon:13.8500, h:865},
+  {n:'Javořice',       lat:49.2333, lon:15.1500, h:837},
+  {n:'Skalky',         lat:49.4811, lon:16.7825, h:735},
+  {n:'Vestec',         lat:49.8503, lon:15.6694, h:668},
+  {n:'Děvín (Pálava)', lat:48.8722, lon:16.6383, h:549},
+];
+
 const CR_WATER = [
   { n:'Lipno', lat:48.640, lon:14.225, r:9 },
   { n:'Orlík', lat:49.520, lon:14.265, r:7 },
@@ -7182,8 +7199,16 @@ function MapBattleGame({ user, onExit }) {
           style={{width:'100%',height:'auto',background:'#0a1530',borderRadius:12,border:'1px solid #1e2a4a',touchAction:'none',cursor:revealed?'default':zoom>1?'grab':'crosshair'}}>
           {[...CR_REGIONS].sort((a,b)=>(a.n==='Praha'?1:0)-(b.n==='Praha'?1:0)).map((reg,i)=>(
             <polygon key={'reg'+i} points={reg.pts.map(([lo,la])=>`${lonToX(lo).toFixed(1)},${latToY(la).toFixed(1)}`).join(' ')}
-              fill="#16243f" stroke="#3e5e8e" strokeWidth="1" strokeLinejoin="round"/>
+              fill="#1a2d52" stroke="#ffffff" strokeWidth="1.8" strokeLinejoin="round"/>
           ))}
+          {/* Hory - trojúhelníky úměrné výšce */}
+          {CR_MOUNTAINS.map((m,i) => {
+            const cx = lonToX(m.lon), cy = latToY(m.lat);
+            const s = 3.5 + (m.h / 1600) * 5.5;
+            return <polygon key={'mt'+i}
+              points={`${cx.toFixed(1)},${(cy-s).toFixed(1)} ${(cx-s*0.85).toFixed(1)},${(cy+s*0.55).toFixed(1)} ${(cx+s*0.85).toFixed(1)},${(cy+s*0.55).toFixed(1)}`}
+              fill="#5a5e6e" stroke="#ffffff" strokeWidth="0.6" opacity="0.78"/>;
+          })}
           {CR_WATER.map((w,i)=>(
             <circle key={'wat'+i} cx={lonToX(w.lon)} cy={latToY(w.lat)} r={w.r||4} fill="#2d6fb8" opacity="0.85"/>
           ))}
@@ -7261,8 +7286,16 @@ function MapBattleGame({ user, onExit }) {
           {/* Kraje (reálná data) - vyplněné polygony, vnější hrana = obrys ČR */}
           {[...CR_REGIONS].sort((a,b)=>(a.n==='Praha'?1:0)-(b.n==='Praha'?1:0)).map((reg,i)=>(
             <polygon key={'reg'+i} points={reg.pts.map(([lo,la])=>`${lonToX(lo).toFixed(1)},${latToY(la).toFixed(1)}`).join(' ')}
-              fill="#16243f" stroke="#3e5e8e" strokeWidth="1" strokeLinejoin="round"/>
+              fill="#1a2d52" stroke="#ffffff" strokeWidth="1.8" strokeLinejoin="round"/>
           ))}
+          {/* Hory - trojúhelníky úměrné výšce */}
+          {CR_MOUNTAINS.map((m,i) => {
+            const cx = lonToX(m.lon), cy = latToY(m.lat);
+            const s = 3.5 + (m.h / 1600) * 5.5;
+            return <polygon key={'mt'+i}
+              points={`${cx.toFixed(1)},${(cy-s).toFixed(1)} ${(cx-s*0.85).toFixed(1)},${(cy+s*0.55).toFixed(1)} ${(cx+s*0.85).toFixed(1)},${(cy+s*0.55).toFixed(1)}`}
+              fill="#5a5e6e" stroke="#ffffff" strokeWidth="0.6" opacity="0.78"/>;
+          })}
           {/* Vodní plochy */}
           {CR_WATER.map((w,i)=>(
             <circle key={'wat'+i} cx={lonToX(w.lon)} cy={latToY(w.lat)} r={w.r||4}

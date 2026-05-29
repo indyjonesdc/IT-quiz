@@ -85,6 +85,20 @@ html,body{height:100%;background:#0a0a0f}
 /* Změna hlavního fontu na Inter pro maximální čitelnost */
 body{font-family:'Inter', sans-serif;color:#e0e8ff;overflow-x:hidden}
 ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#0a0a0f}::-webkit-scrollbar-thumb{background:#2a3a6a;border-radius:3px}
+/* ── Slepá mapa: profi animace ── */
+@keyframes mapPinDrop{0%{transform:translateY(-40px) scale(0.4);opacity:0}60%{transform:translateY(4px) scale(1.15)}80%{transform:translateY(-2px) scale(0.95)}100%{transform:translateY(0) scale(1);opacity:1}}
+@keyframes mapPulseRing{0%{r:6;opacity:0.9}100%{r:30;opacity:0}}
+@keyframes mapGlowPulse{0%,100%{filter:drop-shadow(0 0 4px currentColor)}50%{filter:drop-shadow(0 0 12px currentColor)}}
+@keyframes mbCardRise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes mbShimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes mbFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes mbCountPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+@keyframes mbDashFlow{to{stroke-dashoffset:-20}}
+.mb-card-rise{animation:mbCardRise .45s cubic-bezier(.2,.7,.3,1) both}
+.mb-btn{position:relative;transition:transform .15s ease,box-shadow .2s ease,filter .2s ease;cursor:pointer}
+.mb-btn:hover{transform:translateY(-2px);filter:brightness(1.12)}
+.mb-btn:active{transform:translateY(0) scale(.98)}
+.mb-shimmer{background:linear-gradient(90deg,rgba(68,170,255,0) 0%,rgba(68,170,255,.25) 50%,rgba(68,170,255,0) 100%);background-size:200% 100%;animation:mbShimmer 1.4s infinite}
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@700;900&display=swap" rel="stylesheet"/>
 </head>
@@ -210,7 +224,7 @@ const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const { useState, useEffect, useRef } = React;
-const APP_VERSION = 'v1.1';
+const APP_VERSION = 'v1.3';
 console.log('%c[INDYQ] ' + APP_VERSION, 'background:#1a3a8a;color:#fff;padding:4px 10px;border-radius:4px;font-weight:bold');
 
 // ─── KONSTANTY ───────────────────────────────────────
@@ -6912,31 +6926,32 @@ function MapBattleGame({ user, onExit }) {
   // ── MENU ──
   if (view === 'menu') {
     return (
-      <div style={{animation:'slideIn .3s ease',maxWidth:420,margin:'0 auto'}}>
-        <div style={{textAlign:'center',marginBottom:18}}>
-          <div style={{fontSize:54,marginBottom:8}}>🗺️</div>
-          <div style={{fontSize:20,fontWeight:900,color:'#fff',fontFamily:"'Orbitron',sans-serif"}}>SLEPÁ MAPA ČR</div>
-          <div style={{fontSize:12,color:'#88aaff',marginTop:4}}>Online multiplayer · 2-12 hráčů</div>
-          <div style={{fontSize:10,color:'#667',marginTop:4}}>⚡ Rychlý + přesný tip = bonus za ušetřený čas</div>
+      <div style={{maxWidth:430,margin:'0 auto',position:'relative'}}>
+        <div style={{position:'absolute',top:-30,left:'50%',transform:'translateX(-50%)',width:280,height:200,background:'radial-gradient(ellipse,rgba(68,170,255,.18),transparent 70%)',pointerEvents:'none',filter:'blur(8px)'}}/>
+        <div className="mb-card-rise" style={{textAlign:'center',marginBottom:22,position:'relative'}}>
+          <div style={{fontSize:60,marginBottom:6,animation:'mbFloat 3.5s ease-in-out infinite',filter:'drop-shadow(0 4px 16px rgba(68,170,255,.4))'}}>🗺️</div>
+          <div style={{fontSize:23,fontWeight:900,color:'#fff',fontFamily:"'Orbitron',sans-serif",letterSpacing:1,textShadow:'0 0 24px rgba(68,170,255,.5)'}}>SLEPÁ MAPA ČR</div>
+          <div style={{fontSize:12,color:'#9bb4e0',marginTop:6,letterSpacing:.5}}>Online multiplayer · 2–12 hráčů</div>
+          <div style={{display:'inline-block',fontSize:10,color:'#7a90c0',marginTop:8,padding:'4px 12px',background:'rgba(68,170,255,.08)',border:'1px solid rgba(68,170,255,.2)',borderRadius:20}}>⚡ Rychlý + přesný tip = bonus za čas</div>
         </div>
-        <div style={{background:'rgba(12,18,52,.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:'12px 16px',marginBottom:14,display:'flex',alignItems:'center',gap:10}}>
-          <span style={{fontSize:22}}>👤</span>
+        <div className="mb-card-rise" style={{animationDelay:'.06s',background:'linear-gradient(135deg,rgba(20,30,66,.9),rgba(12,18,52,.7))',backdropFilter:'blur(8px)',border:'1px solid #28386a',borderRadius:14,padding:'13px 16px',marginBottom:16,display:'flex',alignItems:'center',gap:12,boxShadow:'0 4px 20px rgba(0,0,0,.25)'}}>
+          <div style={{width:42,height:42,borderRadius:'50%',background:'linear-gradient(135deg,#2255cc,#44aaff)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,boxShadow:'0 0 16px rgba(68,170,255,.4)'}}>👤</div>
           <div style={{textAlign:'left'}}>
-            <div style={{fontSize:10,color:'#88aaff',letterSpacing:1}}>HRAJEŠ JAKO</div>
-            <div style={{fontSize:16,fontWeight:700,color:'#fff'}}>{myName}</div>
+            <div style={{fontSize:10,color:'#88aaff',letterSpacing:1.5}}>HRAJEŠ JAKO</div>
+            <div style={{fontSize:17,fontWeight:800,color:'#fff'}}>{myName}</div>
           </div>
         </div>
-        <button onClick={startTraining} style={{width:'100%',padding:15,fontSize:15,fontWeight:900,letterSpacing:1,background:'linear-gradient(135deg,#8a5a1a,#cc9622)',color:'#fff',border:'none',borderRadius:12,cursor:'pointer',marginBottom:10,fontFamily:"'Orbitron',sans-serif"}}>🎯 TRÉNINK (sólo)</button>
-        <div style={{fontSize:10,color:'#667',textAlign:'center',marginBottom:14,marginTop:-4}}>Procvič si kde co je · bez soupeřů · bez limitu</div>
-        <button onClick={hostCreate} style={{width:'100%',padding:16,fontSize:16,fontWeight:900,letterSpacing:1,background:'linear-gradient(135deg,#1a8a4a,#22cc66)',color:'#fff',border:'none',borderRadius:12,cursor:'pointer',marginBottom:10,fontFamily:"'Orbitron',sans-serif"}}>🎮 VYTVOŘIT HRU (multiplayer)</button>
-        <div style={{display:'flex',gap:8,alignItems:'stretch'}}>
+        <button className="mb-btn mb-card-rise" onClick={startTraining} style={{animationDelay:'.1s',width:'100%',padding:15,fontSize:15,fontWeight:900,letterSpacing:1,background:'linear-gradient(135deg,#8a5a1a,#cc9622)',color:'#fff',border:'none',borderRadius:13,marginBottom:8,fontFamily:"'Orbitron',sans-serif",boxShadow:'0 4px 18px rgba(204,150,34,.3)'}}>🎯 TRÉNINK (sólo)</button>
+        <div style={{fontSize:10,color:'#667',textAlign:'center',marginBottom:16}}>Procvič si kde co je · bez soupeřů · bez limitu</div>
+        <button className="mb-btn mb-card-rise" onClick={hostCreate} style={{animationDelay:'.14s',width:'100%',padding:17,fontSize:16,fontWeight:900,letterSpacing:1,background:'linear-gradient(135deg,#1a8a4a,#22cc66)',color:'#fff',border:'none',borderRadius:13,marginBottom:12,fontFamily:"'Orbitron',sans-serif",boxShadow:'0 4px 20px rgba(34,204,102,.3)'}}>🎮 VYTVOŘIT HRU</button>
+        <div className="mb-card-rise" style={{animationDelay:'.18s',display:'flex',gap:8,alignItems:'stretch'}}>
           <input value={joinCode} onChange={e=>setJoinCode(e.target.value.toUpperCase())} placeholder="KÓD" maxLength={4}
-            style={{flex:1,padding:'12px',borderRadius:10,border:'1px solid #2a3a5a',background:'#0a1228',color:'#fff',fontSize:18,textAlign:'center',letterSpacing:4,fontFamily:"'Orbitron',sans-serif",boxSizing:'border-box'}}/>
-          <button onClick={joinRoom} style={{padding:'12px 20px',fontSize:14,fontWeight:900,background:'linear-gradient(135deg,#1a3a8a,#2255cc)',color:'#fff',border:'none',borderRadius:10,cursor:'pointer'}}>PŘIPOJIT</button>
+            style={{flex:1,padding:'12px',borderRadius:11,border:'1px solid #2a3a5a',background:'#0a1228',color:'#fff',fontSize:18,textAlign:'center',letterSpacing:4,fontFamily:"'Orbitron',sans-serif",boxSizing:'border-box',outline:'none'}}/>
+          <button className="mb-btn" onClick={joinRoom} style={{padding:'12px 22px',fontSize:14,fontWeight:900,background:'linear-gradient(135deg,#1a3a8a,#2255cc)',color:'#fff',border:'none',borderRadius:11}}>PŘIPOJIT</button>
         </div>
-        {error && <div style={{color:'#ff6644',fontSize:12,marginTop:10,textAlign:'center'}}>{error}</div>}
-        <button onClick={()=>setView('stats')} style={{width:'100%',marginTop:12,padding:12,background:'rgba(68,221,255,.1)',border:'1px solid rgba(68,221,255,.3)',color:'#44ddff',borderRadius:10,cursor:'pointer',fontSize:14,fontWeight:700}}>📊 Moje statistiky</button>
-        <button onClick={onExit} style={{width:'100%',marginTop:10,padding:10,background:'transparent',border:'1px solid #2a3a5a',color:'#778',borderRadius:8,cursor:'pointer',fontSize:13}}>← Zpět</button>
+        {error && <div style={{color:'#ff6644',fontSize:12,marginTop:10,textAlign:'center',animation:'shake .4s'}}>{error}</div>}
+        <button className="mb-btn" onClick={()=>setView('stats')} style={{width:'100%',marginTop:14,padding:12,background:'rgba(68,221,255,.1)',border:'1px solid rgba(68,221,255,.3)',color:'#44ddff',borderRadius:11,fontSize:14,fontWeight:700}}>📊 Moje statistiky</button>
+        <button className="mb-btn" onClick={onExit} style={{width:'100%',marginTop:10,padding:10,background:'transparent',border:'1px solid #2a3a5a',color:'#778',borderRadius:9,fontSize:13}}>← Zpět</button>
       </div>
     );
   }
@@ -7113,33 +7128,37 @@ function MapBattleGame({ user, onExit }) {
   // ── LOBBY ──
   if (view === 'lobby') {
     return (
-      <div style={{animation:'slideIn .3s ease',maxWidth:420,margin:'0 auto',textAlign:'center'}}>
-        <div style={{fontSize:11,color:'#88aaff',letterSpacing:2,marginBottom:6}}>KÓD MÍSTNOSTI</div>
-        <div style={{fontSize:44,fontWeight:900,color:'#ffd700',fontFamily:"'Orbitron',sans-serif",letterSpacing:8,marginBottom:6}}>{roomCode}</div>
-        <div style={{fontSize:12,color:'#778',marginBottom:18}}>{connecting ? 'Připojuji…' : 'Sdílej kód s ostatními'}</div>
-        <div style={{background:'rgba(12,18,52,.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:16,marginBottom:16}}>
-          <div style={{fontSize:11,color:'#88aaff',letterSpacing:1,marginBottom:10}}>HRÁČI ({playerList.length})</div>
-          {playerList.map(([id,p])=>(
-            <div key={id} style={{display:'flex',alignItems:'center',gap:8,padding:'7px 10px',background:'rgba(68,170,255,.08)',borderRadius:8,marginBottom:6}}>
-              <span style={{fontSize:16}}>{id===myId?'⭐':'👤'}</span>
-              <span style={{color:'#fff',fontWeight:600,fontSize:14}}>{p.name}{id===myId?' (ty)':''}</span>
-              {id===Object.keys(players)[0] && <span style={{marginLeft:'auto',fontSize:10,color:'#ffd700'}}>HOST</span>}
+      <div style={{maxWidth:420,margin:'0 auto',textAlign:'center'}}>
+        <div className="mb-card-rise" style={{marginBottom:18}}>
+          <div style={{fontSize:11,color:'#88aaff',letterSpacing:3,marginBottom:8}}>KÓD MÍSTNOSTI</div>
+          <div style={{display:'inline-block',padding:'10px 28px',background:'linear-gradient(135deg,rgba(255,215,0,.12),rgba(255,170,0,.06))',border:'2px solid rgba(255,215,0,.35)',borderRadius:16,boxShadow:'0 0 30px rgba(255,215,0,.2)'}}>
+            <div style={{fontSize:46,fontWeight:900,color:'#ffd700',fontFamily:"'Orbitron',sans-serif",letterSpacing:10,textShadow:'0 0 20px rgba(255,215,0,.5)',marginRight:-10}}>{roomCode}</div>
+          </div>
+          <div style={{fontSize:12,color:'#778',marginTop:10}}>{connecting ? '⟳ Připojuji…' : '📤 Sdílej kód s ostatními'}</div>
+        </div>
+        <div className="mb-card-rise" style={{animationDelay:'.06s',background:'linear-gradient(135deg,rgba(20,30,66,.9),rgba(12,18,52,.7))',backdropFilter:'blur(8px)',border:'1px solid #28386a',borderRadius:14,padding:16,marginBottom:16}}>
+          <div style={{fontSize:11,color:'#88aaff',letterSpacing:1.5,marginBottom:12,display:'flex',alignItems:'center',justifyContent:'center',gap:6}}><span style={{width:7,height:7,borderRadius:'50%',background:'#22cc66',display:'inline-block',animation:'mbCountPulse 1.5s infinite',boxShadow:'0 0 8px #22cc66'}}/>HRÁČI ({playerList.length})</div>
+          {playerList.map(([id,p],idx)=>(
+            <div key={id} className="mb-card-rise" style={{animationDelay:`${idx*.05}s`,display:'flex',alignItems:'center',gap:10,padding:'9px 12px',background:id===myId?'linear-gradient(135deg,rgba(255,215,0,.12),rgba(68,170,255,.06))':'rgba(68,170,255,.07)',border:`1px solid ${id===myId?'rgba(255,215,0,.25)':'rgba(68,170,255,.12)'}`,borderRadius:10,marginBottom:7}}>
+              <span style={{fontSize:18}}>{id===myId?'⭐':'👤'}</span>
+              <span style={{color:'#fff',fontWeight:700,fontSize:14}}>{p.name}{id===myId?' (ty)':''}</span>
+              {id===Object.keys(players)[0] && <span style={{marginLeft:'auto',fontSize:9,color:'#ffd700',fontWeight:900,letterSpacing:1,padding:'3px 8px',background:'rgba(255,215,0,.12)',border:'1px solid rgba(255,215,0,.3)',borderRadius:20}}>👑 HOST</span>}
             </div>
           ))}
-          {playerList.length === 0 && <div style={{color:'#556',fontSize:13}}>Čekám na hráče…</div>}
+          {playerList.length === 0 && <div style={{color:'#556',fontSize:13,padding:'8px 0'}}>Čekám na hráče…</div>}
         </div>
         {/* Výběr počtu kol */}
-        <div style={{background:'rgba(12,18,52,.8)',border:'1px solid #1e2a4a',borderRadius:12,padding:14,marginBottom:16}}>
-          <div style={{fontSize:11,color:'#88aaff',letterSpacing:1,marginBottom:10}}>POČET KOL</div>
+        <div className="mb-card-rise" style={{animationDelay:'.1s',background:'linear-gradient(135deg,rgba(20,30,66,.9),rgba(12,18,52,.7))',backdropFilter:'blur(8px)',border:'1px solid #28386a',borderRadius:14,padding:14,marginBottom:16}}>
+          <div style={{fontSize:11,color:'#88aaff',letterSpacing:1.5,marginBottom:10}}>POČET KOL</div>
           {isHost ? (
             <div style={{display:'flex',alignItems:'center',gap:12,justifyContent:'center'}}>
-              <button onClick={() => { const v = Math.max(5, totalRounds - 1); setTotalRounds(v); if (chanRef.current) chanRef.current.send({type:'broadcast',event:'settings',payload:{totalRounds:v}}); }}
+              <button className="mb-btn" onClick={() => { const v = Math.max(5, totalRounds - 1); setTotalRounds(v); if (chanRef.current) chanRef.current.send({type:'broadcast',event:'settings',payload:{totalRounds:v}}); }}
                 disabled={totalRounds <= 5}
-                style={{width:38,height:38,borderRadius:10,border:'1px solid #2a3a5a',background:totalRounds<=5?'#1a2240':'rgba(68,170,255,.15)',color:totalRounds<=5?'#445':'#88aaff',fontSize:20,fontWeight:900,cursor:totalRounds<=5?'default':'pointer'}}>−</button>
-              <div style={{fontSize:32,fontWeight:900,color:'#ffd700',fontFamily:"'Orbitron',sans-serif",minWidth:50,textAlign:'center'}}>{totalRounds}</div>
-              <button onClick={() => { const v = Math.min(15, totalRounds + 1); setTotalRounds(v); if (chanRef.current) chanRef.current.send({type:'broadcast',event:'settings',payload:{totalRounds:v}}); }}
+                style={{width:40,height:40,borderRadius:11,border:'1px solid #2a3a5a',background:totalRounds<=5?'#1a2240':'rgba(68,170,255,.15)',color:totalRounds<=5?'#445':'#88aaff',fontSize:22,fontWeight:900}}>−</button>
+              <div style={{fontSize:34,fontWeight:900,color:'#ffd700',fontFamily:"'Orbitron',sans-serif",minWidth:54,textAlign:'center',textShadow:'0 0 16px rgba(255,215,0,.4)'}}>{totalRounds}</div>
+              <button className="mb-btn" onClick={() => { const v = Math.min(15, totalRounds + 1); setTotalRounds(v); if (chanRef.current) chanRef.current.send({type:'broadcast',event:'settings',payload:{totalRounds:v}}); }}
                 disabled={totalRounds >= 15}
-                style={{width:38,height:38,borderRadius:10,border:'1px solid #2a3a5a',background:totalRounds>=15?'#1a2240':'rgba(68,170,255,.15)',color:totalRounds>=15?'#445':'#88aaff',fontSize:20,fontWeight:900,cursor:totalRounds>=15?'default':'pointer'}}>+</button>
+                style={{width:40,height:40,borderRadius:11,border:'1px solid #2a3a5a',background:totalRounds>=15?'#1a2240':'rgba(68,170,255,.15)',color:totalRounds>=15?'#445':'#88aaff',fontSize:22,fontWeight:900}}>+</button>
             </div>
           ) : (
             <div style={{textAlign:'center'}}>
@@ -7150,8 +7169,8 @@ function MapBattleGame({ user, onExit }) {
           <div style={{fontSize:10,color:'#556',marginTop:8,textAlign:'center'}}>5–15 kol</div>
         </div>
         {isHost ? (
-          <button onClick={hostStartGame} disabled={playerList.length < 2}
-            style={{width:'100%',padding:16,fontSize:16,fontWeight:900,letterSpacing:1,background:playerList.length<2?'#2a3a5a':'linear-gradient(135deg,#1a8a4a,#22cc66)',color:'#fff',border:'none',borderRadius:12,cursor:playerList.length<2?'default':'pointer',fontFamily:"'Orbitron',sans-serif"}}>
+          <button className="mb-btn" onClick={hostStartGame} disabled={playerList.length < 2}
+            style={{width:'100%',padding:17,fontSize:16,fontWeight:900,letterSpacing:1,background:playerList.length<2?'#2a3a5a':'linear-gradient(135deg,#1a8a4a,#22cc66)',color:'#fff',border:'none',borderRadius:13,cursor:playerList.length<2?'default':'pointer',fontFamily:"'Orbitron',sans-serif",boxShadow:playerList.length<2?'none':'0 4px 20px rgba(34,204,102,.3)'}}>
             {playerList.length < 2 ? 'Čekej na 2+ hráče' : '🚀 SPUSTIT HRU'}
           </button>
         ) : (
@@ -7198,10 +7217,28 @@ function MapBattleGame({ user, onExit }) {
           onMouseMove={onMapMouseMove}
           onMouseUp={onMapMouseUp}
           onWheel={onMapWheel}
-          style={{width:'100%',height:'auto',background:'#0a1530',borderRadius:12,border:'1px solid #1e2a4a',touchAction:'none',cursor:zoom>1?'grab':(revealed?'default':'crosshair')}}>
+          style={{width:'100%',height:'auto',background:'#070d22',borderRadius:14,border:'1px solid #24345e',touchAction:'none',cursor:zoom>1?'grab':(revealed?'default':'crosshair'),boxShadow:'0 8px 30px rgba(0,0,0,.4),inset 0 0 60px rgba(20,40,90,.3)'}}>
+          <defs>
+            <radialGradient id="mbBg" cx="50%" cy="40%" r="80%">
+              <stop offset="0%" stopColor="#16305c"/><stop offset="55%" stopColor="#0c1838"/><stop offset="100%" stopColor="#060b1c"/>
+            </radialGradient>
+            <filter id="mbGlow" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <linearGradient id="mbRegion" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#21386a"/><stop offset="100%" stopColor="#15264a"/>
+            </linearGradient>
+          </defs>
+          <rect x="0" y="0" width={MAP_VIEW_W} height={MAP_VIEW_H} fill="url(#mbBg)"/>
           {[...CR_REGIONS].sort((a,b)=>(a.n==='Praha'?1:0)-(b.n==='Praha'?1:0)).map((reg,i)=>(
             <polygon key={'reg'+i} points={reg.pts.map(([lo,la])=>`${lonToX(lo).toFixed(1)},${latToY(la).toFixed(1)}`).join(' ')}
-              fill="#1a2d52" stroke="#ffffff" strokeWidth="1.8" strokeLinejoin="round"/>
+              fill="url(#mbRegion)" stroke="#ffffff" strokeWidth="1.6" strokeLinejoin="round" strokeOpacity="0.85"/>
+          ))}
+          {/* Řeky - hlavní vodní toky pro orientaci */}
+          {CR_RIVERS.map((rv,i)=>(
+            <polyline key={'riv'+i}
+              points={rv.pts.map(([lo,la])=>`${lonToX(lo).toFixed(1)},${latToY(la).toFixed(1)}`).join(' ')}
+              fill="none" stroke="#4d86c4" strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round" opacity="0.6"/>
           ))}
           {/* Hory - trojúhelníky úměrné výšce */}
           {CR_MOUNTAINS.map((m,i) => {
@@ -7209,25 +7246,41 @@ function MapBattleGame({ user, onExit }) {
             const s = 3.5 + (m.h / 1600) * 5.5;
             return <polygon key={'mt'+i}
               points={`${cx.toFixed(1)},${(cy-s).toFixed(1)} ${(cx-s*0.85).toFixed(1)},${(cy+s*0.55).toFixed(1)} ${(cx+s*0.85).toFixed(1)},${(cy+s*0.55).toFixed(1)}`}
-              fill="#5a5e6e" stroke="#ffffff" strokeWidth="0.6" opacity="0.78"/>;
+              fill="#6a6f82" stroke="#ffffff" strokeWidth="0.5" opacity="0.82"/>;
           })}
-          {/* Reveal - spojnice + správný bod */}
+          {/* Reveal - animovaná spojnice + správný bod */}
           {revealed && myGuess && correctPt && (
-            <line x1={myGuess.x} y1={myGuess.y} x2={correctPt.x} y2={correctPt.y} stroke="#44ffaa" strokeWidth="2" strokeDasharray="6 4"/>
+            <line x1={myGuess.x} y1={myGuess.y} x2={correctPt.x} y2={correctPt.y} stroke="#44ffaa" strokeWidth="2.5" strokeDasharray="8 5" strokeLinecap="round" style={{animation:'mbDashFlow .6s linear infinite'}}/>
           )}
           {myGuess && (
-            <g>
-              <circle cx={myGuess.x} cy={myGuess.y} r="13" fill={revealed?'#44ffaa':'#ffaa44'} stroke="#fff" strokeWidth="3"/>
+            <g style={{animation:'mapPinDrop .5s cubic-bezier(.2,.8,.3,1.2) both'}}>
+              <circle cx={myGuess.x} cy={myGuess.y} r="13" fill={revealed?'#44ffaa':'#ffaa44'} stroke="#fff" strokeWidth="3" filter="url(#mbGlow)" color={revealed?'#44ffaa':'#ffaa44'}/>
               <circle cx={myGuess.x} cy={myGuess.y} r="5" fill="#fff"/>
             </g>
           )}
           {revealed && correctPt && (
-            <g>
-              <circle cx={correctPt.x} cy={correctPt.y} r="16" fill="none" stroke="#ffd700" strokeWidth="4"/>
+            <g color="#ffd700">
+              <circle cx={correctPt.x} cy={correctPt.y} r="6" fill="none" stroke="#ffd700" strokeWidth="2" style={{animation:'mapPulseRing 1.4s ease-out infinite'}}/>
+              <circle cx={correctPt.x} cy={correctPt.y} r="16" fill="none" stroke="#ffd700" strokeWidth="3.5" filter="url(#mbGlow)"/>
               <circle cx={correctPt.x} cy={correctPt.y} r="6" fill="#ffd700"/>
-              <text x={correctPt.x} y={correctPt.y+36} fill="#ffd700" fontSize="24" fontWeight="900" textAnchor="middle">📍</text>
+              <text x={correctPt.x} y={correctPt.y+38} fill="#ffd700" fontSize="26" fontWeight="900" textAnchor="middle">📍</text>
             </g>
           )}
+          {/* Měřítko vzdálenosti (50 km) - kompenzuje zoom */}
+          {(() => {
+            const barLen = (50 / 497) * MAP_VIEW_W;
+            const vw = MAP_VIEW_W / zoom, vh = MAP_VIEW_H / zoom;
+            const x0 = viewX + vw * 0.05, y0 = viewY + vh * 0.94;
+            const sw = 2.5 / zoom, tick = 6 / zoom, fs = 15 / zoom;
+            return (
+              <g opacity="0.92" style={{pointerEvents:'none'}}>
+                <line x1={x0} y1={y0} x2={x0+barLen} y2={y0} stroke="#dfe8ff" strokeWidth={sw} strokeLinecap="round"/>
+                <line x1={x0} y1={y0-tick} x2={x0} y2={y0+tick} stroke="#dfe8ff" strokeWidth={sw}/>
+                <line x1={x0+barLen} y1={y0-tick} x2={x0+barLen} y2={y0+tick} stroke="#dfe8ff" strokeWidth={sw}/>
+                <text x={x0+barLen/2} y={y0-tick-4/zoom} fill="#dfe8ff" fontSize={fs} textAnchor="middle" fontWeight="700" fontFamily="'Orbitron',sans-serif">50 km</text>
+              </g>
+            );
+          })()}
         </svg>
 
         {/* Spodní panel */}
@@ -7281,11 +7334,29 @@ function MapBattleGame({ user, onExit }) {
           onMouseMove={onMapMouseMove}
           onMouseUp={onMapMouseUp}
           onWheel={onMapWheel}
-          style={{width:'100%',height:'auto',background:'#0a1530',borderRadius:12,border:'1px solid #1e2a4a',touchAction:'none',cursor:zoom>1?'grab':(locked||showReveal?'default':'crosshair')}}>
+          style={{width:'100%',height:'auto',background:'#070d22',borderRadius:14,border:'1px solid #24345e',touchAction:'none',cursor:zoom>1?'grab':(locked||showReveal?'default':'crosshair'),boxShadow:'0 8px 30px rgba(0,0,0,.4),inset 0 0 60px rgba(20,40,90,.3)'}}>
+          <defs>
+            <radialGradient id="mbBg" cx="50%" cy="40%" r="80%">
+              <stop offset="0%" stopColor="#16305c"/><stop offset="55%" stopColor="#0c1838"/><stop offset="100%" stopColor="#060b1c"/>
+            </radialGradient>
+            <filter id="mbGlow" x="-60%" y="-60%" width="220%" height="220%">
+              <feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+            <linearGradient id="mbRegion" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#21386a"/><stop offset="100%" stopColor="#15264a"/>
+            </linearGradient>
+          </defs>
+          <rect x="0" y="0" width={MAP_VIEW_W} height={MAP_VIEW_H} fill="url(#mbBg)"/>
           {/* Kraje (reálná data) - vyplněné polygony, vnější hrana = obrys ČR */}
           {[...CR_REGIONS].sort((a,b)=>(a.n==='Praha'?1:0)-(b.n==='Praha'?1:0)).map((reg,i)=>(
             <polygon key={'reg'+i} points={reg.pts.map(([lo,la])=>`${lonToX(lo).toFixed(1)},${latToY(la).toFixed(1)}`).join(' ')}
-              fill="#1a2d52" stroke="#ffffff" strokeWidth="1.8" strokeLinejoin="round"/>
+              fill="url(#mbRegion)" stroke="#ffffff" strokeWidth="1.6" strokeLinejoin="round" strokeOpacity="0.85"/>
+          ))}
+          {/* Řeky - hlavní vodní toky pro orientaci */}
+          {CR_RIVERS.map((rv,i)=>(
+            <polyline key={'riv'+i}
+              points={rv.pts.map(([lo,la])=>`${lonToX(lo).toFixed(1)},${latToY(la).toFixed(1)}`).join(' ')}
+              fill="none" stroke="#4d86c4" strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round" opacity="0.6"/>
           ))}
           {/* Hory - trojúhelníky úměrné výšce */}
           {CR_MOUNTAINS.map((m,i) => {
@@ -7293,7 +7364,7 @@ function MapBattleGame({ user, onExit }) {
             const s = 3.5 + (m.h / 1600) * 5.5;
             return <polygon key={'mt'+i}
               points={`${cx.toFixed(1)},${(cy-s).toFixed(1)} ${(cx-s*0.85).toFixed(1)},${(cy+s*0.55).toFixed(1)} ${(cx+s*0.85).toFixed(1)},${(cy+s*0.55).toFixed(1)}`}
-              fill="#5a5e6e" stroke="#ffffff" strokeWidth="0.6" opacity="0.78"/>;
+              fill="#6a6f82" stroke="#ffffff" strokeWidth="0.5" opacity="0.82"/>;
           })}
           {/* Reveal: spojnice + správný bod + tipy ostatních */}
           {showReveal && results.map((r,i) => {
@@ -7301,27 +7372,43 @@ function MapBattleGame({ user, onExit }) {
             const gx = lonToX(r.guess.lon), gy = latToY(r.guess.lat);
             const isMe = r.id === myId;
             return (
-              <g key={r.id}>
-                {correctPt && <line x1={gx} y1={gy} x2={correctPt.x} y2={correctPt.y} stroke={isMe?'#44ffaa':'#ff668855'} strokeWidth="2" strokeDasharray="6 4"/>}
-                <circle cx={gx} cy={gy} r={isMe?14:10} fill={isMe?'#44ffaa':'#ff6688'} stroke="#fff" strokeWidth="2"/>
-                <text x={gx} y={gy-20} fill="#fff" fontSize="22" fontWeight="900" textAnchor="middle">{r.name}</text>
+              <g key={r.id} color={isMe?'#44ffaa':'#ff6688'}>
+                {correctPt && <line x1={gx} y1={gy} x2={correctPt.x} y2={correctPt.y} stroke={isMe?'#44ffaa':'#ff668855'} strokeWidth={isMe?2.5:2} strokeDasharray="8 5" strokeLinecap="round" style={isMe?{animation:'mbDashFlow .6s linear infinite'}:undefined}/>}
+                <circle cx={gx} cy={gy} r={isMe?14:10} fill={isMe?'#44ffaa':'#ff6688'} stroke="#fff" strokeWidth="2" filter={isMe?'url(#mbGlow)':undefined}/>
+                <text x={gx} y={gy-20} fill="#fff" fontSize="22" fontWeight="900" textAnchor="middle" style={{paintOrder:'stroke'}} stroke="#0a1530" strokeWidth="4" strokeLinejoin="round">{r.name}</text>
               </g>
             );
           })}
           {showReveal && correctPt && (
-            <g>
-              <circle cx={correctPt.x} cy={correctPt.y} r="18" fill="none" stroke="#ffd700" strokeWidth="4"/>
+            <g color="#ffd700">
+              <circle cx={correctPt.x} cy={correctPt.y} r="7" fill="none" stroke="#ffd700" strokeWidth="2" style={{animation:'mapPulseRing 1.4s ease-out infinite'}}/>
+              <circle cx={correctPt.x} cy={correctPt.y} r="18" fill="none" stroke="#ffd700" strokeWidth="3.5" filter="url(#mbGlow)"/>
               <circle cx={correctPt.x} cy={correctPt.y} r="7" fill="#ffd700"/>
-              <text x={correctPt.x} y={correctPt.y+40} fill="#ffd700" fontSize="26" fontWeight="900" textAnchor="middle">📍</text>
+              <text x={correctPt.x} y={correctPt.y+40} fill="#ffd700" fontSize="28" fontWeight="900" textAnchor="middle">📍</text>
             </g>
           )}
           {/* Můj tip během hry */}
           {!showReveal && myGuess && (
-            <g>
-              <circle cx={myGuess.x} cy={myGuess.y} r="14" fill={locked?'#44ffaa':'#ffd700'} stroke="#fff" strokeWidth="3"/>
+            <g style={{animation:'mapPinDrop .5s cubic-bezier(.2,.8,.3,1.2) both'}} color={locked?'#44ffaa':'#ffd700'}>
+              <circle cx={myGuess.x} cy={myGuess.y} r="14" fill={locked?'#44ffaa':'#ffd700'} stroke="#fff" strokeWidth="3" filter="url(#mbGlow)"/>
               <circle cx={myGuess.x} cy={myGuess.y} r="5" fill="#fff"/>
             </g>
           )}
+          {/* Měřítko vzdálenosti (50 km) - kompenzuje zoom */}
+          {(() => {
+            const barLen = (50 / 497) * MAP_VIEW_W;
+            const vw = MAP_VIEW_W / zoom, vh = MAP_VIEW_H / zoom;
+            const x0 = viewX + vw * 0.05, y0 = viewY + vh * 0.94;
+            const sw = 2.5 / zoom, tick = 6 / zoom, fs = 15 / zoom;
+            return (
+              <g opacity="0.92" style={{pointerEvents:'none'}}>
+                <line x1={x0} y1={y0} x2={x0+barLen} y2={y0} stroke="#dfe8ff" strokeWidth={sw} strokeLinecap="round"/>
+                <line x1={x0} y1={y0-tick} x2={x0} y2={y0+tick} stroke="#dfe8ff" strokeWidth={sw}/>
+                <line x1={x0+barLen} y1={y0-tick} x2={x0+barLen} y2={y0+tick} stroke="#dfe8ff" strokeWidth={sw}/>
+                <text x={x0+barLen/2} y={y0-tick-4/zoom} fill="#dfe8ff" fontSize={fs} textAnchor="middle" fontWeight="700" fontFamily="'Orbitron',sans-serif">50 km</text>
+              </g>
+            );
+          })()}
         </svg>
 
         {/* Spodní panel */}
@@ -7363,17 +7450,18 @@ function MapBattleGame({ user, onExit }) {
     return (
       <div style={{animation:'slideIn .3s ease',maxWidth:420,margin:'0 auto',textAlign:'center'}}>
         <div style={{fontSize:48,marginBottom:8}}>🏆</div>
-        <div style={{fontSize:22,fontWeight:900,color:'#fff',fontFamily:"'Orbitron',sans-serif",marginBottom:18}}>KONEČNÉ POŘADÍ</div>
+        <div style={{fontSize:22,fontWeight:900,color:'#fff',fontFamily:"'Orbitron',sans-serif",marginBottom:4}}>KONEČNÉ POŘADÍ</div>
+        <div style={{fontSize:12,color:'#88aaff',marginBottom:18}}>Odehráno {totalRounds} {totalRounds>=5?'kol':'kola'} · {results.length} {results.length===1?'hráč':results.length<5?'hráči':'hráčů'}</div>
         {results.map((r,i) => (
-          <div key={r.id} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 16px',background:i===0?'rgba(255,215,0,.15)':'rgba(12,18,52,.8)',border:`1px solid ${i===0?'rgba(255,215,0,.4)':'#1e2a4a'}`,borderRadius:12,marginBottom:8}}>
-            <span style={{fontSize:24}}>{medals[i]||`${i+1}.`}</span>
+          <div key={r.id} className="mb-card-rise" style={{animationDelay:`${i*.08}s`,display:'flex',alignItems:'center',gap:12,padding:'13px 16px',background:i===0?'linear-gradient(135deg,rgba(255,215,0,.18),rgba(255,170,0,.08))':'rgba(12,18,52,.8)',border:`1px solid ${i===0?'rgba(255,215,0,.45)':r.id===myId?'rgba(68,170,255,.3)':'#1e2a4a'}`,borderRadius:13,marginBottom:8,boxShadow:i===0?'0 0 24px rgba(255,215,0,.18)':'none'}}>
+            <span style={{fontSize:26,filter:i<3?'drop-shadow(0 0 6px rgba(255,215,0,.5))':'none'}}>{medals[i]||`${i+1}.`}</span>
             <span style={{color:'#fff',fontWeight:700,fontSize:16,flex:1,textAlign:'left'}}>{r.name}{r.id===myId?' (ty)':''}</span>
-            <span style={{fontSize:18,fontWeight:900,color:'#ffd700',fontFamily:"'Orbitron',sans-serif"}}>{r.totalScore.toLocaleString()}</span>
+            <span style={{fontSize:19,fontWeight:900,color:'#ffd700',fontFamily:"'Orbitron',sans-serif",textShadow:i===0?'0 0 12px rgba(255,215,0,.5)':'none'}}>{r.totalScore.toLocaleString()}</span>
           </div>
         ))}
         {isHost ? (
-          <button onClick={()=>{ chanRef.current.send({type:'broadcast',event:'restart_lobby',payload:{}}); }}
-            style={{width:'100%',marginTop:18,padding:15,fontSize:16,fontWeight:900,letterSpacing:1,background:'linear-gradient(135deg,#1a8a4a,#22cc66)',color:'#fff',border:'none',borderRadius:12,cursor:'pointer',fontFamily:"'Orbitron',sans-serif"}}>🔄 HRÁT ZNOVU</button>
+          <button className="mb-btn" onClick={()=>{ chanRef.current.send({type:'broadcast',event:'restart_lobby',payload:{}}); }}
+            style={{width:'100%',marginTop:18,padding:15,fontSize:16,fontWeight:900,letterSpacing:1,background:'linear-gradient(135deg,#1a8a4a,#22cc66)',color:'#fff',border:'none',borderRadius:13,fontFamily:"'Orbitron',sans-serif",boxShadow:'0 4px 20px rgba(34,204,102,.3)'}}>🔄 HRÁT ZNOVU</button>
         ) : (
           <div style={{marginTop:18,padding:14,color:'#88aaff',fontSize:14,textAlign:'center'}}>⏳ Čekání na hosta (může spustit novou hru)</div>
         )}

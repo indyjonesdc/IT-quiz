@@ -210,7 +210,7 @@ const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const { useState, useEffect, useRef } = React;
-const APP_VERSION = 'v1.0';
+const APP_VERSION = 'v1.1';
 console.log('%c[INDYQ] ' + APP_VERSION, 'background:#1a3a8a;color:#fff;padding:4px 10px;border-radius:4px;font-weight:bold');
 
 // ─── KONSTANTY ───────────────────────────────────────
@@ -7183,22 +7183,22 @@ function MapBattleGame({ user, onExit }) {
           <div style={{fontSize:22,fontWeight:900,color:'#fff'}}>{trainPlace?.n}</div>
         </div>
 
-        {!revealed && zoom > 1.05 && (
+        {zoom > 1.05 && (
           <div style={{display:'flex',justifyContent:'center',marginBottom:6}}>
             <button onPointerDown={(e)=>{e.preventDefault();setZoom(1);setViewX(0);setViewY(0);}} style={{padding:'6px 14px',borderRadius:8,border:'1px solid #2a3a5a',background:'rgba(12,18,52,.9)',color:'#88aaff',fontSize:11,cursor:'pointer',touchAction:'manipulation'}}>⟲ Oddálit ({Math.round(zoom*100)}%)</button>
           </div>
         )}
 
-        <svg ref={!revealed ? canvasRef : null}
-          viewBox={`${revealed?0:viewX} ${revealed?0:viewY} ${revealed?MAP_VIEW_W:MAP_VIEW_W/zoom} ${revealed?MAP_VIEW_H:MAP_VIEW_H/zoom}`}
-          onTouchStart={revealed?undefined:onMapTouchStart}
-          onTouchMove={revealed?undefined:onMapTouchMove}
-          onTouchEnd={revealed?undefined:onMapTouchEnd}
-          onMouseDown={revealed?undefined:onMapMouseDown}
-          onMouseMove={revealed?undefined:onMapMouseMove}
-          onMouseUp={revealed?undefined:onMapMouseUp}
-          onWheel={revealed?undefined:onMapWheel}
-          style={{width:'100%',height:'auto',background:'#0a1530',borderRadius:12,border:'1px solid #1e2a4a',touchAction:'none',cursor:revealed?'default':zoom>1?'grab':'crosshair'}}>
+        <svg ref={canvasRef}
+          viewBox={`${viewX} ${viewY} ${MAP_VIEW_W/zoom} ${MAP_VIEW_H/zoom}`}
+          onTouchStart={onMapTouchStart}
+          onTouchMove={onMapTouchMove}
+          onTouchEnd={onMapTouchEnd}
+          onMouseDown={onMapMouseDown}
+          onMouseMove={onMapMouseMove}
+          onMouseUp={onMapMouseUp}
+          onWheel={onMapWheel}
+          style={{width:'100%',height:'auto',background:'#0a1530',borderRadius:12,border:'1px solid #1e2a4a',touchAction:'none',cursor:zoom>1?'grab':(revealed?'default':'crosshair')}}>
           {[...CR_REGIONS].sort((a,b)=>(a.n==='Praha'?1:0)-(b.n==='Praha'?1:0)).map((reg,i)=>(
             <polygon key={'reg'+i} points={reg.pts.map(([lo,la])=>`${lonToX(lo).toFixed(1)},${latToY(la).toFixed(1)}`).join(' ')}
               fill="#1a2d52" stroke="#ffffff" strokeWidth="1.8" strokeLinejoin="round"/>
@@ -7211,9 +7211,6 @@ function MapBattleGame({ user, onExit }) {
               points={`${cx.toFixed(1)},${(cy-s).toFixed(1)} ${(cx-s*0.85).toFixed(1)},${(cy+s*0.55).toFixed(1)} ${(cx+s*0.85).toFixed(1)},${(cy+s*0.55).toFixed(1)}`}
               fill="#5a5e6e" stroke="#ffffff" strokeWidth="0.6" opacity="0.78"/>;
           })}
-          {CR_WATER.map((w,i)=>(
-            <circle key={'wat'+i} cx={lonToX(w.lon)} cy={latToY(w.lat)} r={w.r||4} fill="#2d6fb8" opacity="0.85"/>
-          ))}
           {/* Reveal - spojnice + správný bod */}
           {revealed && myGuess && correctPt && (
             <line x1={myGuess.x} y1={myGuess.y} x2={correctPt.x} y2={correctPt.y} stroke="#44ffaa" strokeWidth="2" strokeDasharray="6 4"/>
@@ -7275,16 +7272,16 @@ function MapBattleGame({ user, onExit }) {
             <button onPointerDown={(e)=>{e.preventDefault();setZoom(1);setViewX(0);setViewY(0);}} style={{padding:'6px 14px',borderRadius:8,border:'1px solid #2a3a5a',background:'rgba(12,18,52,.9)',color:'#88aaff',fontSize:11,cursor:'pointer',touchAction:'manipulation'}}>⟲ Oddálit ({Math.round(zoom*100)}%)</button>
           </div>
         )}
-        <svg ref={!showReveal ? canvasRef : null}
-          viewBox={`${showReveal?0:viewX} ${showReveal?0:viewY} ${showReveal?MAP_VIEW_W:MAP_VIEW_W/zoom} ${showReveal?MAP_VIEW_H:MAP_VIEW_H/zoom}`}
-          onTouchStart={showReveal?undefined:onMapTouchStart}
-          onTouchMove={showReveal?undefined:onMapTouchMove}
-          onTouchEnd={showReveal?undefined:onMapTouchEnd}
-          onMouseDown={showReveal?undefined:onMapMouseDown}
-          onMouseMove={showReveal?undefined:onMapMouseMove}
-          onMouseUp={showReveal?undefined:onMapMouseUp}
-          onWheel={showReveal?undefined:onMapWheel}
-          style={{width:'100%',height:'auto',background:'#0a1530',borderRadius:12,border:'1px solid #1e2a4a',touchAction:'none',cursor:locked||showReveal?'default':zoom>1?'grab':'crosshair'}}>
+        <svg ref={canvasRef}
+          viewBox={`${viewX} ${viewY} ${MAP_VIEW_W/zoom} ${MAP_VIEW_H/zoom}`}
+          onTouchStart={onMapTouchStart}
+          onTouchMove={onMapTouchMove}
+          onTouchEnd={onMapTouchEnd}
+          onMouseDown={onMapMouseDown}
+          onMouseMove={onMapMouseMove}
+          onMouseUp={onMapMouseUp}
+          onWheel={onMapWheel}
+          style={{width:'100%',height:'auto',background:'#0a1530',borderRadius:12,border:'1px solid #1e2a4a',touchAction:'none',cursor:zoom>1?'grab':(locked||showReveal?'default':'crosshair')}}>
           {/* Kraje (reálná data) - vyplněné polygony, vnější hrana = obrys ČR */}
           {[...CR_REGIONS].sort((a,b)=>(a.n==='Praha'?1:0)-(b.n==='Praha'?1:0)).map((reg,i)=>(
             <polygon key={'reg'+i} points={reg.pts.map(([lo,la])=>`${lonToX(lo).toFixed(1)},${latToY(la).toFixed(1)}`).join(' ')}
@@ -7298,11 +7295,6 @@ function MapBattleGame({ user, onExit }) {
               points={`${cx.toFixed(1)},${(cy-s).toFixed(1)} ${(cx-s*0.85).toFixed(1)},${(cy+s*0.55).toFixed(1)} ${(cx+s*0.85).toFixed(1)},${(cy+s*0.55).toFixed(1)}`}
               fill="#5a5e6e" stroke="#ffffff" strokeWidth="0.6" opacity="0.78"/>;
           })}
-          {/* Vodní plochy */}
-          {CR_WATER.map((w,i)=>(
-            <circle key={'wat'+i} cx={lonToX(w.lon)} cy={latToY(w.lat)} r={w.r||4}
-              fill="#2d6fb8" opacity="0.85"/>
-          ))}
           {/* Reveal: spojnice + správný bod + tipy ostatních */}
           {showReveal && results.map((r,i) => {
             if (!r.guess) return null;

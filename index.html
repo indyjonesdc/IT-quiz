@@ -92,7 +92,6 @@ body{font-family:'Inter', sans-serif;color:#e0e8ff;overflow-x:hidden}
 <div id="root"></div>
 
 <script type="text/babel">
-console.log('%c[INDYQ] Aktuální verze: ' + new Date('2026-05-29T10:11:22.138537').toLocaleString('cs'), 'background:#1a3a8a;color:#fff;padding:4px 10px;border-radius:4px;font-weight:bold');
 // ═══════════════════════════════════════════════════════
 // ⚙️  KONFIGURACE — VYPLŇ SVÉ SUPABASE ÚDAJE
 // ═══════════════════════════════════════════════════════
@@ -211,6 +210,8 @@ const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const { useState, useEffect, useRef } = React;
+const APP_VERSION = 'v1.0';
+console.log('%c[INDYQ] ' + APP_VERSION, 'background:#1a3a8a;color:#fff;padding:4px 10px;border-radius:4px;font-weight:bold');
 
 // ─── KONSTANTY ───────────────────────────────────────
 const QUIZ_DURATION = 120;
@@ -1168,6 +1169,7 @@ function HomeScreen({ user, hasPlayedToday, hasPlayedOtherMode, hasPlayedModes, 
   const showInstallBanner = isMobile && !installed && (installable || isIOS);
   return (
     <div style={{minHeight:'100vh',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{position:'fixed',bottom:8,right:10,fontSize:10,color:'#2e3a52',fontFamily:"'Orbitron',sans-serif",letterSpacing:1,pointerEvents:'none',zIndex:5}}>{APP_VERSION}</div>
       <div className="slide-in" style={{width:'100%',maxWidth:640,textAlign:'center',position:'relative'}}>
 
         {/* PWA Install Banner — jen mobil, jen pokud není nainstalováno */}

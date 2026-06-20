@@ -100,6 +100,7 @@
 <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet"/>
 <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <style>
+@keyframes mlPop{0%{transform:scale(0)}70%{transform:scale(1.18)}100%{transform:scale(1)}}@keyframes mlPing{0%{transform:scale(.3);opacity:.75}70%{opacity:.15}100%{transform:scale(2.7);opacity:0}}@keyframes mlDrop{0%{transform:translateY(-20px) scale(.7);opacity:0}55%{transform:translateY(3px) scale(1.06);opacity:1}78%{transform:translateY(-2px) scale(.98)}100%{transform:translateY(0) scale(1)}}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;background:#0a0a0f}
 /* Změna hlavního fontu na Inter pro maximální čitelnost */
@@ -1339,8 +1340,8 @@ const mapContRef=useRef(null),mapRef=useRef(null),mapLoadedRef=useRef(false);
 const gMarkRef=useRef(null),aMarkRef=useRef(null),oMarksRef=useRef([]),dMarkRef=useRef(null);
 const canGuessRef=useRef(false);
 useEffect(function(){canGuessRef.current=(view==='playing'&&!locked)||(view==='solo'&&!soloResult);});
-function mlDot(c){var el=document.createElement('div');el.style.cssText='width:18px;height:18px;border-radius:50%;background:'+c+';border:3px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.55)';return el;}
-function mlPinEl(){var el=document.createElement('div');el.style.cssText='line-height:0';el.innerHTML='<svg width="34" height="44" viewBox="0 0 34 44" xmlns="http://www.w3.org/2000/svg"><path d="M17 43 C7 30 2 24 2 16 A15 15 0 1 1 32 16 C32 24 27 30 17 43 Z" fill="#e23b3b" stroke="#ffffff" stroke-width="2.5"/><circle cx="17" cy="16" r="5.5" fill="#ffffff"/></svg>';return el;}
+function mlDot(c){var w=document.createElement('div');w.style.cssText='width:18px;height:18px';var el=document.createElement('div');el.style.cssText='width:18px;height:18px;border-radius:50%;background:'+c+';border:3px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.55);animation:mlPop .42s cubic-bezier(.2,1.5,.4,1) both';w.appendChild(el);return w;}
+function mlPinEl(){var w=document.createElement('div');w.style.cssText='position:relative;width:34px;height:44px;line-height:0';var ping=document.createElement('div');ping.style.cssText='position:absolute;left:50%;bottom:0;width:20px;height:20px;margin:0 0 -10px -10px;border:2px solid #e23b3b;border-radius:50%;animation:mlPing 1.7s ease-out .2s 3 both';var inner=document.createElement('div');inner.style.cssText='position:absolute;inset:0;transform-origin:50% 100%;animation:mlDrop .6s cubic-bezier(.2,1.35,.45,1) both';inner.innerHTML='<svg width="34" height="44" viewBox="0 0 34 44" xmlns="http://www.w3.org/2000/svg"><path d="M17 43 C7 30 2 24 2 16 A15 15 0 1 1 32 16 C32 24 27 30 17 43 Z" fill="#e23b3b" stroke="#ffffff" stroke-width="2.5"/><circle cx="17" cy="16" r="5.5" fill="#ffffff"/></svg>';w.appendChild(ping);w.appendChild(inner);return w;}
 function mlDistEl(t){var el=document.createElement('div');el.textContent=t;el.style.cssText='background:#fff;color:#1d2733;font:700 13px sans-serif;padding:3px 9px;border-radius:11px;border:1px solid #cdd5e0;box-shadow:0 1px 5px rgba(0,0,0,.3);white-space:nowrap';return el;}
 function mlClear(){[gMarkRef,aMarkRef,dMarkRef].forEach(function(r){if(r.current){r.current.remove();r.current=null;}});oMarksRef.current.forEach(function(m){m.remove();});oMarksRef.current=[];var m=mapRef.current;if(m){try{if(m.getLayer('wmline'))m.removeLayer('wmline');}catch(e){}try{if(m.getSource('wmline'))m.removeSource('wmline');}catch(e){}}}
 function mlHideLabels(m){try{(m.getStyle().layers||[]).forEach(function(L){if(L.type==='symbol'){try{m.setLayoutProperty(L.id,'visibility','none');}catch(e){}}});}catch(e){}}

@@ -222,6 +222,11 @@
   .donate-iban:hover{background:rgba(68,136,255,.16)}
   .donate-iban .copied{color:#44dd88}
   .donate-hint{font-size:11px;color:#667799;margin-top:12px;font-family:system-ui,sans-serif}
+  .donate-or{display:flex;align-items:center;gap:10px;margin:16px 0 12px;color:#556;font-size:11px;letter-spacing:2px;font-family:"Orbitron",system-ui,sans-serif}
+  .donate-or::before,.donate-or::after{content:"";flex:1;height:1px;background:#2a3a5a}
+  .donate-rev{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;text-decoration:none;background:linear-gradient(135deg,#1a3a8a,#2255cc);color:#fff;border-radius:11px;padding:13px;font-family:"Orbitron",system-ui,sans-serif;font-weight:700;font-size:13px;letter-spacing:.5px;transition:transform .15s,box-shadow .15s;box-shadow:0 4px 16px rgba(34,85,204,.35)}
+  .donate-rev:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(34,85,204,.5)}
+  .donate-rev .gp{font-size:16px}
   .donate-close{position:absolute;top:12px;right:14px;background:transparent;border:none;color:#667799;font-size:24px;cursor:pointer;line-height:1;padding:0;width:30px;height:30px}
   .donate-close:hover{color:#aab8d8}
 </style>
@@ -246,6 +251,8 @@
     </div>
     <div class="donate-iban" id="donateIban" onclick="donateCopyIban()" title="Klikni pro zkopírování">CZ21 3030 0000 0016 1337 5010</div>
     <div class="donate-hint">Naskenuj QR v bankovní aplikaci 📲</div>
+    <div class="donate-or">NEBO</div>
+    <a class="donate-rev" href="https://revolut.me/luk32wxu" target="_blank" rel="noopener"><span class="gp">💳</span> Kartou / Google Pay</a>
   </div>
 </div>
 

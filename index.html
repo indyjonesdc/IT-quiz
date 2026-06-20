@@ -46,6 +46,11 @@
   .err{color:#ff5555;font-size:12px;margin-bottom:12px;text-align:center;min-height:14px}
   .btn-primary{width:100%;background:linear-gradient(135deg,#1a3a8a,#2255cc);border:none;border-radius:8px;padding:14px;color:#fff;font-family:'Orbitron',sans-serif;font-weight:700;font-size:14px;letter-spacing:2px;cursor:pointer;transition:opacity .15s}
   .btn-primary:disabled{opacity:.5;cursor:default}
+  .sel{width:100%;background:rgba(8,12,30,.8);border:1px solid #2a3a6a;border-radius:8px;padding:12px;color:#dde;font-family:system-ui,sans-serif;font-size:14px;margin-bottom:14px;outline:none;cursor:pointer}
+  .sel:focus{border-color:#4488ff}
+  .link-btn{display:block;width:100%;margin-top:14px;background:transparent;border:none;color:#7799cc;font-family:system-ui,sans-serif;font-size:13px;cursor:pointer;text-align:center;padding:4px}
+  .link-btn:hover{color:#aaccff;text-decoration:underline}
+  .qbox{background:rgba(8,12,30,.6);border:1px solid #2a3a6a;border-radius:8px;padding:12px;color:#cce;font-family:system-ui,sans-serif;font-size:14px;margin-bottom:14px;line-height:1.4}
 
   /* ─── Rozcestník ─── */
   .hub{display:none;flex-direction:column;align-items:center;width:100%}
@@ -83,8 +88,46 @@
     <input id="name" placeholder="Tvá přezdívka..." maxlength="20" autocomplete="username"/>
     <label>Heslo</label>
     <input id="password" type="password" placeholder="Heslo..." maxlength="50" autocomplete="current-password"/>
+
+    <!-- Bezpečnostní otázka – jen při registraci -->
+    <div id="secReg" style="display:none">
+      <label>Bezpečnostní otázka</label>
+      <select id="secQ" class="sel"></select>
+      <input id="secQCustom" placeholder="Napiš vlastní otázku..." maxlength="80" style="display:none"/>
+      <label>Odpověď</label>
+      <input id="secA" placeholder="Odpověď (zapamatuj si ji!)" maxlength="60" autocomplete="off"/>
+    </div>
+
     <div class="err" id="err"></div>
     <button class="btn-primary" id="submit" onclick="submitAuth()">↩ PŘIHLÁSIT SE</button>
+    <button class="link-btn" id="forgotLink" onclick="openForgot()">Zapomněl jsi heslo?</button>
+  </div>
+
+  <!-- ─── RESET HESLA (bezpečnostní otázka) ─── -->
+  <div id="forgot" class="card" style="display:none">
+    <div class="hint" id="fgHint">Zadej přezdívku a my ti ukážeme tvou bezpečnostní otázku.</div>
+
+    <div id="fgStep1">
+      <label>Přezdívka</label>
+      <input id="fgName" placeholder="Tvá přezdívka..." maxlength="20" autocomplete="username"/>
+      <div class="err" id="fgErr"></div>
+      <button class="btn-primary" onclick="forgotLoadQuestion()">NAČÍST OTÁZKU →</button>
+    </div>
+
+    <div id="fgStep2" style="display:none">
+      <label>Bezpečnostní otázka</label>
+      <div id="fgQText" class="qbox"></div>
+      <label>Tvoje odpověď</label>
+      <input id="fgAnswer" placeholder="Odpověď..." maxlength="60" autocomplete="off"/>
+      <label>Nové heslo</label>
+      <input id="fgNewPwd" type="password" placeholder="Min. 4 znaky..." maxlength="50" autocomplete="new-password"/>
+      <label>Nové heslo znovu</label>
+      <input id="fgNewPwd2" type="password" placeholder="Zopakuj nové heslo..." maxlength="50" autocomplete="new-password"/>
+      <div class="err" id="fgErr2"></div>
+      <button class="btn-primary" onclick="forgotReset()">✓ NASTAVIT NOVÉ HESLO</button>
+    </div>
+
+    <button class="link-btn" onclick="closeForgot()">← Zpět na přihlášení</button>
   </div>
   <div class="warn" id="dbwarn" style="display:none">⚠️ Databáze není připojena.</div>
 
@@ -132,10 +175,38 @@
       : 'Zvol si přezdívku a heslo. Profil doplníš později v appce.';
     document.getElementById('password').placeholder = t==='login' ? 'Heslo...' : 'Zvol si heslo...';
     document.getElementById('submit').textContent = t==='login' ? '↩ PŘIHLÁSIT SE' : '✦ VYTVOŘIT ÚČET';
+    document.getElementById('secReg').style.display = t==='register' ? 'block' : 'none';
+    document.getElementById('forgotLink').style.display = t==='login' ? 'block' : 'none';
     document.getElementById('err').textContent = '';
   }
 
   function showErr(m){ document.getElementById('err').textContent = m; }
+
+  // ─── Přednastavené bezpečnostní otázky ───
+  const SECURITY_QUESTIONS = [
+    'Jak se jmenovalo tvé první domácí zvíře?',
+    'V jakém městě ses narodil/a?',
+    'Jak se jmenuje tvá oblíbená kniha nebo film?',
+    'Jaké je rodné příjmení tvé matky?',
+    'Jak se jmenovala tvá první škola?',
+    'Jaké bylo tvé dětské přezdívka?',
+    'Jaké je jméno tvého nejlepšího kamaráda z dětství?'
+  ];
+
+  (function fillQuestions(){
+    const sel = document.getElementById('secQ');
+    SECURITY_QUESTIONS.forEach(q => {
+      const o = document.createElement('option');
+      o.value = q; o.textContent = q; sel.appendChild(o);
+    });
+    const custom = document.createElement('option');
+    custom.value = '__custom__'; custom.textContent = '✎ Vlastní otázka...';
+    sel.appendChild(custom);
+    sel.addEventListener('change', () => {
+      document.getElementById('secQCustom').style.display =
+        sel.value === '__custom__' ? 'block' : 'none';
+    });
+  })();
 
   async function submitAuth(){
     const n = document.getElementById('name').value.trim();
@@ -155,10 +226,22 @@
         else if (!data || data.length === 0) { showErr('Špatné jméno nebo heslo!'); }
         else { loginDone({ ...data[0], premium: false }); return; }
       } else {
+        // ─── Registrace: sběr bezpečnostní otázky ───
+        const selQ = document.getElementById('secQ');
+        let question = selQ.value;
+        if (question === '__custom__') question = document.getElementById('secQCustom').value.trim();
+        const answer = document.getElementById('secA').value.trim();
+        if (!question) { btn.disabled=false; btn.textContent=orig; return showErr('Vyber nebo napiš bezpečnostní otázku!'); }
+        if (answer.length < 2) { btn.disabled=false; btn.textContent=orig; return showErr('Odpověď musí mít aspoň 2 znaky!'); }
+
         const { data: existing } = await db.from('users').select('id').ilike('name', n).maybeSingle();
         if (existing) { showErr('Jméno "' + n + '" je již obsazeno.'); }
         else {
-          const { data, error } = await db.rpc('register_user', { p_name: n, p_password: p, p_profile: {} });
+          const { data, error } = await db.rpc('register_user', {
+            p_name: n, p_password: p, p_profile: {},
+            p_security_question: question,
+            p_security_answer: answer.toLowerCase()
+          });
           if (error || !data || data.length === 0) { showErr('Chyba registrace: ' + (error?.message || 'neznámá')); }
           else { loginDone({ ...data[0], premium: false }); return; }
         }
@@ -167,6 +250,68 @@
       showErr('Chyba připojení k databázi.');
     }
     btn.disabled = false; btn.textContent = orig;
+  }
+
+  // ─── RESET HESLA přes bezpečnostní otázku ───
+  function openForgot(){
+    document.getElementById('auth').style.display = 'none';
+    document.getElementById('forgot').style.display = 'block';
+    document.getElementById('fgStep1').style.display = 'block';
+    document.getElementById('fgStep2').style.display = 'none';
+    document.getElementById('fgName').value = '';
+    document.getElementById('fgErr').textContent = '';
+  }
+  function closeForgot(){
+    document.getElementById('forgot').style.display = 'none';
+    document.getElementById('auth').style.display = 'block';
+  }
+
+  async function forgotLoadQuestion(){
+    const n = document.getElementById('fgName').value.trim();
+    const fgErr = document.getElementById('fgErr');
+    fgErr.textContent = '';
+    if (n.length < 2) { fgErr.textContent = 'Zadej svou přezdívku.'; return; }
+    if (!db) { fgErr.textContent = 'Databáze není připojena.'; return; }
+
+    try {
+      const { data, error } = await db.rpc('get_security_question', { p_name: n });
+      if (error) { fgErr.textContent = 'Chyba: ' + error.message; return; }
+      if (!data || !data.length || !data[0].security_question) {
+        fgErr.textContent = 'Pro tento účet není nastavena bezpečnostní otázka.'; return;
+      }
+      window.__fgName = n;
+      document.getElementById('fgQText').textContent = data[0].security_question;
+      document.getElementById('fgStep1').style.display = 'none';
+      document.getElementById('fgStep2').style.display = 'block';
+      document.getElementById('fgAnswer').value = '';
+      document.getElementById('fgNewPwd').value = '';
+      document.getElementById('fgNewPwd2').value = '';
+      document.getElementById('fgErr2').textContent = '';
+    } catch(e) { fgErr.textContent = 'Chyba připojení k databázi.'; }
+  }
+
+  async function forgotReset(){
+    const fgErr2 = document.getElementById('fgErr2');
+    fgErr2.textContent = '';
+    const ans = document.getElementById('fgAnswer').value.trim();
+    const p1  = document.getElementById('fgNewPwd').value.trim();
+    const p2  = document.getElementById('fgNewPwd2').value.trim();
+    if (ans.length < 2) { fgErr2.textContent = 'Zadej odpověď na otázku.'; return; }
+    if (p1.length < 4) { fgErr2.textContent = 'Nové heslo musí mít aspoň 4 znaky.'; return; }
+    if (p1 !== p2) { fgErr2.textContent = 'Hesla se neshodují.'; return; }
+
+    try {
+      const { data, error } = await db.rpc('reset_password_via_security', {
+        p_name: window.__fgName,
+        p_answer: ans.toLowerCase(),
+        p_new_password: p1
+      });
+      if (error) { fgErr2.textContent = 'Chyba: ' + error.message; return; }
+      if (!data) { fgErr2.textContent = 'Špatná odpověď na bezpečnostní otázku.'; return; }
+      fgErr2.style.color = '#44ffaa';
+      fgErr2.textContent = '✓ Heslo bylo změněno! Můžeš se přihlásit.';
+      setTimeout(closeForgot, 1600);
+    } catch(e) { fgErr2.textContent = 'Chyba připojení k databázi.'; }
   }
 
   function loginDone(user){

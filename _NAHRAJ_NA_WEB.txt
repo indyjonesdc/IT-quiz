@@ -1,0 +1,36 @@
+INDYGAMES — soubory k nahrání na web (indygames.cz)
+====================================================
+
+STRUKTURA (zachovej ji přesně tak, jak je):
+
+  /index.html              ← hlavní stránka (přepíše stávající)
+  /kvizy.html              ← denní kvízy (přepíše stávající)
+  /minihry.html            ← minihry (přepíše stávající)
+  /manifest.json           ← PWA manifest (do kořene webu)
+  /sw.js                   ← service worker (do kořene webu)
+  /icons/                  ← složka s ikonami aplikace
+      icon-48.png
+      icon-72.png
+      icon-96.png
+      icon-144.png
+      icon-180.png
+      icon-192.png
+      icon-512.png
+      icon-maskable-512.png
+
+DŮLEŽITÉ:
+- manifest.json a sw.js MUSÍ být v kořeni webu (vedle index.html),
+  jinak je prohlížeč nenajde.
+- Ikony MUSÍ být ve složce /icons/ (manifest na ně odkazuje touto cestou).
+
+CO JEŠTĚ CHYBÍ (musíš dodat ty):
+- og.png  → náhledový obrázek pro sdílení odkazu (ideálně 1200×630 px),
+  nahraj ho do kořene webu jako /og.png. Bez něj se karta při sdílení
+  ukáže bez obrázku.
+
+PO NAHRÁNÍ:
+1) Otevři indygames.cz v Chrome na PC → F12 → záložka "Application"
+   → zkontroluj, že je vidět Manifest i Service Worker bez chyb.
+2) Chrome by měl nabídnout "Instalovat aplikaci".
+3) Pak na PWABuilder.com zadej https://indygames.cz a vygeneruj balíček
+   pro Google Play (.aab).

@@ -1,5 +1,5 @@
 // INDYGAMES service worker — network-first (safe for live/dynamic app)
-const CACHE = 'indygames-v1';
+const CACHE = 'indygames-v2';
 const PRECACHE = ['/', '/index.html', '/minihry.html'];
 
 self.addEventListener('install', (e) => {

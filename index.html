@@ -3,17 +3,18 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>IT Quiz</title>
+<title>INDYGAMES</title>
 <meta name="theme-color" content="#0a0a0f"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<meta name="apple-mobile-web-app-title" content="IT Quiz"/>
-<meta name="description" content="IT Quiz — denní kvízy a minihry"/>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230a0a0f'/%3E%3Ctext y='.9em' font-size='80' x='10'%3E💻%3C/text%3E%3C/svg%3E"/>
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230a0a0f'/%3E%3Ctext y='.9em' font-size='80' x='10'%3E💻%3C/text%3E%3C/svg%3E"/>
+<meta name="apple-mobile-web-app-title" content="INDYGAMES"/>
+<meta name="description" content="INDYGAMES — denní kvízy a minihry"/>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230a0a0f'/%3E%3Ctext y='.92em' font-size='62' x='50' text-anchor='middle'%3E🎮%3C/text%3E%3C/svg%3E"/>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230a0a0f'/%3E%3Ctext y='.92em' font-size='62' x='50' text-anchor='middle'%3E🎮%3C/text%3E%3C/svg%3E"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{height:100%}
@@ -23,51 +24,172 @@
     min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
     padding:24px;overflow-x:hidden;
   }
-  .logo{font-size:13px;letter-spacing:6px;color:#4488ff;opacity:.8;margin-bottom:6px}
-  h1{font-size:30px;font-weight:900;letter-spacing:2px;margin-bottom:6px;
-     background:linear-gradient(135deg,#88aaff,#cc88ff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-  .sub{font-size:12px;color:#667;letter-spacing:2px;margin-bottom:38px}
-  .tiles{display:flex;gap:22px;flex-wrap:wrap;justify-content:center;width:100%;max-width:760px}
-  a.tile{
-    flex:1 1 300px;min-width:260px;text-decoration:none;color:inherit;
-    border-radius:18px;padding:34px 28px;position:relative;overflow:hidden;
-    border:1px solid #243056;background:rgba(20,28,60,.45);
-    transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease;
-  }
+  /* ─── Brand ─── */
+  .brand{font-size:34px;font-weight:900;letter-spacing:3px;margin-bottom:4px}
+  .brand .a{background:linear-gradient(135deg,#88aaff,#cc88ff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .brand .b{color:#ff88cc}
+  .tagline{font-size:11px;color:#556;letter-spacing:5px;margin-bottom:36px;text-transform:uppercase}
+
+  /* ─── Auth card ─── */
+  .card{width:100%;max-width:420px;background:rgba(20,35,80,.5);border:1px solid #2a3a6a;border-radius:16px;padding:26px;text-align:left}
+  .tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:22px;background:rgba(10,15,40,.6);border-radius:10px;padding:4px;border:1px solid #1e2a4a}
+  .tabs button{padding:10px;border-radius:8px;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;letter-spacing:.5px;transition:all .2s;background:transparent;color:#4a5a7a}
+  .tabs button.active{background:linear-gradient(135deg,#1a3a8a,#2255cc);color:#fff;box-shadow:0 0 20px rgba(68,136,255,.3)}
+  .hint{font-size:12px;color:#556;margin-bottom:16px;line-height:1.5}
+  label{display:block;font-size:11px;letter-spacing:1px;color:#7788aa;margin-bottom:6px;font-family:system-ui,sans-serif;text-transform:uppercase}
+  input{width:100%;background:rgba(8,12,30,.8);border:1px solid #2a3a6a;border-radius:8px;padding:12px;color:#dde;font-family:system-ui,sans-serif;font-size:15px;margin-bottom:14px;outline:none;transition:border-color .15s}
+  input:focus{border-color:#4488ff}
+  .err{color:#ff5555;font-size:12px;margin-bottom:12px;text-align:center;min-height:14px}
+  .btn-primary{width:100%;background:linear-gradient(135deg,#1a3a8a,#2255cc);border:none;border-radius:8px;padding:14px;color:#fff;font-family:'Orbitron',sans-serif;font-weight:700;font-size:14px;letter-spacing:2px;cursor:pointer;transition:opacity .15s}
+  .btn-primary:disabled{opacity:.5;cursor:default}
+
+  /* ─── Rozcestník ─── */
+  .hub{display:none;flex-direction:column;align-items:center;width:100%}
+  .hub.show{display:flex}
+  .welcome{font-size:13px;color:#88aaff;letter-spacing:1px;margin-bottom:26px}
+  .welcome b{color:#cc88ff}
+  .tiles{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;width:100%;max-width:720px}
+  a.tile{flex:1 1 290px;min-width:250px;text-decoration:none;color:inherit;border-radius:18px;padding:32px 26px;border:1px solid #243056;background:rgba(20,28,60,.45);transition:transform .15s,border-color .15s,box-shadow .15s}
   a.tile:hover{transform:translateY(-4px)}
-  a.quiz{box-shadow:0 0 0 rgba(0,0,0,0)}
   a.quiz:hover{border-color:#4488ff;box-shadow:0 12px 40px rgba(68,136,255,.25)}
   a.games:hover{border-color:#aa55cc;box-shadow:0 12px 40px rgba(180,60,200,.25)}
-  .emoji{font-size:54px;line-height:1;margin-bottom:18px}
-  .tt{font-size:20px;font-weight:900;letter-spacing:1px;margin-bottom:8px}
-  a.quiz .tt{color:#88aaff}
-  a.games .tt{color:#ff88cc}
-  .td{font-size:12.5px;line-height:1.6;color:#8899bb;font-family:system-ui,sans-serif;letter-spacing:.3px}
-  .go{margin-top:18px;font-size:12px;letter-spacing:2px;color:#556}
-  .foot{margin-top:40px;font-size:10px;letter-spacing:2px;color:#445}
+  .emoji{font-size:50px;line-height:1;margin-bottom:16px}
+  .tt{font-size:19px;font-weight:900;letter-spacing:1px;margin-bottom:8px}
+  a.quiz .tt{color:#88aaff} a.games .tt{color:#ff88cc}
+  .td{font-size:12.5px;line-height:1.6;color:#8899bb;font-family:system-ui,sans-serif}
+  .go{margin-top:16px;font-size:12px;letter-spacing:2px;color:#556}
+  .logout{margin-top:30px;background:transparent;border:none;color:#445;font-size:11px;letter-spacing:2px;cursor:pointer;font-family:'Orbitron',sans-serif}
+  .logout:hover{color:#778}
+  .warn{margin-top:20px;font-size:11px;color:#cc8844;text-align:center;max-width:420px}
 </style>
 </head>
 <body>
-  <div class="logo">IT QUIZ</div>
-  <h1>Vyber si</h1>
-  <div class="sub">DENNÍ KVÍZY · MINIHRY</div>
 
-  <div class="tiles">
-    <a class="tile quiz" href="kvizy.html">
-      <div class="emoji">🧠</div>
-      <div class="tt">DENNÍ KVÍZY</div>
-      <div class="td">Otestuj své znalosti každý den. IT a obecný kvíz, žebříček, statistiky a denní výzva.</div>
-      <div class="go">VSTOUPIT →</div>
-    </a>
+  <div class="brand"><span class="a">INDY</span><span class="b">GAMES</span></div>
+  <div class="tagline">Kvízy &amp; Minihry</div>
 
-    <a class="tile games" href="minihry.html">
-      <div class="emoji">🎮</div>
-      <div class="tt">MINIHRY</div>
-      <div class="td">Zastav čas, terče, rovnováha, tower builder, katana master, slepá mapa ČR a kvízová aréna.</div>
-      <div class="go">HRÁT →</div>
-    </a>
+  <!-- ─── AUTH ─── -->
+  <div id="auth" class="card">
+    <div class="tabs">
+      <button id="tab-login" class="active" onclick="setTab('login')">↩ Přihlásit se</button>
+      <button id="tab-register" onclick="setTab('register')">✦ Registrovat se</button>
+    </div>
+    <div class="hint" id="hint">Zadej přezdívku a heslo svého účtu.</div>
+    <label>Přezdívka</label>
+    <input id="name" placeholder="Tvá přezdívka..." maxlength="20" autocomplete="username"/>
+    <label>Heslo</label>
+    <input id="password" type="password" placeholder="Heslo..." maxlength="50" autocomplete="current-password"/>
+    <div class="err" id="err"></div>
+    <button class="btn-primary" id="submit" onclick="submitAuth()">↩ PŘIHLÁSIT SE</button>
+  </div>
+  <div class="warn" id="dbwarn" style="display:none">⚠️ Databáze není připojena.</div>
+
+  <!-- ─── HUB ─── -->
+  <div id="hub" class="hub">
+    <div class="welcome">Vítej, <b id="who">hráči</b> 👋</div>
+    <div class="tiles">
+      <a class="tile quiz" href="kvizy.html">
+        <div class="emoji">🧠</div>
+        <div class="tt">DENNÍ KVÍZY</div>
+        <div class="td">Otestuj své znalosti každý den. IT a obecný kvíz, žebříček, statistiky a denní výzva.</div>
+        <div class="go">VSTOUPIT →</div>
+      </a>
+      <a class="tile games" href="minihry.html">
+        <div class="emoji">🎮</div>
+        <div class="tt">MINIHRY</div>
+        <div class="td">Zastav čas, terče, rovnováha, tower builder, katana master, slepá mapa ČR a kvízová aréna.</div>
+        <div class="go">HRÁT →</div>
+      </a>
+    </div>
+    <button class="logout" onclick="logout()">↩ ODHLÁSIT SE</button>
   </div>
 
-  <div class="foot">© IT QUIZ</div>
+<script>
+  // ─── Supabase (stejné údaje jako appka) ───
+  const SUPABASE_URL = 'https://nueprvtkefezraibnlyo.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_kEir70MApmMucBkp5BHpzg_jhDettKH';
+  let db = null;
+  try {
+    if (window.supabase && SUPABASE_URL) db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  } catch(e){}
+  if (!db) document.getElementById('dbwarn').style.display = 'block';
+
+  // ─── localStorage helpers (kompatibilní s appkou: klíč 'itq_user') ───
+  function lss(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+  function ls(k,d){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):d; }catch(e){ return d; } }
+
+  let tab = 'login';
+  function setTab(t){
+    tab = t;
+    document.getElementById('tab-login').classList.toggle('active', t==='login');
+    document.getElementById('tab-register').classList.toggle('active', t==='register');
+    document.getElementById('hint').textContent = t==='login'
+      ? 'Zadej přezdívku a heslo svého účtu.'
+      : 'Zvol si přezdívku a heslo. Profil doplníš později v appce.';
+    document.getElementById('password').placeholder = t==='login' ? 'Heslo...' : 'Zvol si heslo...';
+    document.getElementById('submit').textContent = t==='login' ? '↩ PŘIHLÁSIT SE' : '✦ VYTVOŘIT ÚČET';
+    document.getElementById('err').textContent = '';
+  }
+
+  function showErr(m){ document.getElementById('err').textContent = m; }
+
+  async function submitAuth(){
+    const n = document.getElementById('name').value.trim();
+    const p = document.getElementById('password').value.trim();
+    if (n.length < 2) return showErr('Aspoň 2 znaky pro jméno!');
+    if (n.length > 20) return showErr('Max 20 znaků!');
+    if (p.length < 4) return showErr('Heslo musí mít alespoň 4 znaky!');
+    if (!db) return showErr('Databáze není připojena.');
+
+    const btn = document.getElementById('submit');
+    btn.disabled = true; const orig = btn.textContent; btn.textContent = 'NAČÍTÁM...';
+
+    try {
+      if (tab === 'login') {
+        const { data, error } = await db.rpc('verify_password', { p_name: n, p_password: p });
+        if (error) { showErr('Chyba ověření: ' + error.message); }
+        else if (!data || data.length === 0) { showErr('Špatné jméno nebo heslo!'); }
+        else { loginDone({ ...data[0], premium: false }); return; }
+      } else {
+        const { data: existing } = await db.from('users').select('id').ilike('name', n).maybeSingle();
+        if (existing) { showErr('Jméno "' + n + '" je již obsazeno.'); }
+        else {
+          const { data, error } = await db.rpc('register_user', { p_name: n, p_password: p, p_profile: {} });
+          if (error || !data || data.length === 0) { showErr('Chyba registrace: ' + (error?.message || 'neznámá')); }
+          else { loginDone({ ...data[0], premium: false }); return; }
+        }
+      }
+    } catch(e) {
+      showErr('Chyba připojení k databázi.');
+    }
+    btn.disabled = false; btn.textContent = orig;
+  }
+
+  function loginDone(user){
+    lss('itq_user', user);        // appka (kvizy/minihry) si ho převezme
+    showHub(user);
+  }
+
+  function showHub(user){
+    document.getElementById('auth').style.display = 'none';
+    document.getElementById('dbwarn').style.display = 'none';
+    document.getElementById('who').textContent = user.name || 'hráči';
+    document.getElementById('hub').classList.add('show');
+  }
+
+  function logout(){
+    lss('itq_user', null);
+    location.reload();
+  }
+
+  // ─── Při načtení: pokud už přihlášen, rovnou hub ───
+  (function init(){
+    const u = ls('itq_user', null);
+    if (u && u.name) showHub(u);
+    ['name','password'].forEach(id =>
+      document.getElementById(id).addEventListener('keydown', e => { if(e.key==='Enter') submitAuth(); })
+    );
+  })();
+</script>
 </body>
 </html>

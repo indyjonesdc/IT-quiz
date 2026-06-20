@@ -106,6 +106,9 @@ body{font-family:'Inter', sans-serif;color:#e0e8ff;overflow-x:hidden}
 <div id="root"></div>
 
 <script type="text/babel">
+/* ── Brána INDYGAMES: bez přihlášení zpět na rozcestník ── */
+try{ var __u=JSON.parse(localStorage.getItem('itq_user')||'null'); if(!__u||!__u.name){ location.replace('index.html'); } }catch(e){ location.replace('index.html'); }
+
 // ═══════════════════════════════════════════════════════
 // ⚙️  KONFIGURACE — VYPLŇ SVÉ SUPABASE ÚDAJE
 // ═══════════════════════════════════════════════════════
@@ -914,7 +917,7 @@ function App() {
     wrap: { minHeight:'100vh', background:'#0a0a0f', fontFamily:"'Inter', sans-serif", color:'#e0e8ff', position:'relative', overflowX:'hidden' },
     grid: { position:'fixed', top:0, left:0, right:0, bottom:0, backgroundImage:'linear-gradient(rgba(30,60,150,0.07) 1px,transparent 1px),linear-gradient(90deg,rgba(30,60,150,0.07) 1px,transparent 1px)', backgroundSize:'50px 50px', pointerEvents:'none', zIndex:0 },
     scan: { position:'fixed', top:0, left:0, right:0, bottom:0, background:'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,50,100,0.025) 2px,rgba(0,50,100,0.025) 4px)', pointerEvents:'none', zIndex:0 },
-    content: { position:'relative', zIndex:1 },
+    content: { position:'relative', zIndex:1, display:'flex', flexDirection:'column', alignItems:'center' },
   };
 
   return (
@@ -3865,15 +3868,20 @@ function MiniBoard({ game, title, color, onBack }) {
 
 function MinigamesScreen({ user, onBack, onScoreSaved }) {
   const [screen, setScreen] = useState('menu');
+  const [mgMode, setMgMode] = useState(null); // null = výběr kategorie, 'single' | 'multi'
 
   // Back handler pro minihry (mapa má vlastní __mapBack s vyšší prioritou)
   const mgScreenRef = useRef(screen);
+  const mgModeRef = useRef(mgMode);
   useEffect(() => { mgScreenRef.current = screen; }, [screen]);
+  useEffect(() => { mgModeRef.current = mgMode; }, [mgMode]);
   useEffect(() => {
     window.__minigamesBack = () => {
       const s = mgScreenRef.current;
-      if (s === 'menu') onBack();
-      else setScreen('menu');
+      if (s !== 'menu') { setScreen('menu'); return; }
+      // v menu: zpět na výběr kategorie; z výběru kategorie ven na rozcestník
+      if (mgModeRef.current) { setMgMode(null); }
+      else { onBack(); }
     };
     return () => { window.__minigamesBack = null; };
   }, []);
@@ -3952,13 +3960,40 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
     { key:'tw',  emoji:'🏗️', title:'Tower Builder',     desc:'Skládej bloky co nejpřesněji',   color:'#ffaa44', boardKey:'board_tw', game:'tower'     },
     { key:'sl',  emoji:'⚔️', title:'Katana Master',      desc:'Sekej bloky správným směrem', color:'#44ffaa', boardKey:'board_sl', game:'slash'     },
     { key:'mp',  emoji:'🗺️', title:'Slepá mapa ČR',      desc:'Online multiplayer · hádej místa v ČR',   color:'#44ddff', boardKey:'board_mp', game:'mapbattle', multiplayer:true },
-    { key:'qb',  emoji:'🎉', title:'Kvízová aréna',      desc:'Kahoot styl · týmy i jednotlivci · 6 kategorií', color:'#aa55ff', boardKey:'board_qb', game:'quizbattle', multiplayer:true },
+    { key:'qb',  emoji:'🎉', title:'Kvízová aréna',      desc:'Kahoot styl · týmy i jednotlivci · 7 kategorií', color:'#aa55ff', boardKey:'board_qb', game:'quizbattle', multiplayer:true },
   ];
 
   return (
-    <div className="slide-in" style={{width:'100%',maxWidth:480,textAlign:'center',position:'relative'}}>
+    <div className="slide-in" style={{width:'100%',maxWidth:480,margin:'0 auto',textAlign:'center',position:'relative'}}>
       <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:10,color:'#bb44ff',letterSpacing:4,marginBottom:6}}>BONUS</div>
       <h2 className="glow" style={{fontFamily:"'Orbitron',sans-serif",fontSize:28,fontWeight:900,color:'#fff',marginBottom:16}}>MINIHRY</h2>
+
+      {/* ── VÝBĚR KATEGORIE: jeden hráč / více hráčů ── */}
+      {mgMode === null && (
+        <div style={{animation:'slideIn .3s ease',display:'flex',flexDirection:'column',gap:14,marginTop:10}}>
+          <button onClick={()=>{setMgMode('single');setScreen('menu');}} style={{
+            background:'linear-gradient(135deg,rgba(68,136,255,0.12),rgba(34,85,204,0.12))',
+            border:'1px solid #2a4a8a',borderRadius:16,padding:'26px 20px',cursor:'pointer',textAlign:'left',
+            display:'flex',alignItems:'center',gap:16,transition:'all .15s'}}>
+            <span style={{fontSize:40,flexShrink:0}}>🎮</span>
+            <div>
+              <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:17,fontWeight:900,color:'#88aaff',letterSpacing:1,marginBottom:4}}>HRY PRO JEDNOHO</div>
+              <div style={{fontSize:12,color:'#667799'}}>Zastav čas, terče, rovnováha, tower builder, katana master</div>
+            </div>
+          </button>
+          <button onClick={()=>{setMgMode('multi');setScreen('menu');}} style={{
+            background:'linear-gradient(135deg,rgba(180,60,200,0.12),rgba(100,0,180,0.12))',
+            border:'1px solid #6a2a8a',borderRadius:16,padding:'26px 20px',cursor:'pointer',textAlign:'left',
+            display:'flex',alignItems:'center',gap:16,transition:'all .15s'}}>
+            <span style={{fontSize:40,flexShrink:0}}>👥</span>
+            <div>
+              <div style={{fontFamily:"'Orbitron',sans-serif",fontSize:17,fontWeight:900,color:'#ff88cc',letterSpacing:1,marginBottom:4}}>HRY PRO VÍCE HRÁČŮ</div>
+              <div style={{fontSize:12,color:'#886699'}}>Slepá mapa ČR a Kvízová aréna · online</div>
+            </div>
+          </button>
+          <button onClick={onBack} style={{background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1,marginTop:8}}>← ROZCESTNÍK</button>
+        </div>
+      )}
 
       {/* REKORD OVERLAY */}
       {newRecord && (
@@ -4024,9 +4059,13 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
       )}
 
       {/* MENU */}
-      {screen==='menu' && (
+      {screen==='menu' && mgMode && (
         <div style={{animation:'slideIn .3s ease'}}>
-          {GAMES.map(g=>{
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14}}>
+            <button onClick={()=>setMgMode(null)} style={{background:'transparent',border:'1px solid #2a3a5a',color:'#8899bb',borderRadius:8,padding:'6px 12px',fontSize:11,cursor:'pointer',letterSpacing:1}}>←</button>
+            <span style={{fontFamily:"'Orbitron',sans-serif",fontSize:12,letterSpacing:2,color: mgMode==='multi' ? '#ff88cc' : '#88aaff'}}>{mgMode==='multi' ? '👥 PRO VÍCE HRÁČŮ' : '🎮 PRO JEDNOHO'}</span>
+          </div>
+          {GAMES.filter(g => mgMode==='multi' ? g.multiplayer : !g.multiplayer).map(g=>{
             const leader = leaders[g.game];
             return (
               <div key={g.key} style={{background:'rgba(12,18,52,.8)',border:'1px solid #1e2a4a',borderRadius:14,padding:14,marginBottom:10,textAlign:'left'}}>
@@ -4055,7 +4094,7 @@ function MinigamesScreen({ user, onBack, onScoreSaved }) {
               </div>
             );
           })}
-          <button onClick={onBack} style={{background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1,marginTop:8}}>← ZPĚT</button>
+          <button onClick={()=>setMgMode(null)} style={{background:'transparent',border:'none',color:'#334455',fontSize:12,cursor:'pointer',letterSpacing:1,marginTop:8}}>← ZPĚT</button>
         </div>
       )}
 
@@ -6495,6 +6534,7 @@ const QUIZ_CATS = [
   { id:'obecny',   icon:'🧠', name:'Obecný',   color:'#4488ff' },
   { id:'divnosti', icon:'🤪', name:'Divnosti', color:'#ffaa22' },
   { id:'priroda',  icon:'🌿', name:'Příroda',  color:'#44cc88' },
+  { id:'fotbal',   icon:'⚽', name:'Fotbal',   color:'#1a8a4a' },
 ];
 
 const QUIZ_QUESTIONS = [
@@ -7114,6 +7154,107 @@ const QUIZ_QUESTIONS = [
   { c:'priroda', q:'Co je „opylování"?', a:['Přenos pylu','Klíčení','Růst kořenů','Opadávání listů'], correct:0 },
   { c:'priroda', q:'Které zvíře je největší pták?', a:['Pštros','Orel','Albatros','Kondor'], correct:0 },
   { c:'priroda', img:'🌵', photo:'cactus', q:'Která rostlina roste v poušti a zadržuje vodu?', a:['Kaktus','Růže','Smrk','Tulipán'], correct:0 },
+  // ─── FOTBAL (100) ───
+  { c:'fotbal', img:'⚽', photo:'soccer ball', q:'Kolik hráčů má fotbalový tým na hřišti?', a:['11','10','12','9'], correct:0 },
+  { c:'fotbal', q:'Kterou zemi reprezentuje Lionel Messi?', a:['Argentina','Brazílie','Uruguay','Chile'], correct:0 },
+  { c:'fotbal', q:'Který klub se přezdívá „Rudí ďáblové“?', a:['Manchester United','Liverpool','Arsenal','Chelsea'], correct:0 },
+  { c:'fotbal', q:'Kolik trvá základní hrací doba fotbalového zápasu?', a:['90 minut','80 minut','100 minut','120 minut'], correct:0 },
+  { c:'fotbal', q:'Kde sídlí FIFA?', a:['Curych','Paříž','Londýn','Madrid'], correct:0 },
+  { c:'fotbal', q:'Která země vyhrála MS ve fotbale 2022?', a:['Argentina','Francie','Brazílie','Chorvatsko'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje portugalská hvězda s přezdívkou CR7?', a:['Cristiano Ronaldo','Luís Figo','Bruno Fernandes','João Félix'], correct:0 },
+  { c:'fotbal', q:'Která země získala nejvíce titulů mistra světa?', a:['Brazílie','Německo','Itálie','Argentina'], correct:0 },
+  { c:'fotbal', q:'Kolik titulů mistra světa má Brazílie?', a:['5','4','3','6'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje nejvyšší anglická fotbalová soutěž?', a:['Premier League','Championship','La Liga','Serie A'], correct:0 },
+  { c:'fotbal', q:'Ve kterém městě hraje FC Barcelona?', a:['Barcelona','Madrid','Sevilla','Valencie'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje stadion FC Barcelony?', a:['Camp Nou','Santiago Bernabéu','Anfield','San Siro'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje legendární argentinský hráč, který zemřel v roce 2020?', a:['Diego Maradona','Gabriel Batistuta','Mario Kempes','Juan Riquelme'], correct:0 },
+  { c:'fotbal', q:'Kolik gólů znamená „hattrick“?', a:['3','2','4','5'], correct:0 },
+  { c:'fotbal', q:'Jakou barvu má karta při vyloučení hráče?', a:['Červená','Žlutá','Modrá','Zelená'], correct:0 },
+  { c:'fotbal', q:'Co znamená žlutá karta?', a:['Napomenutí','Vyloučení','Gól','Penalta'], correct:0 },
+  { c:'fotbal', img:'🥅', photo:'goal net', q:'Kolik branek je na fotbalovém hřišti?', a:['2','1','4','3'], correct:0 },
+  { c:'fotbal', q:'Z jaké vzdálenosti se kope pokutový kop?', a:['11 metrů','9 metrů','10 metrů','12 metrů'], correct:0 },
+  { c:'fotbal', q:'Jak se v angličtině řekne pokutovému kopu?', a:['Penalty','Corner','Free kick','Offside'], correct:0 },
+  { c:'fotbal', q:'Která země pořádala MS ve fotbale 2018?', a:['Rusko','Brazílie','Katar','Německo'], correct:0 },
+  { c:'fotbal', q:'Která země pořádala MS ve fotbale 2014?', a:['Brazílie','Jihoafrická republika','Německo','Rusko'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje nejvyšší klubová soutěž v Evropě?', a:['Liga mistrů','Evropská liga','Konferenční liga','Superpohár'], correct:0 },
+  { c:'fotbal', q:'Jaký je dřívější název Ligy mistrů?', a:['Pohár mistrů evropských zemí','Pohár UEFA','Interkontinentální pohár','Pohár vítězů pohárů'], correct:0 },
+  { c:'fotbal', q:'Který klub vyhrál nejvíce titulů v Lize mistrů?', a:['Real Madrid','AC Milán','Bayern Mnichov','Liverpool'], correct:0 },
+  { c:'fotbal', q:'Ve kterém městě hraje Real Madrid?', a:['Madrid','Barcelona','Sevilla','Bilbao'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje stadion Realu Madrid?', a:['Santiago Bernabéu','Camp Nou','Wanda Metropolitano','Mestalla'], correct:0 },
+  { c:'fotbal', q:'Kterou zemi reprezentoval Pelé?', a:['Brazílie','Argentina','Portugalsko','Uruguay'], correct:0 },
+  { c:'fotbal', q:'Kolik titulů mistra světa získal Pelé?', a:['3','2','4','1'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje nejvyšší španělská liga?', a:['La Liga','Serie A','Ligue 1','Bundesliga'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje nejvyšší italská liga?', a:['Serie A','La Liga','Bundesliga','Eredivisie'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje nejvyšší německá liga?', a:['Bundesliga','Serie A','La Liga','Ligue 1'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje nejvyšší francouzská liga?', a:['Ligue 1','La Liga','Serie A','Primeira Liga'], correct:0 },
+  { c:'fotbal', q:'Který klub se přezdívá „Stará dáma“?', a:['Juventus','Inter Milán','AC Milán','AS Řím'], correct:0 },
+  { c:'fotbal', q:'Ve kterém italském městě hraje Juventus?', a:['Turín','Milán','Řím','Neapol'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje slavný stadion Liverpoolu?', a:['Anfield','Old Trafford','Emirates','Stamford Bridge'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje stadion Manchesteru United?', a:['Old Trafford','Anfield','Etihad','Goodison Park'], correct:0 },
+  { c:'fotbal', q:'Kolik bodů získá tým za výhru v lize?', a:['3','2','1','4'], correct:0 },
+  { c:'fotbal', q:'Kolik bodů získá tým za remízu?', a:['1','0','2','3'], correct:0 },
+  { c:'fotbal', q:'Jak se nazývá situace, kdy je útočník blíž k brance než předposlední obránce?', a:['Ofsajd','Faul','Roh','Aut'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje rozhodčí pomocný systém pro sporné situace?', a:['VAR','GPS','VPN','FAQ'], correct:0 },
+  { c:'fotbal', q:'Kolik rozhodčích řídí zápas přímo na hřišti (hlavní)?', a:['1','2','3','4'], correct:0 },
+  { c:'fotbal', q:'Jaká hvězda hrála za FC Barcelona a má přezdívku „Lev“?', a:['Lionel Messi','Luis Suárez','Neymar','Xavi'], correct:0 },
+  { c:'fotbal', q:'Ze které země pochází fotbalista Neymar?', a:['Brazílie','Argentina','Portugalsko','Kolumbie'], correct:0 },
+  { c:'fotbal', q:'Ze které země pochází Kylian Mbappé?', a:['Francie','Belgie','Senegal','Maroko'], correct:0 },
+  { c:'fotbal', q:'Který francouzský klub Mbappé proslavil?', a:['Paris Saint-Germain','Olympique Lyon','Monako','Marseille'], correct:0 },
+  { c:'fotbal', q:'Ze které země pochází Robert Lewandowski?', a:['Polsko','Německo','Česko','Ukrajina'], correct:0 },
+  { c:'fotbal', q:'Za který německý klub Lewandowski dlouho hrál a dával hodně gólů?', a:['Bayern Mnichov','Borussia Dortmund','Schalke','Lipsko'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje nejlepší český fotbalista, který hrál v Anglii jako záložník (Liverpool, Chelsea)?', a:['Pavel Nedvěd','Petr Čech','Tomáš Rosický','Vladimír Šmicer'], correct:0 },
+  { c:'fotbal', q:'Který český brankář chytal za Chelsea a Arsenal?', a:['Petr Čech','Jan Koller','Milan Baroš','Tomáš Vaclík'], correct:0 },
+  { c:'fotbal', q:'Pavel Nedvěd získal v roce 2003 jakou prestižní cenu?', a:['Zlatý míč','Zlatá kopačka','Cenu fair play','Cenu pro brankáře'], correct:0 },
+  { c:'fotbal', q:'V jakém italském klubu hrál Pavel Nedvěd nejdéle?', a:['Juventus','Lazio','Inter','Milán'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje nejvyšší česká fotbalová soutěž?', a:['Fortuna liga','Chance liga','Gambrinus liga','HET liga'], correct:0 },
+  { c:'fotbal', q:'Který český klub je nejúspěšnější v počtu ligových titulů?', a:['Sparta Praha','Slavia Praha','Baník Ostrava','Viktoria Plzeň'], correct:0 },
+  { c:'fotbal', q:'Jaké barvy má dres Sparty Praha?', a:['Rudá','Modrobílá','Žlutomodrá','Zelenobílá'], correct:0 },
+  { c:'fotbal', q:'Jaké barvy má tradičně dres Slavie Praha?', a:['Červenobílá','Modrobílá','Žlutočerná','Zelenobílá'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje pražské fotbalové derby?', a:['Sparta vs Slavia','Sparta vs Bohemians','Slavia vs Dukla','Baník vs Sigma'], correct:0 },
+  { c:'fotbal', q:'Která česká reprezentace došla do finále ME 1996?', a:['Česko','Slovensko','Chorvatsko','Polsko'], correct:0 },
+  { c:'fotbal', q:'Kdo vyhrál ME 1996, kde Česko skončilo druhé?', a:['Německo','Anglie','Francie','Itálie'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje slavný český útočník, vysoký „čahoun“, který hrál za Dortmund?', a:['Jan Koller','Milan Baroš','Vratislav Lokvenc','Marek Heinz'], correct:0 },
+  { c:'fotbal', q:'Milan Baroš se stal nejlepším střelcem jakého turnaje (EURO 2004)?', a:['Mistrovství Evropy','Mistrovství světa','Ligy mistrů','Konfederačního poháru'], correct:0 },
+  { c:'fotbal', q:'Co znamená zkratka UEFA?', a:['Evropská fotbalová asociace','Světová fotbalová liga','Asociace anglických klubů','Unie amerických klubů'], correct:0 },
+  { c:'fotbal', q:'Jak často se koná mistrovství světa ve fotbale?', a:['Každé 4 roky','Každé 2 roky','Každý rok','Každých 5 let'], correct:0 },
+  { c:'fotbal', q:'Jak často se koná mistrovství Evropy ve fotbale?', a:['Každé 4 roky','Každé 2 roky','Každý rok','Každých 3 roky'], correct:0 },
+  { c:'fotbal', q:'Kolik hráčů je v základní sestavě (včetně brankáře)?', a:['11','10','12','9'], correct:0 },
+  { c:'fotbal', q:'Jak se nazývá hráč, který brání branku?', a:['Brankář','Obránce','Záložník','Útočník'], correct:0 },
+  { c:'fotbal', q:'Jak se nazývá hráč, jehož úkolem je dávat góly?', a:['Útočník','Brankář','Obránce','Rozhodčí'], correct:0 },
+  { c:'fotbal', q:'Jak se nazývá kop z rohu hřiště?', a:['Rohový kop','Volný kop','Pokutový kop','Vhazování'], correct:0 },
+  { c:'fotbal', q:'Co se stane, když míč přejde celou postranní čáru?', a:['Vhazování','Roh','Penalta','Volný kop'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje argentinský klub, kde začínal Maradona?', a:['Boca Juniors','River Plate','Independiente','Racing'], correct:0 },
+  { c:'fotbal', q:'Jak se nazývá derby mezi Boca Juniors a River Plate?', a:['Superclásico','El Clásico','Derby della Madonnina','North London Derby'], correct:0 },
+  { c:'fotbal', q:'Jak se nazývá španělské derby mezi Realem a Barcelonou?', a:['El Clásico','Superclásico','Der Klassiker','Old Firm'], correct:0 },
+  { c:'fotbal', q:'Který klub trénoval dlouhá léta Pep Guardiola v Anglii?', a:['Manchester City','Manchester United','Chelsea','Arsenal'], correct:0 },
+  { c:'fotbal', q:'Ze které země pochází trenér Pep Guardiola?', a:['Španělsko','Itálie','Portugalsko','Argentina'], correct:0 },
+  { c:'fotbal', q:'Jak se přezdívá portugalskému trenérovi José Mourinhovi?', a:['The Special One','The Professor','El Loco','The Wizard'], correct:0 },
+  { c:'fotbal', q:'Který anglický klub hraje na stadionu Emirates?', a:['Arsenal','Tottenham','Chelsea','West Ham'], correct:0 },
+  { c:'fotbal', q:'Který klub hraje na Stamford Bridge?', a:['Chelsea','Arsenal','Fulham','Crystal Palace'], correct:0 },
+  { c:'fotbal', q:'Ze které země pochází Erling Haaland?', a:['Norsko','Švédsko','Dánsko','Island'], correct:0 },
+  { c:'fotbal', q:'Za jaký anglický klub hraje Erling Haaland?', a:['Manchester City','Liverpool','Chelsea','Arsenal'], correct:0 },
+  { c:'fotbal', q:'Ze které země pochází Mohamed Salah?', a:['Egypt','Maroko','Alžírsko','Senegal'], correct:0 },
+  { c:'fotbal', q:'Za jaký anglický klub hraje Mohamed Salah?', a:['Liverpool','Manchester United','Chelsea','Arsenal'], correct:0 },
+  { c:'fotbal', q:'Jak se nazývá trofej pro nejlepšího fotbalistu světa od France Football?', a:['Zlatý míč','Zlatá kopačka','Pohár UEFA','Cena FIFA The Best'], correct:0 },
+  { c:'fotbal', q:'Kdo vyhrál nejvíce Zlatých míčů v historii (k roku 2023)?', a:['Lionel Messi','Cristiano Ronaldo','Michel Platini','Johan Cruyff'], correct:0 },
+  { c:'fotbal', q:'Ze které země pochází legenda Johan Cruyff?', a:['Nizozemsko','Německo','Belgie','Dánsko'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje slavný fotbalový trik pojmenovaný po Cruyffovi?', a:['Cruyff turn','Rabona','Panenka','Marseille turn'], correct:0 },
+  { c:'fotbal', q:'Po kom je pojmenovaný drzý dloubák při penaltě?', a:['Antonín Panenka','Pelé','Maradona','Beckham'], correct:0 },
+  { c:'fotbal', q:'Ze které země pochází fotbalista Kevin De Bruyne?', a:['Belgie','Nizozemsko','Francie','Německo'], correct:0 },
+  { c:'fotbal', q:'Jak se nazývá nejvyšší nizozemská liga?', a:['Eredivisie','Bundesliga','Pro League','Primeira Liga'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje slavný nizozemský klub z Amsterdamu?', a:['Ajax','PSV','Feyenoord','AZ Alkmaar'], correct:0 },
+  { c:'fotbal', q:'Který klub je tradičním rivalem Ajaxu z Rotterdamu?', a:['Feyenoord','PSV','Twente','Utrecht'], correct:0 },
+  { c:'fotbal', q:'Co znamená zkratka MS ve fotbalovém kontextu?', a:['Mistrovství světa','Mistrovství Slovenska','Městská soutěž','Mužská skupina'], correct:0 },
+  { c:'fotbal', q:'Kolik týmů hrálo na MS ve fotbale 2022 v Kataru?', a:['32','24','16','48'], correct:0 },
+  { c:'fotbal', q:'Kolik týmů má hrát na MS 2026?', a:['48','32','40','24'], correct:0 },
+  { c:'fotbal', q:'Které tři země budou pořádat MS 2026?', a:['USA, Kanada a Mexiko','Anglie, Skotsko a Wales','Brazílie, Argentina a Uruguay','Německo, Francie a Belgie'], correct:0 },
+  { c:'fotbal', q:'Jak se nazývá závěrečný zápas turnaje, kde se rozhoduje o vítězi?', a:['Finále','Semifinále','Čtvrtfinále','Osmifinále'], correct:0 },
+  { c:'fotbal', q:'Co následuje po nerozhodném výsledku ve vyřazovacím zápase, pokud ani prodloužení nerozhodne?', a:['Penaltový rozstřel','Opakování zápasu','Los','Sdílené vítězství'], correct:0 },
+  { c:'fotbal', q:'Kolik trvá jedno prodloužení ve fotbale (jeden poločas)?', a:['15 minut','10 minut','20 minut','5 minut'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje obrovský dres pro střelce branky, který je nejlepším střelcem ligy?', a:['Korunu krále střelců','Zlatá kopačka','Žlutý dres','Zelený dres'], correct:0 },
+  { c:'fotbal', q:'Co dělá hráč na pozici „stoper“?', a:['Brání','Útočí','Chytá','Rozhoduje'], correct:0 },
+  { c:'fotbal', q:'Jak se jmenuje italský klub se San Siro, hrající v modročerných pruzích?', a:['Inter Milán','AC Milán','AS Řím','Lazio'], correct:0 },
+  { c:'fotbal', q:'Který stadion sdílí Inter a AC Milán?', a:['San Siro','Allianz Stadium','Olimpico','Maradona'], correct:0 },
 ];
 
 // Převod emoji vlajky (regional indicators) na ISO 3166 kód → reálná vlajka z flagcdn
@@ -7164,6 +7305,7 @@ function QuizBattleGame({ user, onExit }) {
   const scoresRef = useRef({});
   const revealedRef = useRef(false);
   const qTimerRef = useRef(null);
+  const advTimerRef = useRef(null);
   const curQRef = useRef(0);
   const myAnswerRef = useRef(null);
   const myScoreRef = useRef(0);
@@ -7267,6 +7409,9 @@ function QuizBattleGame({ user, onExit }) {
       setRevealData(payload); setView('final');
     });
     channel.on('broadcast', { event: 'restart_lobby' }, () => {
+      if (qTimerRef.current) { clearTimeout(qTimerRef.current); qTimerRef.current = null; }
+      if (advTimerRef.current) { clearTimeout(advTimerRef.current); advTimerRef.current = null; }
+      revealedRef.current = false; answersRef.current = {}; curQRef.current = 0;
       scoresRef.current = {}; setScores({}); setRevealData(null); setQIndex(0); setView('lobby');
     });
     if (asHost) {
@@ -7308,6 +7453,8 @@ function QuizBattleGame({ user, onExit }) {
   }
 
   function hostStartGame() {
+    if (qTimerRef.current) { clearTimeout(qTimerRef.current); qTimerRef.current = null; }
+    if (advTimerRef.current) { clearTimeout(advTimerRef.current); advTimerRef.current = null; }
     const cats = selCatsRef.current.length ? selCatsRef.current : QUIZ_CATS.map(c=>c.id);
     let all = QUIZ_QUESTIONS.filter(q => cats.includes(q.c));
     // Střídání: preferuj otázky nepoužité v posledních hrách
@@ -7361,7 +7508,9 @@ function QuizBattleGame({ user, onExit }) {
       perPlayer[id] = { choice: ans ? ans.choice : null, correct, pts, name: pstate[id][0].name, team: pstate[id][0].team||'red' };
     });
     chanRef.current.send({ type:'broadcast', event:'reveal', payload:{ correct:q.correct, perPlayer, scores:scoresRef.current, index:i } });
-    setTimeout(() => {
+    if (advTimerRef.current) clearTimeout(advTimerRef.current);
+    advTimerRef.current = setTimeout(() => {
+      advTimerRef.current = null;
       if (i + 1 < questionsRef.current.length) hostStartQuestion(i + 1);
       else {
         const pstate2 = chanRef.current.presenceState();
@@ -7742,6 +7891,7 @@ function MapBattleGame({ user, onExit }) {
   const guessesRef = useRef({});    // host: tipy pro aktuální kolo
   const scoresRef = useRef({});     // host: kumulativní skóre
   const revealTimerRef = useRef(null); // host: timeout pro deadline
+  const mapAdvTimerRef = useRef(null); // host: timeout pro postup do dalšího kola
   const revealedRef = useRef(false);   // host: guard proti dvojímu reveal
   const curRoundRef = useRef(0);       // host: aktuální kolo
   const usedPlacesRef = useRef([]);    // host: použitá místa (neopakovat)
@@ -7792,6 +7942,9 @@ function MapBattleGame({ user, onExit }) {
 
     // Broadcast eventy
     channel.on('broadcast', { event: 'restart_lobby' }, () => {
+      if (revealTimerRef.current) { clearTimeout(revealTimerRef.current); revealTimerRef.current = null; }
+      if (mapAdvTimerRef.current) { clearTimeout(mapAdvTimerRef.current); mapAdvTimerRef.current = null; }
+      revealedRef.current = false; guessesRef.current = {}; curRoundRef.current = 0;
       scoresRef.current = {};
       setResults([]);
       setRound(0);
@@ -7906,6 +8059,8 @@ function MapBattleGame({ user, onExit }) {
   }
 
   function hostStartGame() {
+    if (revealTimerRef.current) { clearTimeout(revealTimerRef.current); revealTimerRef.current = null; }
+    if (mapAdvTimerRef.current) { clearTimeout(mapAdvTimerRef.current); mapAdvTimerRef.current = null; }
     // Vyber místa která ještě nebyla použita
     let pool = CR_PLACES.filter(p => !usedPlacesRef.current.includes(p.n));
     const tr = totalRoundsRef.current;
@@ -7964,7 +8119,9 @@ function MapBattleGame({ user, onExit }) {
     chanRef.current.send({ type:'broadcast', event:'reveal', payload:{ results, place:{lat:place.lat, lon:place.lon, n:place.n, t:place.t} } });
 
     // Po 6s další kolo nebo konec
-    setTimeout(() => {
+    if (mapAdvTimerRef.current) clearTimeout(mapAdvTimerRef.current);
+    mapAdvTimerRef.current = setTimeout(() => {
+      mapAdvTimerRef.current = null;
       const tr = totalRoundsRef.current;
       console.log('[MAP] === Konec kola ' + (r+1) + ' ===  | nastaveno kol: ' + tr + ' | pokračovat: ' + (r + 1 < tr));
       if (r + 1 < tr) hostStartRound(r + 1);

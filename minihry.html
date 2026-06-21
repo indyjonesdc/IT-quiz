@@ -492,6 +492,8 @@ function FiveTenGame({user,onExit}){
   const [results,setResults]=useState([]);
   const [correctSet,setCorrectSet]=useState([]); // revealed correct indices
   const [standings,setStandings]=useState([]);
+  const [soloMode,setSoloMode]=useState(false);const soloModeRef=useRef(false);useEffect(()=>{soloModeRef.current=soloMode;},[soloMode]);
+  const [soloRoundPts,setSoloRoundPts]=useState(0);
   // refs
   const chanRef=useRef(null);
   const scoresRef=useRef({});
@@ -562,8 +564,8 @@ function FiveTenGame({user,onExit}){
 
   function scheduleDeadline(deadline){if(deadlineTimerRef.current)clearTimeout(deadlineTimerRef.current);if(!isHost)return;const ms=Math.max(0,deadline-Date.now())+800;deadlineTimerRef.current=setTimeout(()=>{if(!revealedRef.current)hostReveal(curRoundRef.current);},ms);}
 
-  function hostCreate(){if(!user){setError('Pro multiplayer se musíš přihlásit');return;}const code=genCode();setRoomCode(code);setIsHost(true);setConnecting(true);scoresRef.current={};setupChannel(code,true);setView('lobby');}
-  function joinRoom(){if(!user){setError('Pro multiplayer se musíš přihlásit');return;}const code=joinCode.trim().toUpperCase();if(code.length!==4){setError('Kód má 4 znaky');return;}setRoomCode(code);setIsHost(false);setConnecting(true);setError('');setupChannel(code,false);setView('lobby');}
+  function hostCreate(){if(!user){setError('Pro multiplayer se musíš přihlásit');return;}setSoloMode(false);soloModeRef.current=false;const code=genCode();setRoomCode(code);setIsHost(true);setConnecting(true);scoresRef.current={};setupChannel(code,true);setView('lobby');}
+  function joinRoom(){if(!user){setError('Pro multiplayer se musíš přihlásit');return;}setSoloMode(false);soloModeRef.current=false;const code=joinCode.trim().toUpperCase();if(code.length!==4){setError('Kód má 4 znaky');return;}setRoomCode(code);setIsHost(false);setConnecting(true);setError('');setupChannel(code,false);setView('lobby');}
 
   // ===== host: start game =====
   function hostStartGame(){
@@ -632,14 +634,48 @@ function FiveTenGame({user,onExit}){
       return [...prev,i];
     });
   }
+  function startSolo(n){
+    const pool=[...FT_QUESTIONS].sort(()=>Math.random()-0.5).slice(0,Math.min(n,FT_QUESTIONS.length)).map(item=>{
+      const opts=[...item.correct.map(t=>({t,ok:true})),...item.wrong.map(t=>({t,ok:false}))].sort(()=>Math.random()-0.5);
+      return {q:item.q,cat:item.cat,options:opts.map(o=>o.t),correctIdx:opts.map((o,i)=>o.ok?i:-1).filter(i=>i>=0)};
+    });
+    questionsRef.current=pool;scoresRef.current={[myId]:0};myScoreRef.current=0;
+    setSoloMode(true);soloModeRef.current=true;
+    setTotalRounds(pool.length);totalRoundsRef.current=pool.length;
+    curRoundRef.current=1;setRound(1);setCurQ(pool[0]);setPicks([]);picksRef.current=[];setSubmitted(false);submittedRef.current=false;setCorrectSet([]);setSoloRoundPts(0);
+    setView('playing');
+  }
+  function soloSubmit(){
+    if(submittedRef.current||picksRef.current.length===0)return;
+    setSubmitted(true);submittedRef.current=true;
+    const q=questionsRef.current[(curRoundRef.current||1)-1];
+    const cm={};(q.correctIdx||[]).forEach(i=>cm[i]=true);
+    const pk=picksRef.current;const mistake=pk.some(i=>!cm[i]);
+    const base=mistake?0:(SCORE_TABLE[Math.min(pk.length,5)]||0);
+    scoresRef.current[myId]=(scoresRef.current[myId]||0)+base;myScoreRef.current=scoresRef.current[myId];
+    setCorrectSet(q.correctIdx||[]);setSoloRoundPts(base);
+  }
+  function soloNext(){
+    const nr=(curRoundRef.current||1)+1;
+    if(nr>totalRoundsRef.current){
+      const fs=scoresRef.current[myId]||0;
+      if(user&&typeof fs==='number'&&fs>0){db.from('minigame_scores').insert({id:Date.now().toString(),user_id:user.id,user_name:myName,game:'fiveten',score:fs,detail:null,played_at:new Date().toISOString()}).then(({error})=>{if(error)console.error('[FT] insert selhal:',error.message);});}
+      setView('soloFinal');
+    }else{
+      curRoundRef.current=nr;setRound(nr);
+      const q=questionsRef.current[nr-1];
+      setCurQ(q);setPicks([]);picksRef.current=[];setSubmitted(false);submittedRef.current=false;setCorrectSet([]);setSoloRoundPts(0);
+    }
+  }
   function submitPicks(){
+    if(soloModeRef.current){soloSubmit();return;}
     if(submitted)return;if(picksRef.current.length===0)return;
     setSubmitted(true);submittedRef.current=true;
     const remainingMs=Math.max(0,roundDeadline-Date.now());
     chanRef.current.send({type:'broadcast',event:'submit',payload:{id:myId,name:myName,picks:picksRef.current,remainingMs}});
   }
 
-  function leaveRoom(){if(chanRef.current){try{db.removeChannel(chanRef.current);}catch(e){}chanRef.current=null;}cleanup();setView('menu');setPlayers({});setRoomCode('');setJoinCode('');setIsHost(false);}
+  function leaveRoom(){if(chanRef.current){try{db.removeChannel(chanRef.current);}catch(e){}chanRef.current=null;}cleanup();setView('menu');setPlayers({});setRoomCode('');setJoinCode('');setIsHost(false);setSoloMode(false);soloModeRef.current=false;}
   function restartLobby(){if(chanRef.current){cleanup();chanRef.current.send({type:'broadcast',event:'restart_lobby'});setView('lobby');}}
 
   const secsLeft=Math.max(0,Math.ceil((roundDeadline-now)/1000));
@@ -660,7 +696,7 @@ function FiveTenGame({user,onExit}){
       React.createElement("div",{style:{display:'flex',gap:8,alignItems:'stretch',marginBottom:6}},
         React.createElement("input",{value:joinCode,onChange:e=>setJoinCode(e.target.value.toUpperCase()),placeholder:"KÓD",maxLength:4,style:{flex:1,padding:'12px',borderRadius:11,border:'1px solid #1e3a2e',background:'#0a1a14',color:'#fff',fontSize:18,textAlign:'center',letterSpacing:4,fontFamily:"'Orbitron',sans-serif",boxSizing:'border-box',outline:'none'}}),
         React.createElement("button",{onClick:joinRoom,style:{padding:'12px 22px',fontSize:14,fontWeight:900,background:'linear-gradient(135deg,#157a59,#1d9e75)',color:'#fff',border:'none',borderRadius:11,cursor:'pointer'}},"PŘIPOJIT")),
-      error&&React.createElement("div",{style:{color:'#ff6644',fontSize:12,marginTop:10,animation:'shake .4s'}},error),
+      React.createElement("button",{onClick:()=>startSolo(8),style:{width:'100%',marginTop:10,padding:'13px',fontSize:14,fontWeight:800,letterSpacing:1,background:'rgba(68,255,170,.1)',color:'#7fffcf',border:'1px solid rgba(68,255,170,.3)',borderRadius:12,cursor:'pointer',fontFamily:"'Orbitron',sans-serif"}},"🎯 TRÉNINK (SÓLO)"),error&&React.createElement("div",{style:{color:'#ff6644',fontSize:12,marginTop:10,animation:'shake .4s'}},error),
       React.createElement("button",{onClick:onExit,style:{width:'100%',marginTop:14,padding:10,background:'transparent',border:'1px solid #1e3a2e',color:'#7a9',borderRadius:9,fontSize:13,cursor:'pointer'}},"← Zpět"));
   }
 
@@ -691,12 +727,12 @@ function FiveTenGame({user,onExit}){
   }
 
   if(view==='playing'&&curQ){
-    const urgent=secsLeft<=8;
+    const urgent=!soloMode&&secsLeft<=8;
     return React.createElement("div",{style:{maxWidth:480,margin:'0 auto'}},
       React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}},
         React.createElement("div",{style:{fontSize:11,color:'#7fe0b4',letterSpacing:2,fontFamily:"'Orbitron',sans-serif"}},"KOLO "+round+"/"+totalRounds),
-        React.createElement("div",{style:{fontFamily:"'Orbitron',sans-serif",fontSize:26,fontWeight:900,color:urgent?C.red:'#fff',textShadow:urgent?'0 0 14px rgba(255,68,68,.6)':'none'}},secsLeft+"s")),
-      React.createElement("div",{style:{height:5,background:'#16241c',borderRadius:3,overflow:'hidden',marginBottom:14}},
+        React.createElement("div",{style:{fontFamily:"'Orbitron',sans-serif",fontSize:26,fontWeight:900,color:soloMode?C.green:(urgent?C.red:'#fff'),textShadow:urgent?'0 0 14px rgba(255,68,68,.6)':'none'}},soloMode?((scoresRef.current[myId]||0).toLocaleString()+" b"):secsLeft+"s")),
+      !soloMode&&React.createElement("div",{style:{height:5,background:'#16241c',borderRadius:3,overflow:'hidden',marginBottom:14}},
         React.createElement("div",{style:{height:'100%',width:Math.max(0,Math.min(100,(roundDeadline-now)/(QTIME*1000)*100))+'%',background:urgent?C.red:'linear-gradient(90deg,#1d9e75,#44ffaa)',transition:'width .2s linear'}})),
       React.createElement("div",{style:{fontSize:10,letterSpacing:2,color:'#7fe0b4',marginBottom:6,textAlign:'center',fontFamily:"'Orbitron',sans-serif"}},curQ.cat),
       React.createElement("div",{style:{background:'linear-gradient(135deg,rgba(20,40,32,.7),rgba(12,24,18,.5))',border:'1px solid #1e3a2e',borderRadius:14,padding:'16px 18px',marginBottom:6,textAlign:'center',fontSize:'clamp(15px,2.4vw,18px)',fontWeight:600,color:'#eafff5',lineHeight:1.5}},curQ.q),
@@ -715,7 +751,7 @@ function FiveTenGame({user,onExit}){
             React.createElement("span",{style:{flex:1}},opt));
         })),
       !submitted?React.createElement("button",{onClick:submitPicks,disabled:picks.length===0,style:{width:'100%',padding:'15px',fontSize:15,fontWeight:900,letterSpacing:1,background:picks.length===0?'#2a3a32':'linear-gradient(135deg,#1d9e75,#22cc88)',color:'#fff',border:'none',borderRadius:13,cursor:picks.length===0?'default':'pointer',fontFamily:"'Orbitron',sans-serif"}},picks.length===0?'VYBER 1–5 MOŽNOSTÍ':'✓ POTVRDIT ('+picks.length+')'):
-        React.createElement("div",{style:{textAlign:'center',padding:'14px',background:'rgba(68,255,170,.08)',border:'1px solid rgba(68,255,170,.2)',borderRadius:12,color:C.green,fontSize:13,fontWeight:700}},"✓ Odesláno — čeká se na ostatní…"));
+        (soloMode?React.createElement("div",null,React.createElement("div",{style:{textAlign:'center',padding:'10px',marginBottom:10,fontSize:15,fontWeight:800,color:soloRoundPts>0?C.green:C.red}},soloRoundPts>0?("+"+soloRoundPts+" b"):"Chyba → 0 b"),React.createElement("button",{onClick:soloNext,style:{width:'100%',padding:'15px',fontSize:15,fontWeight:900,letterSpacing:1,background:'linear-gradient(135deg,#1d9e75,#22cc88)',color:'#fff',border:'none',borderRadius:13,cursor:'pointer',fontFamily:"'Orbitron',sans-serif"}},(curRoundRef.current||1)>=totalRounds?"🏁 VÝSLEDKY":"DALŠÍ OTÁZKA →")):React.createElement("div",{style:{textAlign:'center',padding:'14px',background:'rgba(68,255,170,.08)',border:'1px solid rgba(68,255,170,.2)',borderRadius:12,color:C.green,fontSize:13,fontWeight:700}},"✓ Odesláno — čeká se na ostatní…")));
   }
 
   if(view==='reveal'){
@@ -737,6 +773,16 @@ function FiveTenGame({user,onExit}){
       React.createElement("div",{style:{fontSize:12,color:'#789',marginTop:10}},round>=totalRounds?'Finální výsledky…':'Další kolo začíná…'));
   }
 
+  if(view==='soloFinal'){
+    const total=scoresRef.current[myId]||0;const mx=totalRounds*1200;
+    return React.createElement("div",{style:{maxWidth:440,margin:'0 auto',textAlign:'center'}},
+      React.createElement("div",{style:{fontSize:60,marginBottom:6}},total>=mx*0.8?'\uD83C\uDFC6':total>0?'\uD83C\uDFAF':'\uD83D\uDE34'),
+      React.createElement("div",{style:{fontSize:11,color:'#7fe0b4',letterSpacing:4,marginBottom:4,fontFamily:"'Orbitron',sans-serif"}},"TR\u00c9NINK DOKON\u010cEN"),
+      React.createElement("div",{style:{fontFamily:"'Orbitron',sans-serif",fontSize:40,fontWeight:900,color:C.green,textShadow:'0 0 22px rgba(68,255,170,.4)'}},total.toLocaleString()),
+      React.createElement("div",{style:{fontSize:12,color:'#9bd0b8',marginTop:4,marginBottom:18}},"z "+mx.toLocaleString()+" mo\u017en\u00fdch \u00b7 "+totalRounds+" ot\u00e1zek"),
+      React.createElement("button",{onClick:()=>startSolo(totalRounds),style:{width:'100%',padding:'15px',fontSize:15,fontWeight:900,letterSpacing:1,background:'linear-gradient(135deg,#1d9e75,#22cc88)',color:'#fff',border:'none',borderRadius:13,cursor:'pointer',fontFamily:"'Orbitron',sans-serif",marginBottom:10}},"\uD83D\uDD04 HR\u00c1T ZNOVU"),
+      React.createElement("button",{onClick:()=>{setSoloMode(false);soloModeRef.current=false;setView('menu');},style:{width:'100%',padding:12,background:'transparent',border:'1px solid #1e3a2e',color:'#7a9',borderRadius:9,fontSize:13,cursor:'pointer'}},"\u2190 Zp\u011bt do menu"));
+  }
   if(view==='final'){
     const sorted=standings.length?standings:results;
     const champ=sorted[0];

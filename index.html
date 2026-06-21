@@ -7,7 +7,7 @@
 <link rel="dns-prefetch" href="https://nueprvtkefezraibnlyo.supabase.co"/>
 
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>INDYGAMES — denní český kvíz a minihry</title><meta property="og:type" content="website"/><meta property="og:site_name" content="INDYGAMES"/><meta property="og:title" content="INDYGAMES — denní český kvíz a minihry"/><meta property="og:description" content="Otestuj své znalosti v denním kvízu a zahraj si minihry pro víc hráčů. Zdarma, česky."/><meta property="og:url" content="https://indygames.cz"/><meta property="og:image" content="https://indygames.cz/og.png"/><meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content="INDYGAMES — denní český kvíz a minihry"/><meta name="twitter:description" content="Otestuj své znalosti v denním kvízu a zahraj si minihry pro víc hráčů. Zdarma, česky."/><meta name="twitter:image" content="https://indygames.cz/og.png"/>
+<title>INDYGAMES — denní český kvíz a minihry</title><meta property="og:type" content="website"/><meta property="og:site_name" content="INDYGAMES"/><meta property="og:title" content="INDYGAMES — denní český kvíz a minihry"/><meta property="og:description" content="Otestuj své znalosti v denním kvízu a zahraj si minihry pro víc hráčů. Zdarma, česky."/><meta property="og:url" content="https://indygames.cz"/><meta property="og:image" content="https://indygames.cz/og.png"/><meta property="og:image:width" content="1200"/><meta property="og:image:height" content="630"/><meta property="og:image:type" content="image/png"/><meta property="og:image:alt" content="INDYGAMES — kvízy a minihry"/><meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content="INDYGAMES — denní český kvíz a minihry"/><meta name="twitter:description" content="Otestuj své znalosti v denním kvízu a zahraj si minihry pro víc hráčů. Zdarma, česky."/><meta name="twitter:image" content="https://indygames.cz/og.png"/>
 <meta name="theme-color" content="#0a0a0f"/><link rel="manifest" href="/manifest.json"/><link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png"/><link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
@@ -46,11 +46,6 @@
   .err{color:#ff5555;font-size:12px;margin-bottom:12px;text-align:center;min-height:14px}
   .btn-primary{width:100%;background:linear-gradient(135deg,#1a3a8a,#2255cc);border:none;border-radius:8px;padding:14px;color:#fff;font-family:'Orbitron',sans-serif;font-weight:700;font-size:14px;letter-spacing:2px;cursor:pointer;transition:opacity .15s}
   .btn-primary:disabled{opacity:.5;cursor:default}
-  .sel{width:100%;background:rgba(8,12,30,.8);border:1px solid #2a3a6a;border-radius:8px;padding:12px;color:#dde;font-family:system-ui,sans-serif;font-size:14px;margin-bottom:14px;outline:none;cursor:pointer}
-  .sel:focus{border-color:#4488ff}
-  .link-btn{display:block;width:100%;margin-top:14px;background:transparent;border:none;color:#7799cc;font-family:system-ui,sans-serif;font-size:13px;cursor:pointer;text-align:center;padding:4px}
-  .link-btn:hover{color:#aaccff;text-decoration:underline}
-  .qbox{background:rgba(8,12,30,.6);border:1px solid #2a3a6a;border-radius:8px;padding:12px;color:#cce;font-family:system-ui,sans-serif;font-size:14px;margin-bottom:14px;line-height:1.4}
 
   /* ─── Rozcestník ─── */
   .hub{display:none;flex-direction:column;align-items:center;width:100%}
@@ -69,6 +64,8 @@
   .go{margin-top:16px;font-size:12px;letter-spacing:2px;color:#556}
   .logout{margin-top:30px;background:transparent;border:none;color:#445;font-size:11px;letter-spacing:2px;cursor:pointer;font-family:'Orbitron',sans-serif}
   .logout:hover{color:#778}
+  .share-app{margin-top:24px;background:linear-gradient(135deg,rgba(255,90,180,.28),rgba(120,90,255,.28));border:1.5px solid #ff5ab4;color:#ffd9ee;font-size:16px;letter-spacing:1.5px;font-weight:800;padding:15px 34px;border-radius:14px;cursor:pointer;font-family:'Orbitron',sans-serif;box-shadow:0 4px 18px rgba(255,90,180,.22);transition:transform .15s,box-shadow .15s}
+  .share-app:hover{transform:translateY(-3px);box-shadow:0 8px 26px rgba(255,90,180,.38)}
   .warn{margin-top:20px;font-size:11px;color:#cc8844;text-align:center;max-width:420px}
 </style>
 </head>
@@ -88,46 +85,8 @@
     <input id="name" placeholder="Tvá přezdívka..." maxlength="20" autocomplete="username"/>
     <label>Heslo</label>
     <input id="password" type="password" placeholder="Heslo..." maxlength="50" autocomplete="current-password"/>
-
-    <!-- Bezpečnostní otázka – jen při registraci -->
-    <div id="secReg" style="display:none">
-      <label>Bezpečnostní otázka</label>
-      <select id="secQ" class="sel"></select>
-      <input id="secQCustom" placeholder="Napiš vlastní otázku..." maxlength="80" style="display:none"/>
-      <label>Odpověď</label>
-      <input id="secA" placeholder="Odpověď (zapamatuj si ji!)" maxlength="60" autocomplete="off"/>
-    </div>
-
     <div class="err" id="err"></div>
     <button class="btn-primary" id="submit" onclick="submitAuth()">↩ PŘIHLÁSIT SE</button>
-    <button class="link-btn" id="forgotLink" onclick="openForgot()">Zapomněl jsi heslo?</button>
-  </div>
-
-  <!-- ─── RESET HESLA (bezpečnostní otázka) ─── -->
-  <div id="forgot" class="card" style="display:none">
-    <div class="hint" id="fgHint">Zadej přezdívku a my ti ukážeme tvou bezpečnostní otázku.</div>
-
-    <div id="fgStep1">
-      <label>Přezdívka</label>
-      <input id="fgName" placeholder="Tvá přezdívka..." maxlength="20" autocomplete="username"/>
-      <div class="err" id="fgErr"></div>
-      <button class="btn-primary" onclick="forgotLoadQuestion()">NAČÍST OTÁZKU →</button>
-    </div>
-
-    <div id="fgStep2" style="display:none">
-      <label>Bezpečnostní otázka</label>
-      <div id="fgQText" class="qbox"></div>
-      <label>Tvoje odpověď</label>
-      <input id="fgAnswer" placeholder="Odpověď..." maxlength="60" autocomplete="off"/>
-      <label>Nové heslo</label>
-      <input id="fgNewPwd" type="password" placeholder="Min. 4 znaky..." maxlength="50" autocomplete="new-password"/>
-      <label>Nové heslo znovu</label>
-      <input id="fgNewPwd2" type="password" placeholder="Zopakuj nové heslo..." maxlength="50" autocomplete="new-password"/>
-      <div class="err" id="fgErr2"></div>
-      <button class="btn-primary" onclick="forgotReset()">✓ NASTAVIT NOVÉ HESLO</button>
-    </div>
-
-    <button class="link-btn" onclick="closeForgot()">← Zpět na přihlášení</button>
   </div>
   <div class="warn" id="dbwarn" style="display:none">⚠️ Databáze není připojena.</div>
 
@@ -148,6 +107,7 @@
         <div class="go">HRÁT →</div>
       </a>
     </div>
+    <button class="share-app" onclick="shareApp()">📤 SDÍLET APPKU</button>
     <button class="logout" onclick="logout()">↩ ODHLÁSIT SE</button>
   </div>
 
@@ -175,38 +135,10 @@
       : 'Zvol si přezdívku a heslo. Profil doplníš později v appce.';
     document.getElementById('password').placeholder = t==='login' ? 'Heslo...' : 'Zvol si heslo...';
     document.getElementById('submit').textContent = t==='login' ? '↩ PŘIHLÁSIT SE' : '✦ VYTVOŘIT ÚČET';
-    document.getElementById('secReg').style.display = t==='register' ? 'block' : 'none';
-    document.getElementById('forgotLink').style.display = t==='login' ? 'block' : 'none';
     document.getElementById('err').textContent = '';
   }
 
   function showErr(m){ document.getElementById('err').textContent = m; }
-
-  // ─── Přednastavené bezpečnostní otázky ───
-  const SECURITY_QUESTIONS = [
-    'Jak se jmenovalo tvé první domácí zvíře?',
-    'V jakém městě ses narodil/a?',
-    'Jak se jmenuje tvá oblíbená kniha nebo film?',
-    'Jaké je rodné příjmení tvé matky?',
-    'Jak se jmenovala tvá první škola?',
-    'Jaké bylo tvé dětské přezdívka?',
-    'Jaké je jméno tvého nejlepšího kamaráda z dětství?'
-  ];
-
-  (function fillQuestions(){
-    const sel = document.getElementById('secQ');
-    SECURITY_QUESTIONS.forEach(q => {
-      const o = document.createElement('option');
-      o.value = q; o.textContent = q; sel.appendChild(o);
-    });
-    const custom = document.createElement('option');
-    custom.value = '__custom__'; custom.textContent = '✎ Vlastní otázka...';
-    sel.appendChild(custom);
-    sel.addEventListener('change', () => {
-      document.getElementById('secQCustom').style.display =
-        sel.value === '__custom__' ? 'block' : 'none';
-    });
-  })();
 
   async function submitAuth(){
     const n = document.getElementById('name').value.trim();
@@ -226,22 +158,10 @@
         else if (!data || data.length === 0) { showErr('Špatné jméno nebo heslo!'); }
         else { loginDone({ ...data[0], premium: false }); return; }
       } else {
-        // ─── Registrace: sběr bezpečnostní otázky ───
-        const selQ = document.getElementById('secQ');
-        let question = selQ.value;
-        if (question === '__custom__') question = document.getElementById('secQCustom').value.trim();
-        const answer = document.getElementById('secA').value.trim();
-        if (!question) { btn.disabled=false; btn.textContent=orig; return showErr('Vyber nebo napiš bezpečnostní otázku!'); }
-        if (answer.length < 2) { btn.disabled=false; btn.textContent=orig; return showErr('Odpověď musí mít aspoň 2 znaky!'); }
-
         const { data: existing } = await db.from('users').select('id').ilike('name', n).maybeSingle();
         if (existing) { showErr('Jméno "' + n + '" je již obsazeno.'); }
         else {
-          const { data, error } = await db.rpc('register_user', {
-            p_name: n, p_password: p, p_profile: {},
-            p_security_question: question,
-            p_security_answer: answer.toLowerCase()
-          });
+          const { data, error } = await db.rpc('register_user', { p_name: n, p_password: p, p_profile: {} });
           if (error || !data || data.length === 0) { showErr('Chyba registrace: ' + (error?.message || 'neznámá')); }
           else { loginDone({ ...data[0], premium: false }); return; }
         }
@@ -250,68 +170,6 @@
       showErr('Chyba připojení k databázi.');
     }
     btn.disabled = false; btn.textContent = orig;
-  }
-
-  // ─── RESET HESLA přes bezpečnostní otázku ───
-  function openForgot(){
-    document.getElementById('auth').style.display = 'none';
-    document.getElementById('forgot').style.display = 'block';
-    document.getElementById('fgStep1').style.display = 'block';
-    document.getElementById('fgStep2').style.display = 'none';
-    document.getElementById('fgName').value = '';
-    document.getElementById('fgErr').textContent = '';
-  }
-  function closeForgot(){
-    document.getElementById('forgot').style.display = 'none';
-    document.getElementById('auth').style.display = 'block';
-  }
-
-  async function forgotLoadQuestion(){
-    const n = document.getElementById('fgName').value.trim();
-    const fgErr = document.getElementById('fgErr');
-    fgErr.textContent = '';
-    if (n.length < 2) { fgErr.textContent = 'Zadej svou přezdívku.'; return; }
-    if (!db) { fgErr.textContent = 'Databáze není připojena.'; return; }
-
-    try {
-      const { data, error } = await db.rpc('get_security_question', { p_name: n });
-      if (error) { fgErr.textContent = 'Chyba: ' + error.message; return; }
-      if (!data || !data.length || !data[0].security_question) {
-        fgErr.textContent = 'Pro tento účet není nastavena bezpečnostní otázka.'; return;
-      }
-      window.__fgName = n;
-      document.getElementById('fgQText').textContent = data[0].security_question;
-      document.getElementById('fgStep1').style.display = 'none';
-      document.getElementById('fgStep2').style.display = 'block';
-      document.getElementById('fgAnswer').value = '';
-      document.getElementById('fgNewPwd').value = '';
-      document.getElementById('fgNewPwd2').value = '';
-      document.getElementById('fgErr2').textContent = '';
-    } catch(e) { fgErr.textContent = 'Chyba připojení k databázi.'; }
-  }
-
-  async function forgotReset(){
-    const fgErr2 = document.getElementById('fgErr2');
-    fgErr2.textContent = '';
-    const ans = document.getElementById('fgAnswer').value.trim();
-    const p1  = document.getElementById('fgNewPwd').value.trim();
-    const p2  = document.getElementById('fgNewPwd2').value.trim();
-    if (ans.length < 2) { fgErr2.textContent = 'Zadej odpověď na otázku.'; return; }
-    if (p1.length < 4) { fgErr2.textContent = 'Nové heslo musí mít aspoň 4 znaky.'; return; }
-    if (p1 !== p2) { fgErr2.textContent = 'Hesla se neshodují.'; return; }
-
-    try {
-      const { data, error } = await db.rpc('reset_password_via_security', {
-        p_name: window.__fgName,
-        p_answer: ans.toLowerCase(),
-        p_new_password: p1
-      });
-      if (error) { fgErr2.textContent = 'Chyba: ' + error.message; return; }
-      if (!data) { fgErr2.textContent = 'Špatná odpověď na bezpečnostní otázku.'; return; }
-      fgErr2.style.color = '#44ffaa';
-      fgErr2.textContent = '✓ Heslo bylo změněno! Můžeš se přihlásit.';
-      setTimeout(closeForgot, 1600);
-    } catch(e) { fgErr2.textContent = 'Chyba připojení k databázi.'; }
   }
 
   function loginDone(user){
@@ -329,6 +187,13 @@
   function logout(){
     lss('itq_user', null);
     location.reload();
+  }
+
+  function shareApp(){
+    var url='https://indygames.cz';
+    var text='INDYGAMES – české kvízy a minihry zdarma. Pojď si zahrát!';
+    try{ if(navigator.share){ navigator.share({title:'INDYGAMES',text:text,url:url}).catch(function(){}); return; } }catch(e){}
+    try{ navigator.clipboard.writeText(text+' '+url); alert('Odkaz zkopírován do schránky! Vlož a sdílej 🎉'); }catch(e){ window.prompt('Zkopíruj a sdílej odkaz:', url); }
   }
 
   // ─── Při načtení: pokud už přihlášen, rovnou hub ───
@@ -453,45 +318,5 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <!-- ═══ /DONATE ═══ -->
 
-<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(e){console.log('SW reg failed',e);});});}</script><!-- INDYGAMES – plovouci tlacitko instalace na plochu -->
-<script>
-(function(){
-  if(window.__igInstall)return; window.__igInstall=true;
-  var mq=window.matchMedia&&window.matchMedia('(display-mode: standalone)');
-  if((mq&&mq.matches)||navigator.standalone===true)return;
-  var iOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
-  var deferred=window._pwaInstallPrompt||null, dismissed=false;
-  try{dismissed=sessionStorage.getItem('igInstallHide')==='1';}catch(e){}
-  var b=document.createElement('div');
-  b.id='igInstall';
-  b.style.cssText='position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:2147483000;display:none;align-items:center;gap:9px;padding:10px 12px;border-radius:14px;background:linear-gradient(135deg,#1b2c4e,#0d1628);color:#eaf2ff;font:600 13.5px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;border:1px solid #34507f;box-shadow:0 8px 22px rgba(0,0,0,.5);cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent';
-  b.innerHTML='<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7fb0ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"/><path d="m7.5 10 4.5 4.5L16.5 10"/><path d="M5 20h14"/></svg><span>Instalovat</span>';
-  var x=document.createElement('span');
-  x.textContent='\u2715'; x.title='Skryt';
-  x.style.cssText='margin-left:2px;opacity:.55;font-size:11px;padding:3px 4px;border-radius:6px';
-  b.appendChild(x);
-  function show(){if(!dismissed)b.style.display='flex';}
-  function hide(){b.style.display='none';}
-  window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();deferred=e;window._pwaInstallPrompt=e;show();});
-  window.addEventListener('pwa-installable',function(){deferred=window._pwaInstallPrompt||deferred;show();});
-  window.addEventListener('appinstalled',function(){hide();deferred=null;window._pwaInstallPrompt=null;});
-  x.addEventListener('click',function(ev){ev.stopPropagation();hide();dismissed=true;try{sessionStorage.setItem('igInstallHide','1');}catch(e){}});
-  b.addEventListener('click',function(){
-    var d=window._pwaInstallPrompt||deferred;
-    if(d){d.prompt();if(d.userChoice)d.userChoice.then(function(){hide();deferred=null;window._pwaInstallPrompt=null;});return;}
-    if(iOS)iosHelp();
-  });
-  function iosHelp(){
-    var ov=document.createElement('div');
-    ov.style.cssText='position:fixed;inset:0;z-index:2147483001;background:rgba(5,8,18,.8);display:flex;align-items:center;justify-content:center;padding:24px';
-    var c=document.createElement('div');
-    c.style.cssText='max-width:330px;background:#0e1730;border:1px solid #34507f;border-radius:18px;padding:22px;color:#eaf2ff;font:400 14.5px/1.5 system-ui,-apple-system,sans-serif;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6)';
-    c.innerHTML='<div style="font-size:30px;margin-bottom:6px">\uD83D\uDCF2</div><div style="font-weight:700;font-size:15px;margin-bottom:8px">P\u0159idat na plochu</div><div style="opacity:.85">Klepni dole v Safari na <b>Sd\u00edlet</b> a pak na <b>P\u0159idat na plochu</b>.</div><div style="margin-top:16px"><button style="background:linear-gradient(135deg,#1a3a8a,#2255cc);color:#fff;border:0;border-radius:10px;padding:9px 20px;font-weight:600;font-size:14px;cursor:pointer">Rozum\u00edm</button></div>';
-    ov.appendChild(c); ov.addEventListener('click',function(){ov.remove();}); document.body.appendChild(ov);
-  }
-  function mount(){if(document.body){document.body.appendChild(b);if(deferred)show();if(iOS)show();}else setTimeout(mount,60);}
-  mount();
-})();
-</script>
-</body>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(e){console.log('SW reg failed',e);});});}</script></body>
 </html>

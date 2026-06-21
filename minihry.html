@@ -889,7 +889,7 @@ function MinigamesScreen({user,onBack,onScoreSaved}){const[screen,setScreen]=use
       const br=bracketRef.current;const cur=br.rounds[br.roundIdx];
       cur.forEach(m=>{if(!m.b){m.winner=m.a;return;}const as=subs[m.a]?subs[m.a].score:0;const bs=subs[m.b]?subs[m.b].score:0;m.aScore=as;m.bScore=bs;m.winner=as>=bs?m.a:m.b;});
       // results list for this round
-      const results=[];cur.forEach(m=>{if(subs[m.a])results.push({id:m.a,name:m.aName,score:subs[m.a].score,totalScore:subs[m.a].score,won:m.winner===m.a});if(m.b&&subs[m.b])results.push({id:m.b,name:m.bName,score:subs[m.b].score,totalScore:subs[m.b].score,won:m.winner===m.b});});
+      const results=[];cur.forEach(m=>{if(subs[m.a])results.push({id:m.a,name:m.aName,score:subs[m.a].score,totalScore:subs[m.a].score,won:m.winner===m.a,hits:subs[m.a].hits});if(m.b&&subs[m.b])results.push({id:m.b,name:m.bName,score:subs[m.b].score,totalScore:subs[m.b].score,won:m.winner===m.b,hits:subs[m.b].hits});});
       const losers=cur.filter(m=>m.b).map(m=>m.winner===m.a?m.b:m.a);
       // build next round
       const winners=cur.map(m=>m.winner);if(br.bye){winners.push(br.bye);br.bye=null;}
@@ -910,7 +910,7 @@ function MinigamesScreen({user,onBack,onScoreSaved}){const[screen,setScreen]=use
     }
     // rounds / teams
     const ids=Object.keys(scoresRef.current);
-    const results=ids.map(id=>{const s=subs[id]?subs[id].score:0;scoresRef.current[id]=(scoresRef.current[id]||0)+s;return{id,name:players[id]?.name||(subs[id]?subs[id].name:'Hráč'),score:s,totalScore:scoresRef.current[id],team:teamsRef.current[id]||null};});
+    const results=ids.map(id=>{const s=subs[id]?subs[id].score:0;scoresRef.current[id]=(scoresRef.current[id]||0)+s;return{id,name:players[id]?.name||(subs[id]?subs[id].name:'Hráč'),score:s,totalScore:scoresRef.current[id],team:teamsRef.current[id]||null,hits:subs[id]?subs[id].hits:null};});
     results.sort((a,b)=>b.totalScore-a.totalScore);
     chanRef.current.send({type:'broadcast',event:'reveal',payload:{results}});
     const isLast=r>=totalRoundsRef.current;
@@ -1032,13 +1032,7 @@ function MinigamesScreen({user,onBack,onScoreSaved}){const[screen,setScreen]=use
         React.createElement("div",{style:{fontSize:13,color:'#88a0d0',letterSpacing:1.5}},modeRef.current==='bracket'?"VÝSLEDEK SOUBOJE":("KOLO "+round+" · VÝSLEDKY")),
         eliminated&&React.createElement("div",{style:{fontSize:14,fontWeight:800,color:'#ff6688',marginTop:6}},"❌ Vypadl jsi z pavouka"),
         myMatch&&myMatch.bye&&React.createElement("div",{style:{fontSize:14,fontWeight:800,color:'#44ff88',marginTop:6}},"🎟 Volný los – postupuješ")),
-      React.createElement("div",{style:{background:cardBg,border:'1px solid #28386a',borderRadius:14,padding:'10px 14px'}},
-        sorted.map((r,i)=>React.createElement("div",{key:r.id,style:{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderBottom:i<sorted.length-1?'1px solid rgba(40,56,106,.4)':'none'}},
-          React.createElement("div",{style:{fontSize:15,fontWeight:900,color:i===0?'#ffd700':'#7fb0ff',width:22}},i+1,"."),
-          React.createElement("div",{style:{flex:1}},
-            React.createElement("div",{style:{fontSize:14,fontWeight:700,color:r.id===myId?'#7fb0ff':'#fff'}},r.name,r.id===myId&&" (ty)",r.won===true&&React.createElement("span",{style:{color:'#44ff88'}}," ✓"),r.won===false&&React.createElement("span",{style:{color:'#ff6688'}}," ✗")),
-            React.createElement("div",{style:{fontSize:11,color:'#8da4cc'}},"kolo +",(r.score||0).toLocaleString())),
-          React.createElement("div",{style:{fontSize:15,fontWeight:900,color:'#fff',fontFamily:"'Orbitron',sans-serif"}},(r.totalScore||0).toLocaleString())))),
+      React.createElement("div",{style:{background:cardBg,border:'1px solid #28386a',borderRadius:14,padding:'10px 14px'}},sorted.map((r,i)=>React.createElement("div",{key:r.id,style:{padding:'9px 0',borderBottom:i<sorted.length-1?'1px solid rgba(40,56,106,.4)':'none'}},React.createElement("div",{style:{display:'flex',alignItems:'center',gap:10}},React.createElement("div",{style:{fontSize:15,fontWeight:900,color:i===0?'#ffd700':'#7fb0ff',width:22}},i+1,"."),React.createElement("div",{style:{flex:1,minWidth:0}},React.createElement("div",{style:{fontSize:14,fontWeight:700,color:r.id===myId?'#7fb0ff':'#fff'}},r.name,r.id===myId&&" (ty)",r.won===true&&React.createElement("span",{style:{color:'#44ff88'}}," \u2713"),r.won===false&&React.createElement("span",{style:{color:'#ff6688'}}," \u2717")),React.createElement("div",{style:{fontSize:11,color:'#8da4cc'}},"kolo +",(r.score||0).toLocaleString())),React.createElement("div",{style:{fontSize:15,fontWeight:900,color:'#fff',fontFamily:"'Orbitron',sans-serif"}},(r.totalScore||0).toLocaleString())),r.hits&&r.hits.length>0&&React.createElement("div",{style:{display:'flex',gap:4,marginTop:7}},TARGETS.map((tg,k)=>{var h=r.hits[k];var miss=!h||h.s==null;return React.createElement("div",{key:k,style:{flex:1,textAlign:'center',background:'rgba(20,30,66,.55)',borderRadius:7,padding:'4px 1px',border:'1px solid rgba(40,56,106,.5)'}},React.createElement("div",{style:{fontSize:9,color:'#6a82b0'}},tg+"s"),React.createElement("div",{style:{fontSize:11,fontWeight:700,color:miss?'#ff6688':'#cfe0ff',fontFamily:"'Courier New',monospace",lineHeight:1.25}},miss?'\u2717':h.s.toFixed(2)),React.createElement("div",{style:{fontSize:10,fontWeight:800,color:miss?'#7a4452':'#ffd36a'}},miss?'0':'+'+(h.p>=1000?Math.round(h.p/1000)+'k':h.p)));}))))),
       React.createElement("div",{style:{textAlign:'center',color:'#667',fontSize:12,marginTop:14}},"Další kolo začne za chvíli…"));
   }
 

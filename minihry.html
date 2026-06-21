@@ -1585,5 +1585,45 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 </script>
 <!-- ═══ /DONATE ═══ -->
 
+<!-- INDYGAMES – plovouci tlacitko instalace na plochu -->
+<script>
+(function(){
+  if(window.__igInstall)return; window.__igInstall=true;
+  var mq=window.matchMedia&&window.matchMedia('(display-mode: standalone)');
+  if((mq&&mq.matches)||navigator.standalone===true)return;
+  var iOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  var deferred=window._pwaInstallPrompt||null, dismissed=false;
+  try{dismissed=sessionStorage.getItem('igInstallHide')==='1';}catch(e){}
+  var b=document.createElement('div');
+  b.id='igInstall';
+  b.style.cssText='position:fixed;right:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:2147483000;display:none;align-items:center;gap:9px;padding:10px 12px;border-radius:14px;background:linear-gradient(135deg,#1b2c4e,#0d1628);color:#eaf2ff;font:600 13.5px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;border:1px solid #34507f;box-shadow:0 8px 22px rgba(0,0,0,.5);cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent';
+  b.innerHTML='<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7fb0ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v11"/><path d="m7.5 10 4.5 4.5L16.5 10"/><path d="M5 20h14"/></svg><span>Instalovat</span>';
+  var x=document.createElement('span');
+  x.textContent='\u2715'; x.title='Skryt';
+  x.style.cssText='margin-left:2px;opacity:.55;font-size:11px;padding:3px 4px;border-radius:6px';
+  b.appendChild(x);
+  function show(){if(!dismissed)b.style.display='flex';}
+  function hide(){b.style.display='none';}
+  window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();deferred=e;window._pwaInstallPrompt=e;show();});
+  window.addEventListener('pwa-installable',function(){deferred=window._pwaInstallPrompt||deferred;show();});
+  window.addEventListener('appinstalled',function(){hide();deferred=null;window._pwaInstallPrompt=null;});
+  x.addEventListener('click',function(ev){ev.stopPropagation();hide();dismissed=true;try{sessionStorage.setItem('igInstallHide','1');}catch(e){}});
+  b.addEventListener('click',function(){
+    var d=window._pwaInstallPrompt||deferred;
+    if(d){d.prompt();if(d.userChoice)d.userChoice.then(function(){hide();deferred=null;window._pwaInstallPrompt=null;});return;}
+    if(iOS)iosHelp();
+  });
+  function iosHelp(){
+    var ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;z-index:2147483001;background:rgba(5,8,18,.8);display:flex;align-items:center;justify-content:center;padding:24px';
+    var c=document.createElement('div');
+    c.style.cssText='max-width:330px;background:#0e1730;border:1px solid #34507f;border-radius:18px;padding:22px;color:#eaf2ff;font:400 14.5px/1.5 system-ui,-apple-system,sans-serif;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6)';
+    c.innerHTML='<div style="font-size:30px;margin-bottom:6px">\uD83D\uDCF2</div><div style="font-weight:700;font-size:15px;margin-bottom:8px">P\u0159idat na plochu</div><div style="opacity:.85">Klepni dole v Safari na <b>Sd\u00edlet</b> a pak na <b>P\u0159idat na plochu</b>.</div><div style="margin-top:16px"><button style="background:linear-gradient(135deg,#1a3a8a,#2255cc);color:#fff;border:0;border-radius:10px;padding:9px 20px;font-weight:600;font-size:14px;cursor:pointer">Rozum\u00edm</button></div>';
+    ov.appendChild(c); ov.addEventListener('click',function(){ov.remove();}); document.body.appendChild(ov);
+  }
+  function mount(){if(document.body){document.body.appendChild(b);if(deferred)show();if(iOS)show();}else setTimeout(mount,60);}
+  mount();
+})();
+</script>
 </body>
 </html>

@@ -631,24 +631,26 @@ function FiveTenGame({user,onExit}){
     const urgent=!soloMode&&secsLeft<=8;
     return React.createElement("div",{style:{maxWidth:480,margin:'0 auto'}},
       React.createElement("div",{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}},
-        React.createElement("div",{style:{fontSize:11,color:'#7fe0b4',letterSpacing:2,fontFamily:"'Orbitron',sans-serif"}},"KOLO "+round+"/"+totalRounds),
+        React.createElement("div",{style:{fontSize:11,color:'#7fe0b4',letterSpacing:2,fontFamily:"'Orbitron',sans-serif",background:'rgba(68,255,170,.07)',border:'1px solid rgba(68,255,170,.18)',borderRadius:999,padding:'5px 12px'}},"KOLO "+round+"/"+totalRounds),
         React.createElement("div",{style:{fontFamily:"'Orbitron',sans-serif",fontSize:26,fontWeight:900,color:soloMode?C.green:(urgent?C.red:'#fff'),textShadow:urgent?'0 0 14px rgba(255,68,68,.6)':'none'}},soloMode?((scoresRef.current[myId]||0).toLocaleString()+" b"):secsLeft+"s")),
       !soloMode&&React.createElement("div",{style:{height:5,background:'#16241c',borderRadius:3,overflow:'hidden',marginBottom:14}},
-        React.createElement("div",{style:{height:'100%',width:Math.max(0,Math.min(100,(roundDeadline-now)/(QTIME*1000)*100))+'%',background:urgent?C.red:'linear-gradient(90deg,#1d9e75,#44ffaa)',transition:'width .2s linear'}})),
-      React.createElement("div",{style:{fontSize:10,letterSpacing:2,color:'#7fe0b4',marginBottom:6,textAlign:'center',fontFamily:"'Orbitron',sans-serif"}},curQ.cat),
-      React.createElement("div",{style:{background:'linear-gradient(135deg,rgba(20,40,32,.7),rgba(12,24,18,.5))',border:'1px solid #1e3a2e',borderRadius:14,padding:'16px 18px',marginBottom:6,textAlign:'center',fontSize:'clamp(15px,2.4vw,18px)',fontWeight:600,color:'#eafff5',lineHeight:1.5}},curQ.q),
+        React.createElement("div",{style:{height:'100%',width:Math.max(0,Math.min(100,(roundDeadline-now)/(QTIME*1000)*100))+'%',background:urgent?C.red:'linear-gradient(90deg,#1d9e75,#44ffaa)',boxShadow:urgent?'0 0 10px rgba(255,68,68,.6)':'0 0 10px rgba(68,255,170,.45)',transition:'width .2s linear'}})),
+      React.createElement("div",{style:{display:'flex',justifyContent:'center',marginBottom:8}},React.createElement("span",{style:{fontSize:10,letterSpacing:2,color:'#7fe0b4',fontFamily:"'Orbitron',sans-serif",background:'rgba(68,255,170,.08)',border:'1px solid rgba(68,255,170,.22)',borderRadius:999,padding:'4px 12px',textTransform:'uppercase',display:'inline-flex',alignItems:'center',gap:6}},React.createElement("span",{style:{width:5,height:5,borderRadius:'50%',background:C.green,boxShadow:'0 0 6px '+C.green,flexShrink:0}}),curQ.cat)),
+      React.createElement("div",{style:{background:'linear-gradient(135deg,rgba(22,44,34,.75),rgba(12,24,18,.55))',border:'1px solid #244638',borderRadius:16,padding:'18px 20px',marginBottom:6,textAlign:'center',fontSize:'clamp(15px,2.4vw,18px)',fontWeight:600,color:'#eafff5',lineHeight:1.5,boxShadow:'0 10px 30px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.04)'}},curQ.q),
+      React.createElement("div",{style:{display:'flex',justifyContent:'center',gap:6,marginBottom:8}},[0,1,2,3,4].map(p=>React.createElement("span",{key:p,style:{width:9,height:9,borderRadius:'50%',background:p<picks.length?C.green:'rgba(255,255,255,.1)',boxShadow:p<picks.length?'0 0 8px rgba(68,255,170,.6)':'none',border:p<picks.length?'none':'1px solid rgba(255,255,255,.12)',transition:'all .15s'}}))),
       React.createElement("div",{style:{textAlign:'center',fontSize:11,color:'#789',marginBottom:12}},"Vybráno ",React.createElement("b",{style:{color:picks.length>0?C.green:'#789'}},picks.length),"/5 · trefa všech 5 = jackpot"),
+      React.createElement("style",null,".ft5-opt:not(:disabled):hover{transform:translateY(-2px);border-color:rgba(68,255,170,.55)!important;}.ft5-opt:not(:disabled):active{transform:translateY(0) scale(.985);}"),
       React.createElement("div",{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}},
         curQ.options.map((opt,i)=>{
           const sel=picks.includes(i);
-          let bg='rgba(12,24,18,.85)',br='#1e3a2e',col='#cfe',revIcon=null;
+          let bg='rgba(12,24,18,.85)',br='#1e3a2e',col='#cfe',revIcon=null,glow='none';
           if(submitted&&correctSet.length>0){
             const isC=correctSet.includes(i);
-            if(isC){bg='rgba(0,70,40,.5)';br=C.green;col='#aaffd5';revIcon='✓';}
+            if(isC){bg='rgba(0,70,40,.5)';br=C.green;col='#aaffd5';revIcon='✓';glow='0 0 0 1px rgba(68,255,170,.25),0 6px 16px rgba(68,255,170,.15)';}
             else if(sel){bg='rgba(70,0,0,.5)';br=C.red;col='#ffaaaa';revIcon='✗';}
-          } else if(sel){bg='rgba(34,200,136,.18)';br=C.green;col='#fff';}
-          return React.createElement("button",{key:i,onClick:()=>togglePick(i),disabled:submitted,style:{background:bg,border:'2px solid '+br,borderRadius:11,padding:'13px 10px',cursor:submitted?'default':'pointer',color:col,fontFamily:'inherit',fontSize:'clamp(12px,1.9vw,14px)',fontWeight:600,lineHeight:1.35,textAlign:'left',display:'flex',alignItems:'center',gap:8,transition:'all .15s',minHeight:48}},
-            React.createElement("span",{style:{minWidth:22,height:22,borderRadius:6,background:sel?C.green:'rgba(255,255,255,.08)',color:sel?'#06291b':'#789',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:900,flexShrink:0}},revIcon||(sel?'✓':String.fromCharCode(65+i))),
+          } else if(sel){bg='rgba(34,200,136,.18)';br=C.green;col='#fff';glow='0 0 0 1px rgba(68,255,170,.3),0 6px 16px rgba(68,255,170,.18)';}
+          return React.createElement("button",{key:i,className:"ft5-opt",onClick:()=>togglePick(i),disabled:submitted,style:{background:bg,border:'2px solid '+br,borderRadius:12,padding:'13px 10px',cursor:submitted?'default':'pointer',color:col,fontFamily:'inherit',fontSize:'clamp(12px,1.9vw,14px)',fontWeight:600,lineHeight:1.35,textAlign:'left',display:'flex',alignItems:'center',gap:8,transition:'all .15s',minHeight:48,boxShadow:glow}},
+            React.createElement("span",{style:{minWidth:22,height:22,borderRadius:6,background:sel?C.green:'rgba(255,255,255,.08)',color:sel?'#06291b':'#789',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:900,flexShrink:0,boxShadow:sel?'0 0 10px rgba(68,255,170,.5)':'none'}},revIcon||(sel?'✓':String.fromCharCode(65+i))),
             React.createElement("span",{style:{flex:1}},opt));
         })),
       !submitted?React.createElement("button",{onClick:submitPicks,disabled:picks.length===0,style:{width:'100%',padding:'15px',fontSize:15,fontWeight:900,letterSpacing:1,background:picks.length===0?'#2a3a32':'linear-gradient(135deg,#1d9e75,#22cc88)',color:'#fff',border:'none',borderRadius:13,cursor:picks.length===0?'default':'pointer',fontFamily:"'Orbitron',sans-serif"}},picks.length===0?'VYBER 1–5 MOŽNOSTÍ':'✓ POTVRDIT ('+picks.length+')'):

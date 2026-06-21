@@ -7,7 +7,7 @@
 <link rel="dns-prefetch" href="https://nueprvtkefezraibnlyo.supabase.co"/>
 
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>INDYGAMES — denní český kvíz a minihry</title><meta property="og:type" content="website"/><meta property="og:site_name" content="INDYGAMES"/><meta property="og:title" content="INDYGAMES — denní český kvíz a minihry"/><meta property="og:description" content="Otestuj své znalosti v denním kvízu a zahraj si minihry pro víc hráčů. Zdarma, česky."/><meta property="og:url" content="https://indygames.cz"/><meta property="og:image" content="https://indygames.cz/og.png"/><meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content="INDYGAMES — denní český kvíz a minihry"/><meta name="twitter:description" content="Otestuj své znalosti v denním kvízu a zahraj si minihry pro víc hráčů. Zdarma, česky."/><meta name="twitter:image" content="https://indygames.cz/og.png"/>
+<title>INDYGAMES — denní český kvíz a minihry</title><meta property="og:type" content="website"/><meta property="og:site_name" content="INDYGAMES"/><meta property="og:title" content="INDYGAMES — denní český kvíz a minihry"/><meta property="og:description" content="Otestuj své znalosti v denním kvízu a zahraj si minihry pro víc hráčů. Zdarma, česky."/><meta property="og:url" content="https://indygames.cz"/><meta property="og:image" content="https://indygames.cz/og.png"/><meta property="og:image:width" content="1200"/><meta property="og:image:height" content="630"/><meta property="og:image:type" content="image/png"/><meta property="og:image:alt" content="INDYGAMES — kvízy a minihry"/><meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content="INDYGAMES — denní český kvíz a minihry"/><meta name="twitter:description" content="Otestuj své znalosti v denním kvízu a zahraj si minihry pro víc hráčů. Zdarma, česky."/><meta name="twitter:image" content="https://indygames.cz/og.png"/>
 <meta name="theme-color" content="#0a0a0f"/><link rel="manifest" href="/manifest.json"/><link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png"/><link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
@@ -22,20 +22,29 @@
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   html,body{height:100%}
+body::before{content:'';position:fixed;inset:0;z-index:-2;background:#0a0a0f url('bg.jpg') center center/cover no-repeat}
+body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(180deg,rgba(8,10,20,.82) 0%,rgba(8,10,20,.55) 26%,rgba(8,10,20,.55) 66%,rgba(8,10,20,.78) 100%)}
   body{
     background:radial-gradient(ellipse at top,#0d1430 0%,#0a0a0f 60%);
     color:#dde;font-family:'Orbitron',system-ui,sans-serif;
-    min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    padding:24px;overflow-x:hidden;
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+    padding:clamp(24px,5vh,56px) 20px;overflow-x:hidden;
   }
   /* ─── Brand ─── */
   .brand{font-size:34px;font-weight:900;letter-spacing:3px;margin-bottom:4px}
   .brand .a{background:linear-gradient(135deg,#88aaff,#cc88ff);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .brand .b{color:#ff88cc}
-  .tagline{font-size:11px;color:#556;letter-spacing:5px;margin-bottom:36px;text-transform:uppercase}
+  .tagline{font-size:11px;color:#556;letter-spacing:5px;margin-bottom:18px;text-transform:uppercase}
+.intro{width:100%;max-width:420px;margin:0 auto 22px;text-align:center}
+.intro-sub{font-size:16px;color:#d3dbf0;line-height:1.5;margin-bottom:14px}
+.intro-sub b{color:#9db4ff}
+.intro-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.intro-list .feat{display:flex;align-items:center;gap:10px;text-align:left;font-size:13px;color:#c2cbe6;background:rgba(15,22,46,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);border:1px solid #2c3a66;border-radius:11px;padding:10px 13px;line-height:1.3}
+.intro-list .feat span{font-size:18px;line-height:1;flex-shrink:0}
+.intro-cta{font-size:13px;color:#ff9ad6;font-weight:700;line-height:1.4}
 
   /* ─── Auth card ─── */
-  .card{width:100%;max-width:420px;background:rgba(20,35,80,.5);border:1px solid #2a3a6a;border-radius:16px;padding:26px;text-align:left}
+  .card{width:100%;max-width:420px;background:rgba(15,22,48,.74);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);border:1px solid #3a4a7a;border-radius:16px;padding:26px;text-align:left}
   .tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:22px;background:rgba(10,15,40,.6);border-radius:10px;padding:4px;border:1px solid #1e2a4a}
   .tabs button{padding:10px;border-radius:8px;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:700;letter-spacing:.5px;transition:all .2s;background:transparent;color:#4a5a7a}
   .tabs button.active{background:linear-gradient(135deg,#1a3a8a,#2255cc);color:#fff;box-shadow:0 0 20px rgba(68,136,255,.3)}
@@ -53,7 +62,7 @@
   .welcome{font-size:13px;color:#88aaff;letter-spacing:1px;margin-bottom:26px}
   .welcome b{color:#cc88ff}
   .tiles{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;width:100%;max-width:720px}
-  a.tile{flex:1 1 290px;min-width:250px;text-decoration:none;color:inherit;border-radius:18px;padding:32px 26px;border:1px solid #243056;background:rgba(20,28,60,.45);transition:transform .15s,border-color .15s,box-shadow .15s}
+  a.tile{flex:1 1 290px;min-width:250px;text-decoration:none;color:inherit;border-radius:18px;padding:32px 26px;border:1px solid #2c3a66;background:rgba(15,22,46,.66);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:transform .15s,border-color .15s,box-shadow .15s}
   a.tile:hover{transform:translateY(-4px)}
   a.quiz:hover{border-color:#4488ff;box-shadow:0 12px 40px rgba(68,136,255,.25)}
   a.games:hover{border-color:#aa55cc;box-shadow:0 12px 40px rgba(180,60,200,.25)}
@@ -64,6 +73,8 @@
   .go{margin-top:16px;font-size:12px;letter-spacing:2px;color:#556}
   .logout{margin-top:30px;background:transparent;border:none;color:#445;font-size:11px;letter-spacing:2px;cursor:pointer;font-family:'Orbitron',sans-serif}
   .logout:hover{color:#778}
+  .share-app{margin-top:24px;background:linear-gradient(135deg,rgba(255,90,180,.28),rgba(120,90,255,.28));border:1.5px solid #ff5ab4;color:#ffd9ee;font-size:16px;letter-spacing:1.5px;font-weight:800;padding:15px 34px;border-radius:14px;cursor:pointer;font-family:'Orbitron',sans-serif;box-shadow:0 4px 18px rgba(255,90,180,.22);transition:transform .15s,box-shadow .15s}
+  .share-app:hover{transform:translateY(-3px);box-shadow:0 8px 26px rgba(255,90,180,.38)}
   .warn{margin-top:20px;font-size:11px;color:#cc8844;text-align:center;max-width:420px}
 </style>
 </head>
@@ -71,6 +82,17 @@
 
   <div class="brand"><span class="a">INDY</span><span class="b">GAMES</span></div>
   <div class="tagline">Kvízy &amp; Minihry</div>
+
+  <div id="intro" class="intro">
+    <div class="intro-sub">Denní české <b>kvízy a minihry</b>. Zdarma a bez reklam.</div>
+    <div class="intro-list">
+      <div class="feat"><span>🧠</span> Denní kvízy — IT · obecné · filmové</div>
+      <div class="feat"><span>🗺️</span> Slepá mapa ČR i světa, vlajky, hudba…</div>
+      <div class="feat"><span>🎯</span> Rychlé minihry na reflexy i paměť</div>
+      <div class="feat"><span>👥</span> Hraj sám nebo s partou (multiplayer)</div>
+    </div>
+    <div class="intro-cta">🏆 Vytvoř si účet zdarma a soupeř v žebříčcích 👇</div>
+  </div>
 
   <!-- ─── AUTH ─── -->
   <div id="auth" class="card">
@@ -109,6 +131,7 @@
         <div class="go">HRÁT →</div>
       </a>
     </div>
+    <button class="share-app" onclick="shareApp()">📤 SDÍLET APPKU</button>
     <button class="logout" onclick="logout()">↩ ODHLÁSIT SE</button>
   </div>
 
@@ -186,7 +209,7 @@
   }
 
   function showHub(user){
-    document.getElementById('auth').style.display = 'none';
+    document.getElementById('auth').style.display = 'none';var _intro=document.getElementById('intro');if(_intro)_intro.style.display='none';var _fab=document.getElementById('donateFab');if(_fab)_fab.style.display='';
     document.getElementById('dbwarn').style.display = 'none';
     document.getElementById('who').textContent = user.name || 'hráči';
     var gn = document.getElementById('guestNote'); if (gn) gn.style.display = user.guest ? 'block' : 'none';
@@ -197,6 +220,13 @@
   function logout(){
     lss('itq_user', null);
     location.reload();
+  }
+
+  function shareApp(){
+    var url='https://indygames.cz';
+    var text='INDYGAMES – české kvízy a minihry zdarma. Pojď si zahrát!';
+    try{ if(navigator.share){ navigator.share({title:'INDYGAMES',text:text,url:url}).catch(function(){}); return; } }catch(e){}
+    try{ navigator.clipboard.writeText(text+' '+url); alert('Odkaz zkopírován do schránky! Vlož a sdílej 🎉'); }catch(e){ window.prompt('Zkopíruj a sdílej odkaz:', url); }
   }
 
   // ─── Při načtení: pokud už přihlášen, rovnou hub ───
@@ -244,7 +274,7 @@
   .donate-close:hover{color:#aab8d8}
 </style>
 
-<button class="donate-fab" onclick="donateOpen()"><span class="emoji">🥐</span><span class="lbl">Kup mi rohlík</span></button>
+<button id="donateFab" class="donate-fab" style="display:none" onclick="donateOpen()"><span class="emoji">🥐</span><span class="lbl">Kup mi rohlík</span></button>
 
 <div class="donate-ov" id="donateOv" onclick="if(event.target===this)donateClose()">
   <div class="donate-card">

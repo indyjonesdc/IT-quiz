@@ -1,0 +1,6 @@
+# robots.txt pro indygames.cz
+User-agent: *
+Allow: /
+
+# Sitemapa
+Sitemap: https://indygames.cz/sitemap.xml

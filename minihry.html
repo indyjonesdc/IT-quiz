@@ -401,6 +401,7 @@ function ClickRaceGame({user,onExit,soloOnly}){
   const soloRef=useRef(!!soloOnly);
   const bestRef=useRef(0);
 
+  function genCode(){const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return Array.from({length:4},()=>chars[Math.floor(Math.random()*chars.length)]).join('');}
   function clearTimers(){[tickTimerRef,endTimerRef,cdTimerRef,finishTimerRef].forEach(r=>{if(r.current){clearInterval(r.current);clearTimeout(r.current);r.current=null;}});}
   function cleanup(){clearTimers();if(chanRef.current){try{chanRef.current.unsubscribe();}catch(e){}chanRef.current=null;}}
   useEffect(()=>()=>cleanup(),[]);

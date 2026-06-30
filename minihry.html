@@ -428,7 +428,7 @@ function ClickRaceGame({user,onExit,soloOnly}){
     return()=>{document.removeEventListener('touchmove',prevent,{passive:false});document.body.style.overflow=prevOverflow;};
   },[view]);
 
-  function saveRecord(sc){if(user&&sc>0){__saveScore({id:Date.now().toString()+Math.random().toString(36).slice(2,5),user_id:user.id,user_name:myName,game:'clickrace'+durationRef.current,score:sc,detail:null,played_at:new Date().toISOString()}).then(({error})=>{if(error)console.error('[CR] insert:',error.message);});}}
+  function saveRecord(sc){if(user&&sc>0){__saveScore({id:Date.now().toString(),user_id:user.id,user_name:myName,game:'clickrace'+durationRef.current,score:sc,detail:null,played_at:new Date().toISOString()}).then(({error})=>{if(error)console.error('[CR] insert:',error.message);});}}
 
   async function loadRecs(d){setRecLoading(true);setRecDur(d);try{const{data}=await db.from('minigame_leaderboard').select('user_id,user_name,score').eq('game','clickrace'+d).order('score',{ascending:false}).limit(10);setRecs(data||[]);}catch(e){setRecs([]);}setRecLoading(false);}
 

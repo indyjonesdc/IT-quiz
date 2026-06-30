@@ -430,7 +430,7 @@ function ClickRaceGame({user,onExit,soloOnly}){
 
   function saveRecord(sc){if(user&&sc>0){__saveScore({id:Date.now().toString(),user_id:user.id,user_name:myName,game:'clickrace'+durationRef.current,score:sc,detail:null,played_at:new Date().toISOString()}).then(r=>{if(r&&r.error){console.error('[CR] insert:',r.error.message);setError('Uložení selhalo: '+r.error.message);}}).catch(e=>{setError('Uložení selhalo: '+((e&&e.message)||e));});}}
 
-  async function loadRecs(d){setRecLoading(true);setRecDur(d);try{const{data}=await db.from('minigame_leaderboard').select('user_id,user_name,score').eq('game','clickrace'+d).order('score',{ascending:false}).limit(10);setRecs(data||[]);}catch(e){setRecs([]);}setRecLoading(false);}
+  async function loadRecs(d){setRecLoading(true);setRecDur(d);setError('');try{const{data,error}=await db.from('minigame_leaderboard').select('user_id,user_name,score').eq('game','clickrace'+d).order('score',{ascending:false}).limit(10);if(error){setError('Čtení clickrace'+d+': '+error.message);setRecs([]);}else{setRecs(data||[]);if(!data||data.length===0)setError('API vrátilo 0 řádků pro clickrace'+d);}}catch(e){setError('Čtení selhalo: '+((e&&e.message)||e));setRecs([]);}setRecLoading(false);}
 
   function setupChannel(code,asHost){
     const channel=db.channel('clickrace-'+code,{config:{presence:{key:myId},broadcast:{self:true}}});

@@ -633,7 +633,7 @@ function ClickRaceGame({user,onExit,soloOnly,recordsOnly}){
   const [view,setView]=useState('menu'); // menu | lobby | playing | reveal | final
   const [roomCode,setRoomCode]=useState('');
   const [joinCode,setJoinCode]=useState('');
-  const [isHost,setIsHost]=useState(false);
+  const [isHost,setIsHost]=useState(false);const lastResultsRef=useRef([]);
   const [players,setPlayers]=useState({});
   const [myId]=useState(()=>'f_'+Math.random().toString(36).slice(2,9));
   const myName=user?.name||'Hráč';
@@ -774,12 +774,16 @@ function ClickRaceGame({user,onExit,soloOnly,recordsOnly}){
     });
     results.sort((a,b)=>b.totalScore-a.totalScore);
     chanRef.current.send({type:'broadcast',event:'reveal',payload:{results,correctSet:correctIdx}});
-    const isLast=r>=totalRoundsRef.current;
-    if(isLast){
-      const standings=results;
-      advTimerRef.current=setTimeout(()=>{chanRef.current.send({type:'broadcast',event:'game_over',payload:{standings}});},5000);
+    lastResultsRef.current=results;
+  }
+
+  // host odklikne pokračování (žádný automatický přechod)
+  function hostAdvance(){
+    const r=curRoundRef.current;
+    if(r>=totalRoundsRef.current){
+      chanRef.current.send({type:'broadcast',event:'game_over',payload:{standings:lastResultsRef.current||[]}});
     } else {
-      advTimerRef.current=setTimeout(()=>{startRound(r+1);},5000);
+      startRound(r+1);
     }
   }
 
@@ -930,7 +934,8 @@ function ClickRaceGame({user,onExit,soloOnly,recordsOnly}){
             React.createElement("span",{style:{flex:1,fontSize:14,fontWeight:700,color:r.id===myId?'#7fffcf':'#fff',textAlign:'left'}},r.name,r.id===myId&&' (ty)'),
             React.createElement("span",{style:{fontSize:11,color:r.roundPts>0?C.green:'#789',fontWeight:700,marginRight:6}},(r.roundPts>0?'+':'')+r.roundPts),
             React.createElement("span",{style:{fontFamily:"'Orbitron',sans-serif",fontSize:15,fontWeight:900,color:'#fff'}},(r.totalScore||0).toLocaleString()))))),
-      React.createElement("div",{style:{fontSize:12,color:'#789',marginTop:10}},round>=totalRounds?'Finální výsledky…':'Další kolo začíná…'));
+      (isHost&&!soloMode)?React.createElement("button",{onClick:hostAdvance,style:{width:'100%',marginTop:14,padding:'15px',borderRadius:12,border:'none',background:'linear-gradient(135deg,#44ffaa,#22cc88)',color:'#04231a',fontFamily:"'Orbitron',sans-serif",fontWeight:900,fontSize:15,cursor:'pointer',boxShadow:'0 6px 20px rgba(68,255,170,.3)'}},round>=totalRounds?'🏁 Zobrazit finální výsledky':'▶ Další otázka ('+(round+1)+'/'+totalRounds+')')
+        :React.createElement("div",{style:{fontSize:12,color:'#789',marginTop:14}},round>=totalRounds?'Čeká se na hosta – finální výsledky…':'Čeká se na hosta → další otázka…'));
   }
 
   if(view==='soloFinal'){
@@ -977,7 +982,7 @@ function MinigamesScreen({user,onBack,onScoreSaved}){const[screen,setScreen]=use
   const modeRef=useRef('rounds'); useEffect(()=>{modeRef.current=mode;},[mode]);
   const [roomCode,setRoomCode]=useState('');
   const [joinCode,setJoinCode]=useState('');
-  const [isHost,setIsHost]=useState(false);
+  const [isHost,setIsHost]=useState(false);const pendingAdvRef=useRef(null);
   const [players,setPlayers]=useState({});
   const [myId]=useState(()=>'s_'+Math.random().toString(36).slice(2,9));
   const myName=user?.name||'Hráč';
@@ -1029,11 +1034,13 @@ function MinigamesScreen({user,onBack,onScoreSaved}){const[screen,setScreen]=use
   // ===== channel =====
   function setupChannel(code,asHost){
     const channel=db.channel('stopbattle-'+code,{config:{presence:{key:myId},broadcast:{self:true}}});
-    channel.on('presence',{event:'sync'},()=>{const state=channel.presenceState();const pl={};Object.keys(state).forEach(k=>{const meta=state[k][0];pl[k]={name:meta.name,score:scoresRef.current[k]||0};});setPlayers(pl);});
-    channel.on('broadcast',{event:'settings'},({payload})=>{if(typeof payload.totalRounds==='number')setTotalRounds(payload.totalRounds);if(payload.mode){setMode(payload.mode);setTeamMode(payload.mode==='teams');}if(payload.teams)setTeams(payload.teams);});
+    channel.on('presence',{event:'sync'},()=>{const state=channel.presenceState();const pl={};Object.keys(state).forEach(k=>{const meta=state[k][0];pl[k]={name:meta.name,score:scoresRef.current[k]||0};});setPlayers(pl);if(asHost){try{channel.send({type:'broadcast',event:'settings',payload:{mode:modeRef.current,totalRounds:totalRoundsRef.current}});}catch(e){}}});
+    channel.on('broadcast',{event:'settings'},({payload})=>{if(typeof payload.totalRounds==='number'){setTotalRounds(payload.totalRounds);totalRoundsRef.current=payload.totalRounds;}if(payload.mode){setMode(payload.mode);modeRef.current=payload.mode;setTeamMode(payload.mode==='teams');}if(payload.teams){teamsRef.current=payload.teams;setTeams(payload.teams);}});
     channel.on('broadcast',{event:'restart_lobby'},()=>{cleanup();setView('lobby');setSubmitted(false);setPhase('idle');});
     channel.on('broadcast',{event:'round_start'},({payload})=>{
       if(payload.totalRounds)setTotalRounds(payload.totalRounds);
+      if(payload.mode){setMode(payload.mode);modeRef.current=payload.mode;setTeamMode(payload.mode==='teams');}
+      if(payload.teams){teamsRef.current=payload.teams;setTeams(payload.teams);}
       setRound(payload.round);curRoundRef.current=payload.round;
       setRoundDeadline(payload.deadline);
       revealedRef.current=false;
@@ -1080,7 +1087,7 @@ function MinigamesScreen({user,onBack,onScoreSaved}){const[screen,setScreen]=use
         if(got>=expected&&!revealedRef.current){hostReveal(curRoundRef.current);}
       });
     }
-    channel.subscribe(async status=>{if(status==='SUBSCRIBED'){await channel.track({name:myName});setConnecting(false);}});
+    channel.subscribe(async status=>{if(status==='SUBSCRIBED'){await channel.track({name:myName});setConnecting(false);if(asHost){setTimeout(()=>{try{channel.send({type:'broadcast',event:'settings',payload:{mode:modeRef.current,totalRounds:totalRoundsRef.current}});}catch(e){}},350);}}});
     chanRef.current=channel;return channel;
   }
 
@@ -1094,7 +1101,8 @@ function MinigamesScreen({user,onBack,onScoreSaved}){const[screen,setScreen]=use
     const ids=Object.keys(players);
     if(ids.length<2){setError('Potřeba aspoň 2 hráči');return;}
     setError('');revealedRef.current=false;submitsRef.current={};scoresRef.current={};
-    if(mode==='bracket'){
+    const M=modeRef.current;
+    if(M==='bracket'){
       // seed bracket: shuffle ids, pair them, odd -> bye
       const shuffled=[...ids].sort(()=>Math.random()-0.5);
       const names={};ids.forEach(id=>names[id]=players[id]?.name||'Hráč');
@@ -1104,7 +1112,7 @@ function MinigamesScreen({user,onBack,onScoreSaved}){const[screen,setScreen]=use
       const br={rounds:[r0],roundIdx:0,names,bye,champion:null};
       bracketRef.current=br;setBracket(br);
       startBracketRound(br,0);
-    } else if(mode==='teams'){
+    } else if(M==='teams'){
       // assign teams A/B alternating by shuffled order
       const shuffled=[...ids].sort(()=>Math.random()-0.5);const tm={};shuffled.forEach((id,i)=>tm[id]=i%2===0?'A':'B');
       teamsRef.current=tm;setTeams(tm);setTeamMode(true);
@@ -1121,7 +1129,7 @@ function MinigamesScreen({user,onBack,onScoreSaved}){const[screen,setScreen]=use
     revealedRef.current=false;submitsRef.current={};curRoundRef.current=r;
     const deadline=Date.now()+QTIME*1000;
     window.__sbActiveIds=Object.keys(players);
-    chanRef.current.send({type:'broadcast',event:'round_start',payload:{round:r,deadline,totalRounds:totalRoundsRef.current,mode:modeRef.current}});
+    chanRef.current.send({type:'broadcast',event:'round_start',payload:{round:r,deadline,totalRounds:totalRoundsRef.current,mode:modeRef.current,teams:teamsRef.current||{}}});
     scheduleDeadline(deadline);
   }
 
@@ -1138,6 +1146,7 @@ function MinigamesScreen({user,onBack,onScoreSaved}){const[screen,setScreen]=use
   }
 
   // ===== host: reveal =====
+  function sbHostAdvance(){const p=pendingAdvRef.current;if(!p)return;pendingAdvRef.current=null;p.fn();}
   function hostReveal(r){
     if(revealedRef.current)return;revealedRef.current=true;
     if(deadlineTimerRef.current){clearTimeout(deadlineTimerRef.current);deadlineTimerRef.current=null;}
@@ -1154,7 +1163,7 @@ function MinigamesScreen({user,onBack,onScoreSaved}){const[screen,setScreen]=use
       newBracket.rounds[br.roundIdx]=cur;
       if(winners.length<=1){newBracket.champion=winners[0]||null;bracketRef.current=newBracket;setBracket(newBracket);
         chanRef.current.send({type:'broadcast',event:'reveal',payload:{results,bracket:newBracket,eliminatedIds:losers}});
-        advTimerRef.current=setTimeout(()=>{const standings=buildBracketStandings(newBracket);chanRef.current.send({type:'broadcast',event:'game_over',payload:{standings,bracket:newBracket}});},4500);
+        pendingAdvRef.current={last:true,fn:()=>{const standings=buildBracketStandings(newBracket);chanRef.current.send({type:'broadcast',event:'game_over',payload:{standings,bracket:newBracket}});}};
         return;}
       // next round pairs
       const q=[...winners];const next=[];while(q.length>1){const a=q.shift();const b=q.shift();next.push({a,b,aName:newBracket.names[a],bName:newBracket.names[b],aScore:null,bScore:null,winner:null});}
@@ -1162,7 +1171,7 @@ function MinigamesScreen({user,onBack,onScoreSaved}){const[screen,setScreen]=use
       newBracket.rounds.push(next);newBracket.roundIdx=br.roundIdx+1;newBracket.bye=nbye;
       bracketRef.current=newBracket;setBracket(newBracket);
       chanRef.current.send({type:'broadcast',event:'reveal',payload:{results,bracket:newBracket,eliminatedIds:losers}});
-      advTimerRef.current=setTimeout(()=>{startBracketRound(newBracket,newBracket.roundIdx);},4800);
+      pendingAdvRef.current={last:false,fn:()=>{startBracketRound(newBracket,newBracket.roundIdx);}};
       return;
     }
     // rounds / teams
@@ -1177,13 +1186,13 @@ function MinigamesScreen({user,onBack,onScoreSaved}){const[screen,setScreen]=use
         const ta=results.filter(x=>x.team==='A').reduce((s,x)=>s+x.totalScore,0);
         const tb=results.filter(x=>x.team==='B').reduce((s,x)=>s+x.totalScore,0);
         standings=results.map(x=>({...x}));window.__sbTeamTotals={A:ta,B:tb};
-        advTimerRef.current=setTimeout(()=>{chanRef.current.send({type:'broadcast',event:'game_over',payload:{standings,teamTotals:{A:ta,B:tb}}});},4500);
+        pendingAdvRef.current={last:true,fn:()=>{chanRef.current.send({type:'broadcast',event:'game_over',payload:{standings,teamTotals:{A:ta,B:tb}}});}};
       } else {
         standings=results;
-        advTimerRef.current=setTimeout(()=>{chanRef.current.send({type:'broadcast',event:'game_over',payload:{standings}});},4500);
+        pendingAdvRef.current={last:true,fn:()=>{chanRef.current.send({type:'broadcast',event:'game_over',payload:{standings}});}};
       }
     } else {
-      advTimerRef.current=setTimeout(()=>{startRound(r+1);},4500);
+      pendingAdvRef.current={last:false,fn:()=>{startRound(r+1);}};
     }
   }
 
@@ -1250,7 +1259,8 @@ function MinigamesScreen({user,onBack,onScoreSaved}){const[screen,setScreen]=use
           React.createElement("div",{style:{fontSize:14,fontWeight:700,color:'#fff',flex:1}},players[id].name,id===myId&&React.createElement("span",{style:{color:'#667',fontWeight:400}}," (ty)")),
           teams[id]&&React.createElement("span",{style:{fontSize:11,fontWeight:800,padding:'2px 8px',borderRadius:10,background:teams[id]==='A'?'rgba(68,136,255,.25)':'rgba(255,108,136,.25)',color:teams[id]==='A'?'#7fb0ff':'#ff9bb0'}},"Tým ",teams[id])))),
       isHost?React.createElement("div",null,
-        React.createElement("div",{style:{fontSize:11,color:'#88a0d0',marginBottom:8,textAlign:'center'}},"Režim: ",React.createElement("b",{style:{color:'#fff'}},mode==='bracket'?'Vyřazovací pavouk':mode==='teams'?'Týmový duel':'Duel na kola')),
+        React.createElement("div",{style:{fontSize:11,color:'#88a0d0',letterSpacing:1.5,marginBottom:8,textAlign:'center'}},"REŽIM HRY"),
+        React.createElement("div",{style:{display:'flex',gap:6,marginBottom:14}},[['rounds','🎯','Kola'],['bracket','🏆','Pavouk'],['teams','🤝','Týmy']].map(([mk,emo,lab])=>React.createElement("button",{key:mk,onClick:()=>{setMode(mk);modeRef.current=mk;if(chanRef.current)chanRef.current.send({type:'broadcast',event:'settings',payload:{mode:mk,totalRounds:totalRoundsRef.current}});},style:{flex:1,padding:'9px 4px',borderRadius:10,border:'2px solid '+(mode===mk?'#4488ff':'#28386a'),background:mode===mk?'linear-gradient(135deg,rgba(68,136,255,.25),rgba(68,136,255,.08))':'rgba(16,24,52,.6)',color:'#fff',cursor:'pointer',fontSize:11,fontWeight:800}},React.createElement("div",{style:{fontSize:18}},emo),lab))),
         (mode!=='bracket')&&React.createElement("div",{style:{display:'flex',alignItems:'center',justifyContent:'center',gap:12,marginBottom:14}},
           React.createElement("span",{style:{fontSize:11,color:'#88a0d0'}},"Počet kol:"),
           React.createElement("button",{onClick:()=>{const v=Math.max(5,totalRounds-1);setTotalRounds(v);if(chanRef.current)chanRef.current.send({type:'broadcast',event:'settings',payload:{totalRounds:v}});},disabled:totalRounds<=5,style:{width:34,height:34,borderRadius:9,border:'1px solid #3a4a7a',background:totalRounds<=5?'#1a2440':'rgba(68,136,255,.15)',color:'#7fb0ff',fontSize:18,fontWeight:900,cursor:'pointer'}},"−"),
@@ -1290,7 +1300,8 @@ function MinigamesScreen({user,onBack,onScoreSaved}){const[screen,setScreen]=use
         eliminated&&React.createElement("div",{style:{fontSize:14,fontWeight:800,color:'#ff6688',marginTop:6}},"❌ Vypadl jsi z pavouka"),
         myMatch&&myMatch.bye&&React.createElement("div",{style:{fontSize:14,fontWeight:800,color:'#44ff88',marginTop:6}},"🎟 Volný los – postupuješ")),
       React.createElement("div",{style:{background:cardBg,border:'1px solid #28386a',borderRadius:14,padding:'10px 14px'}},sorted.map((r,i)=>React.createElement("div",{key:r.id,style:{padding:'9px 0',borderBottom:i<sorted.length-1?'1px solid rgba(40,56,106,.4)':'none'}},React.createElement("div",{style:{display:'flex',alignItems:'center',gap:10}},React.createElement("div",{style:{fontSize:15,fontWeight:900,color:i===0?'#ffd700':'#7fb0ff',width:22}},i+1,"."),React.createElement("div",{style:{flex:1,minWidth:0}},React.createElement("div",{style:{fontSize:14,fontWeight:700,color:r.id===myId?'#7fb0ff':'#fff'}},r.name,r.id===myId&&" (ty)",r.won===true&&React.createElement("span",{style:{color:'#44ff88'}}," \u2713"),r.won===false&&React.createElement("span",{style:{color:'#ff6688'}}," \u2717")),React.createElement("div",{style:{fontSize:11,color:'#8da4cc'}},"kolo +",(r.score||0).toLocaleString())),React.createElement("div",{style:{fontSize:15,fontWeight:900,color:'#fff',fontFamily:"'Orbitron',sans-serif"}},(r.totalScore||0).toLocaleString())),r.hits&&r.hits.length>0&&React.createElement("div",{style:{display:'flex',gap:4,marginTop:7}},TARGETS.map((tg,k)=>{var h=r.hits[k];var miss=!h||h.s==null;return React.createElement("div",{key:k,style:{flex:1,textAlign:'center',background:'rgba(20,30,66,.55)',borderRadius:7,padding:'4px 1px',border:'1px solid rgba(40,56,106,.5)'}},React.createElement("div",{style:{fontSize:9,color:'#6a82b0'}},tg+"s"),React.createElement("div",{style:{fontSize:11,fontWeight:700,color:miss?'#ff6688':'#cfe0ff',fontFamily:"'Courier New',monospace",lineHeight:1.25}},miss?'\u2717':h.s.toFixed(2)),React.createElement("div",{style:{fontSize:10,fontWeight:800,color:miss?'#7a4452':'#ffd36a'}},miss?'0':'+'+(h.p>=1000?Math.round(h.p/1000)+'k':h.p)));}))))),
-      React.createElement("div",{style:{textAlign:'center',color:'#667',fontSize:12,marginTop:14}},"Další kolo začne za chvíli…"));
+      isHost?React.createElement("button",{onClick:sbHostAdvance,style:{width:'100%',marginTop:16,padding:'15px',borderRadius:12,border:'none',background:'linear-gradient(135deg,#4aa8ff,#2f6fd6)',color:'#fff',fontFamily:"'Orbitron',sans-serif",fontWeight:900,fontSize:15,cursor:'pointer',boxShadow:'0 6px 20px rgba(74,168,255,.3)'}},(pendingAdvRef.current&&pendingAdvRef.current.last)?'🏁 Zobrazit finální výsledky':'▶ Další kolo')
+        :React.createElement("div",{style:{textAlign:'center',color:'#667',fontSize:12,marginTop:16}},"Čeká se na hosta → další kolo…"));
   }
 
   if(view==='bracket'){

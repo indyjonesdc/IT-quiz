@@ -6,7 +6,7 @@ const N=window.IndyNaval;
 class NavalRoom{
  constructor(db,name,onUpdate){Object.assign(this,{db,name:String(name||'Hráč').slice(0,24),onUpdate,id:crypto.randomUUID(),host:false,closed:false,peers:new Map(),queue:Promise.resolve(),rev:0,seq:0,seenRev:-1,lastSeen:Date.now(),lastPing:0,acks:{},seen:new Map(),lobby:{phase:'lobby',mode:'ffa',options:{weapons:true,items:true,traps:true},players:[]}});}
  async connect(code,host){this.code=code;this.host=host;this.onUpdate({phase:'connecting',myId:this.id,host,code});this.pair=await crypto.subtle.generateKey({name:'ECDH',namedCurve:'P-256'},false,['deriveKey']);this.pub=await crypto.subtle.exportKey('jwk',this.pair.publicKey);if(this.closed)return;
- this.channel=this.db.channel('indy-naval-v1-'+code,{config:{broadcast:{self:false,ack:false}}});
+ this.channel=this.db.channel('indy-naval-v2-'+code,{config:{broadcast:{self:false,ack:false}}});
  this.channel.on('broadcast',{event:'naval'},({payload})=>{this.queue=this.queue.then(()=>this.receive(payload)).catch(()=>{});});
  this.channel.subscribe(status=>{if(this.closed)return;if(status==='SUBSCRIBED'){this.connected=true;if(host){if(!this.lobby.players.length)this.lobby.players.push({id:this.id,name:this.name,team:0,online:true});this.publish();}else this.hello();}else if(['CHANNEL_ERROR','TIMED_OUT','CLOSED'].includes(status)){this.connected=false;this.error('Spojení se přerušilo. Čekám na obnovení…');}});
  this.timer=setInterval(()=>{if(this.pulseQueued)return;this.pulseQueued=true;this.queue=this.queue.then(()=>this.pulse()).catch(()=>{}).finally(()=>{this.pulseQueued=false;});},1000);

@@ -92,3 +92,8 @@ Ověření: 20 automatických testů včetně geometrie flotil, týmů, společn
 ## v3.5 – Pětinásobné bojiště
 
 Mapa rozšířena z 8×8 (64) na 18×18 (324 políček, 5,06× větší plocha). Každá mapa má nezávislé přiblížení 100–300 %, posouvání a návrat na celý přehled; na mobilu začíná na 200 % pro pohodlnější zásahy. Flotily rozšířeny na 6 lodí (5/4/4/3/3/2), celkem 21 částí. Radar 5×5, plošná střela 3×3, torpédo délky 6; úvodní munice 3/2/2, zásobníky nejvýše 4. Náhodných předmětů je dvojnásobek. Nová verze místností má oddělený komunikační kanál, aby se nemíchaly rozměry se starou rozehranou partií. Ověřeno 21 testy včetně všech okrajových souřadnic a React UI se 324 políčky a zoomem.
+
+## v3.6 – volitelné mapy lodí
+- Hostitel vybírá 12×12, 18×18, 24×24 nebo 30×30; automatická velikost podle počtu hráčů.
+- Každá flotila má vlastní mapu, zásah se týká jen vybraného soupeře.
+- Souřadnice až AD30, dynamická geometrie a ověření pěti shodných flotil.

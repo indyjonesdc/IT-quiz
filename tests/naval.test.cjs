@@ -15,3 +15,21 @@ test('sinking, mutual mine destruction, timeouts, captain exit and team rotation
 });
 
 test('expanded battlefield reaches R18 and all weapon areas remain inside its edges',()=>{assert.equal(N.SIZE*N.SIZE,324);assert.equal(N.coord(323),'R18');assert.equal(N.TOTAL,21);assert.equal(N.SHIPS.length,6);for(let i=0;i<324;i++)for(const w of ['cannon','radar','bomb','torpedo'])for(const v of [true,false]){const cells=N.area(i,w,v);assert(cells.length);assert.equal(new Set(cells).size,cells.length);assert(cells.every(c=>c>=0&&c<324));}assert.equal(N.area(180,'radar').length,15);assert.equal(N.area(190,'radar').length,25);assert.equal(N.area(190,'bomb').length,9);assert.equal(N.area(190,'torpedo').length,6);});
+
+test('selectable maps, automatic recommendations and isolated hits across five identical fleets',()=>{
+ const players=Array.from({length:5},(_,i)=>({id:'p'+i,name:'Player '+i,team:i%2}));
+ assert.deepEqual([2,3,4,5,6,7,8].map(N.recommendedSize),[12,18,18,24,24,30,30]);
+ assert.throws(()=>N.create(players,'ffa',{mapSize:31}));
+ assert.equal(N.create(players,'ffa',{mapSize:'auto'}).size,24);
+ for(const size of N.SIZES){const rules=N.forSize(size),g=N.create(players,'ffa',{mapSize:size},1000,()=>.5);
+ const ships=rules.SHIPS.map((n,r)=>rules.line(r*size*2,n,false));
+ for(const p of players){assert(N.place(g,p.id,ships));assert(N.ready(g,p.id,[]));}assert(N.begin(g,1000));
+ const target=g.fleets.find(f=>f.id!==g.active);assert(N.act(g,g.actor,{turn:g.turn,target:target.id,at:0,weapon:'cannon'},1001));
+ assert.equal(g.fleets.filter(f=>f.shots[0]==='hit').length,1);assert.equal(target.shots[0],'hit');
+ assert(!N.act(g,g.actor,{turn:g.turn,target:target.id,at:size*size,weapon:'cannon'},1002));
+ assert(rules.validFleet(rules.randomFleet()));assert.equal(N.view(g,g.actor).size,size);
+ for(let at=0;at<size*size;at++)for(const weapon of ['bomb','radar','torpedo'])assert(rules.area(at,weapon).every(i=>i>=0&&i<size*size));
+ }
+ assert.equal(N.forSize(30).coord(899),'AD30');assert.equal(N.forSize(30).coord(26),'AA1');
+ const timed=N.create(players,'ffa',{mapSize:30},0);N.tick(timed,120001);assert.equal(timed.phase,'battle');assert(timed.fleets.every(f=>N.forSize(30).validFleet(f.ships)));
+});

@@ -105,3 +105,9 @@ Mapa rozšířena z 8×8 (64) na 18×18 (324 políček, 5,06× větší plocha).
 - Spojenecké flotily jsou vidět a každá má vlastní barvu s legendou; překryvy mají více barevných značek.
 - Nástrahy mohou zasáhnout spolu s cizí lodí; minové poškození nezablokuje střelbu na nezasažené překryté lodě.
 - Velikosti 12×12 až 30×30 i volba automaticky zůstávají.
+
+## v3.8 – velká taktická plocha
+- Bitva automaticky využije celé okno, s volbou zmenšení.
+- Mapa se přizpůsobuje výšce i šířce; zbraně a palba jsou v samostatném panelu.
+- Příprava flotil má širší mapu, náhled umístění lodě a ovládání šipkami.
+- Zvýraznění oblasti zbraně při najetí, barevné ukazatele stavu flotil a kompaktní oznámení.

@@ -3,6 +3,14 @@
 Stav: verze 3.1 navazuje na nasazenou aktualizaci 3.0 (GitHub commit 62b299d1d313e75e6c4bb3975f4a5a9619f0bb6c).
 Produkce: https://indygames.cz/ (GitHub Pages, repozitář indyjonesdc/IT-quiz, větev main).
 
+## Změny 3.2: původní vzhled denních kvízů
+
+- Obnovena původní prezentace: DAILY CHALLENGE / INDYGAMES, barevná kategorie, štítky témat, přehled pravidel a svislá tlačítka.
+- Otázky opět používají původní horní časovač a skóre, dva průběhové proužky, samostatnou kartu otázky a odpovědi A–D ve dvou sloupcích. Výsledek opět zobrazuje medaili, hodnocení a trojici statistik.
+- Zachována opravená logika, 20sekundový limit jednotlivé otázky, vysvětlení, obnova rozehrané hry, zámek denního výsledku a procvičení chyb.
+- Všech 90 dříve přidaných otázek zachováno beze změny. Přidáno dalších 60 otázek s vysvětlením, po 20 do IT, obecných a filmových kvízů. Celkem 1 538 otázek (1 388 archivních + 150 nových).
+- Styly jsou omezené na denní kvízy. Minihry zůstávají ve verzi 3.1.
+
 ## Změny 3.1 podle zpětné vazby
 
 - 2048 Neon je odstraněn z nabídky i z běžícího kódu.

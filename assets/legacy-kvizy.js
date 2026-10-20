@@ -1,0 +1,5834 @@
+try {
+    var __u = JSON.parse(localStorage.getItem('itq_user') || 'null');
+    if (!__u || !__u.name) {
+        location.replace('index.html');
+    }
+} catch (e) {
+    location.replace('index.html');
+}
+const SUPABASE_URL = 'https://nueprvtkefezraibnlyo.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_kEir70MApmMucBkp5BHpzg_jhDettKH';
+const {
+    createClient
+} = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+(function() {
+    try {
+        var __gu = JSON.parse(localStorage.getItem('itq_user') || 'null');
+        if (__gu && __gu.guest) {
+            var _f = db.from.bind(db);
+            db.from = function(t) {
+                var qb = _f(t);
+                var noop = function() {
+                    var pr = Promise.resolve({
+                        data: null,
+                        error: null
+                    });
+                    var ch = {
+                        then: pr.then.bind(pr),
+                        catch: pr.catch.bind(pr),
+                        finally: function(cb) {
+                            pr.then(cb, cb);
+                            return ch;
+                        }
+                    };
+                    ['eq', 'neq', 'select', 'order', 'limit', 'single', 'maybeSingle', 'match', 'in', 'is', 'gte', 'lte', 'gt', 'lt', 'like', 'ilike', 'contains', 'range', 'filter', 'not', 'or'].forEach(function(m) {
+                        ch[m] = function() {
+                            return ch;
+                        };
+                    });
+                    return ch;
+                };
+                qb.insert = noop;
+                qb.update = noop;
+                qb.upsert = noop;
+                qb.delete = noop;
+                return qb;
+            };
+        }
+    } catch (e) {}
+})();
+const {
+    useState,
+    useEffect,
+    useRef
+} = React;
+const APP_VERSION = 'v3.0-20261020';
+console.log('%c[INDYGAMES] ' + APP_VERSION, 'background:#1a3a8a;color:#fff;padding:4px 10px;border-radius:4px;font-weight:bold');
+const QUIZ_DURATION = 300;
+const QUESTIONS_PER_QUIZ = 15;
+const MAX_PTS = 1000;
+const MIN_PTS = 100;
+const SCREENS = {
+    HUB: 'hub',
+    HOME: 'home',
+    REGISTER: 'register',
+    LOGIN: 'login',
+    PROFILE: 'profile',
+    QUIZ: 'quiz',
+    RESULT: 'result',
+    BOARD: 'board',
+    STATS: 'stats',
+    MINIGAMES: 'minigames'
+};
+const QUIZ_MODES = {
+    IT: 'it',
+    GENERAL: 'general',
+    FILM: 'film'
+};
+const COMBO_TIME_LIMIT = 3;
+const COMBO3_BONUS = 500;
+const COMBO4_BONUS = 1000;
+const COMBO5_BONUS = 2000;
+const PERFECT_BONUS = 2000;
+const LUCKY_PRIZES = [-500, -200, 0, 100, 200, 300, 500, 750, 1000];
+const LUCKY_REACTIONS = {
+    '-500': ['💀 Gratuluji! Úspěšně jsi smazal část svého skóre.', '🗑️ Takhle se truhličky neotevírají. Takhle se fláká.', '😂 To bolelo víc než produkční outage v pátek odpoledne.', '🪦 RIP bodům. Nezapomeneme. Na chvíli.', '🤡 Našel jsi skrytý achievement: "Nejhorší volba dne".'],
+    '-200': ['😬 Malá rána. Jako restart bez uložení.', '📉 Tvůj graf výsledků vypadá jako IPO startupu co zkrachoval.', '🥲 Mohlo být hůř. Ale mohlo být i mnohem líp.', '💸 -200 bodů. Investice do zkušeností.'],
+    '0': ['😶 Nula. Přesně jako přidaná hodnota tohoto výběru.', '🫥 Prázdná truhlička. Jak prázdný kalendář seniora na LinkedIn.', '🤷 Ani zisk ani ztráta. Jak průměrný sprint.', '⚖️ Nula. Karmická rovnováha zachována.'],
+    '100': ['🙂 100 bodíků. Jako prémie za to že jsi přišel do práce.', '📦 Malý poklad. Ale stále poklad.'],
+    '200': ['😊 200 bodů! Slušná volba pro začátek.', '🎯 Ne nejlepší, ale ne nejhorší. Jako průměrný code review.'],
+    '300': ['👍 300 bodů! Tohle je ta správná energie.', '🎲 Štěstí přeje připraveným. Nebo tobě.'],
+    '500': ['🎉 500 bodů! Tady je někdo oblíbenec náhody!', '🔥 Půl tisíce! Server applauduje.', '⚡ Tohle byl fakt dobrý klik.'],
+    '750': ['🤩 750 bodů!! Ty máš ale šťastnou ruku!', '🚀 750! Skoro jako dostat produkci bez bugů.', '💎 Tenhle výběr byl lepší než posledních 5 deploymentů dohromady.'],
+    '1000': ['🏆 JACKPOT!! 1000 bodů!! Tebe ani blesk netrefí!', '👑 MAXIMUM! Sys admin bohové ti dnes přejí!', '💥 TISÍC BODŮ!! Tohle se stává jednou za deployment bez chyb!', '🌟 1000 BODŮ! Okamžitě kup los. Nebo restartuj server. Funguje vše.']
+};
+
+function getLuckyReaction(pts) {
+    const key = String(pts);
+    const arr = LUCKY_REACTIONS[key] || ['🎲 Zajímavá volba.'];
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+const INSULTS = ['💀 KATASTROFA! Ani klávesnice tě nezachránila!', '🤦 Opravdu?! Tohle je ZÁKLADNÍ věc!', '😱 Tím jsi způsobil fyzickou bolest síťovému technikovi!', '🔥 Server by se styděl za takovou odpověď!', '🗑️ Recykluješ vzduch nebo i vědomosti?', '💔 Router plakal. ROUTER. PLAKAL.', '🤡 Gratuluju — dokonalý scam na hodnocení!', '⚰️ RIP tvoje IT kariéra. 2024–2024.', '🦆 Gumová kachnička by tě přejela v testu!', '😤 I BIOS ví víc než ty!', '🧠 Chybí procesor nebo jen RAM?', '💣 Tato odpověď by způsobila production outage!', '🐛 Nalezl jsem chybu — v tvém mozku!', '📡 Signál IQ: příliš slabý na příjem!', '🔌 Unplugged from reality, are we?', '🖥️ Ty jsi ajťák asi jako kalkulačka je superpočítač.', '🌐 Tvoje odpověď měla tolik logiky co Internet Explorer bezpečnosti.', '📦 Kdyby byl bullshit open-source, tak jsi maintainer.', '🔧 Tobě bych nesvěřil ani restart routeru.', '📋 Ty jsi důkaz, že Ctrl+C a Ctrl+V není vzdělání.', '😭 Když jsi odpovídal, tak někde plakal jeden admin.', '🖱️ Tvoje IT znalosti skončily u zapnutí monitoru.', '📶 Máš charisma DHCP konfliktu.', '⌨️ Ty budeš asi ten typ ajťáka, co hledá Any key.', '👻 Tvůj debugging vypadá jak exorcismus.', '🤖 Takovou odpověď nevymyslí ani AI po lobotomii.', '📰 Ty ses učil IT podle komentářů na Novinkách?', '🖨️ Jestli je tohle expert, tak tiskárna je quantum computer.', '📡 Tvoje odpověď měla větší packet loss než veřejná Wi-Fi na nádraží.', '⚡ Kdybys byl proces, tak tě Task Manager zabije jako první.', '🐧 Ty jsi Linux nikdy neviděl jinak než na wallpaperu.', '🧩 Tvůj mozek běží asi na trial verzi.', '💙 Tohle nebyla odpověď, to byl BSOD v přímém přenosu.', '💾 Ty máš místo znalostí jen cache sebevědomí.', '🔀 Když jsi mluvil o IT, Git začal vracet konflikty.', '🚨 Tvoje rada je ideální způsob, jak rozbít produkci během pěti minut.', '🔦 Ty bys shodil server i vypínačem od lampičky.', '☁️ Jediný cloud, co znáš, je ten na obloze.', '⚙️ Tvoje konfigurace života je evidentně defaultní a rozbitá.', '🔒 Tohle nebyla technická odpověď, ale kybernetický zločin.', '🔄 Ty budeš ten admin, co opravuje problémy restartem celé firmy.', '📚 Po tvé odpovědi se i Stack Overflow stydí.', '🗂️ Tvoje IT znalosti jsou jak WinRAR licence — věčně trial.', '🛰️ Ty jsi tak mimo, že by tě nenašel ani traceroute.', '🖧 Když jsi odpověděl, tak se někde sám od sebe odpojil server.'];
+const INSULT_ENDINGS = ['To byl fakt výkon. Zapsáno do síně hanby.', 'I ten restart routeru by ti to nevysvětlil.', 'Certifikát Clueless Admin™ ti přijde poštou.', 'Příště si přečti aspoň Wikipedia. Prosím tě.', 'Tvůj mentor tě vzdáleně právě pláče.', 'Uloženo do archivu nejhorších odpovědí všech dob.', 'Doufám, že tohle je probuzení, ne potvrzení.', 'Zkus to zítra znovu. Nebo se vyspat. Obojí.'];
+const EXPLANATIONS = {};
+
+function getTodayKey() {
+    return window.IndyRules.day();
+}
+const PLAYER_FACTS = ['Jednou přesvědčil záchranáře že zachraňují jeho, přestože volal on.', 'Má doloženou alergii na pondělí. Lékař to odmítl zapsat. Má druhý názor.', 'Třikrát v životě spontánně tancoval na pohřbu. Vždy správně odhadl situaci.', 'Vyhrál soutěž v jídle kdo dřív přestane. Vyhrál. Nikdo tomu nerozuměl.', 'Jednou přesvědčil celé letadlo že je pilot. Nebyl. Přistáli normálně.', 'Má podanou žalobu na vlastní stín za pronásledování. Soud ji zamítl.', 'Jednou omylem vyhlásil zásnuby na cizí svatbě. Byli rádi.', 'Přežil tři situace které pojišťovna označila jako "statisticky nemožné".', 'Jednou usnul ve frontě na cokoliv a probudil se první.', 'Přesvědčen že jeho jméno způsobuje technické problémy. Má důkazy.', 'Jednou vyhrál v kasinu a okamžitě utratil výhru za vstup zpět.', 'Má fotografický důkaz že byl na dvou místech zároveň. Fyzikálně to nevysvětlil.', 'Třikrát omylem nastoupil do záchranky místo taxíku. Pokaždé dojel.', 'Jednou přesvědčil celou restauraci že je zavřeno. Nebyla. Jedl sám.', 'Přežil výbuch mikrovlnky, tři zatopené sklepy a jeden výtah. Ve stejném roce.', 'Má dokumentovaný případ kdy jeho kýchnutí zastavilo hodiny. Ve třech domácnostech.', 'Jednou omylem řídil pohřební průvod. Dorazili na správné místo.', 'Přesvědčen že má jiný čas než zbytek světa. O sedm minut napřed.', 'Jednou ho záchranáři zachránili ze situace kterou sám způsobil náhodou za poslední čtyři minuty.', 'Má notářsky ověřené prohlášení že není on. Pro případ potřeby.', 'Třikrát v životě omylem absolvoval cizí pracovní pohovor. Jednou dostal nabídku.', 'Jednou přesvědčil hasiče že zachraňují kočku. Kočka tam nebyla. Hasiči to ocenili.', 'Má alergii na konkrétní odstín béžové. Dermatolog to potvrdil s údivem.', 'Jednou omylem moderoval televizní pořad. Nikdo nic neřekl do konce vysílání.', 'Přežil situaci ve které byl statisticky třikrát po sobě bleskem. Jeden byl kulový.', 'Má doloženou historii kdy jeho přítomnost způsobuje výpadek proudu. V různých zemích.', 'Jednou se probudil na střeše budovy ve které nikdy nebyl. Má alibi.', 'Přesvědčen že ho sledují turisté. Má fotografie jako důkaz. Je na nich náhodou.', 'Třikrát v životě omylem přijal státní vyznamenání. Dvakrát ho vrátil.', 'Jednou ho aerolinky povýšily na pilota z nedopatření. Odmítl. Litoval.', 'Má notářsky ověřený seznam věcí které se mu nemůžou stát. Staly se.', 'Jednou omylem vyhrál místní volby. Nekandidoval. Mandát nepřijal.', 'Přesvědčen že zrcadla ho zobrazují o vteřinu opožděně. Testuje to.', 'Třikrát záměrně zůstal v hotelu po checkoutu. Třikrát to prošlo.', 'Jednou přesvědčil celé muzeum že je exponát. Čtyři hodiny.', 'Má dokumentovaný případ kdy jeho telefonát způsobil sesuv půdy. Nepřímo.', 'Jednou omylem koupil dům na dražbě. Prodal ho se ziskem. Nebyl to záměr.', 'Přežil tři situace ve kterých byl prohlášen za mrtvého. Vždy to opravil.', 'Má doloženou alergii na konkrétní televizní kanál. Jen na vysílání v úterý.', 'Jednou omylem vstoupil do svědkové ochrany. Byl z ní propuštěn po třech dnech.', 'Přesvědčen že jeho bunda má vlastní osobnost. Chová se jinak podle počasí.', 'Třikrát v životě omylem dirigoval orchestr. Jednou za potlesku.', 'Jednou přesvědčil celé sídliště že se stěhuje. Nestěhoval se. Pomohli mu.', 'Má fotografický důkaz o setkání s pěti celebrity které nepoznal. Jsou na selfíčkách.', 'Jednou omylem vyhlásil požární poplach na čtyřech kontinentech současně. Telefonicky.', 'Přežil situaci která by podle fyzikálních zákonů vyžadovala být na dvou místech.', 'Má doloženou historii kdy jeho přítomnost způsobuje déšť. V poloměru sto metrů.', 'Jednou omylem absolvoval celý maraton. Šel si koupit rohlík.', 'Přesvědčen že jeho podpis způsobuje technické problémy. Banky souhlasí.', 'Třikrát v životě spontánně zorganizoval evakuaci. Vždy byl důvod. Vždy jiný.'];
+
+function getPlayerFact(name) {
+    const seed = window.IndyRules.hash(String(name));
+    return PLAYER_FACTS[Math.abs(seed) % PLAYER_FACTS.length];
+}
+
+function avatarSrc(url) {
+    if (!url) return null;
+    const base = url.split('?')[0];
+    const hour = Math.floor(Date.now() / 3600000);
+    return `${base}?v=${hour}`;
+}
+
+function getYesterdayKey() {
+    const d = new Date(getTodayKey() + 'T12:00:00Z');
+    d.setUTCDate(d.getUTCDate() - 1);
+    return d.toISOString().slice(0, 10);
+}
+
+function getCurrentMonthKey() {
+    return getTodayKey().slice(0,7);
+}
+
+function getPrevMonthKey() {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function monthLabel(key) {
+    if (!key) return '';
+    const [y, m] = key.split('-');
+    const names = ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'];
+    return `${names[parseInt(m)-1]} ${y}`;
+}
+const TIME_BONUS_RATIO = 1;
+const MAX_TIME_BONUS = 30;
+
+function seededShuffle(arr, seed) {
+    const a = [...arr];
+    let s = seed;
+    for (let i = a.length - 1; i > 0; i--) {
+        s = s * 1664525 + 1013904223 & 0xffffffff;
+        const j = Math.abs(s) % (i + 1);
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+function getDailyQuestions(dateKey, mode) {
+    const fresh=window.IndyRules.daily(window.INDY_NEW_QUESTIONS,dateKey,mode,5);
+    const old=window.IndyRules.daily(window.INDY_ARCHIVE_QUESTIONS.filter(q=>!fresh.some(n=>n.q===q.q)),dateKey,mode,10);
+    return window.IndyRules.shuffle([...fresh,...old],window.IndyRules.random(window.IndyRules.hash(dateKey+mode)));
+}
+
+function calcPoints(tl) {
+    return Math.round(MIN_PTS + (MAX_PTS - MIN_PTS) * Math.max(0, Math.min(1, tl / QUIZ_DURATION)));
+}
+
+function ls(k, d) {
+    try {
+        const v = localStorage.getItem(k);
+        return v ? JSON.parse(v) : d;
+    } catch {
+        return d;
+    }
+}
+
+function lss(k, v) {
+    try {
+        localStorage.setItem(k, JSON.stringify(v));
+    } catch {}
+}
+
+function lsDel(k) {
+    try {
+        localStorage.removeItem(k);
+    } catch {}
+}
+
+function randomLuckyPrizes() {
+    const pool = [...LUCKY_PRIZES];
+    for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    return pool.slice(0, 4);
+}
+
+function shuffleQuestionsAndAnswers(questions) { return questions.map(q=>({...q,opts:q.opts.slice()})); }
+function activeQuizKey(mode) { const u=ls('itq_user',null);return 'ig-v3-active-'+(u?.id||'guest')+'-'+(mode||QUIZ_MODES.IT); }
+
+function saveActiveQuiz(quiz, mode) {
+    if(quiz.practice)return;
+    lss(activeQuizKey(mode),{...quiz,rulesVersion:3,quiz_mode:mode||QUIZ_MODES.IT});
+}
+function loadActiveQuiz(todayKey, mode) {
+    const saved=ls(activeQuizKey(mode),null);
+    return saved&&saved.rulesVersion===3&&saved.savedAt===todayKey&&!saved.finished?saved:null;
+}
+
+let ALL_QUESTIONS = [];
+let ALL_GENERAL_QUESTIONS = [];
+let ALL_FILM_QUESTIONS = [];
+async function loadQuestionsFromDB() {
+    try {
+        const {
+            data,
+            error
+        } = await db.from('questions').select('id,cat,q,opts,a,mode,explanation').order('id', {
+            ascending: true
+        });
+        if (error || !data) {
+            console.error('Questions load error:', error);
+            return false;
+        }
+        const parse = q => ({
+            ...q,
+            opts: Array.isArray(q.opts) ? q.opts : JSON.parse(q.opts)
+        });
+        ALL_QUESTIONS = data.filter(q => q.mode === 'it').map(parse);
+        ALL_GENERAL_QUESTIONS = data.filter(q => q.mode === 'general').map(parse);
+        ALL_FILM_QUESTIONS = data.filter(q => q.mode === 'film').map(parse);
+        console.log(`Loaded ${ALL_QUESTIONS.length} IT + ${ALL_GENERAL_QUESTIONS.length} general + ${ALL_FILM_QUESTIONS.length} film`);
+        return true;
+    } catch (e) {
+        console.error('Questions load exception:', e);
+        return false;
+    }
+}
+let DAILY_FROM_EDGE = null;
+async function loadDailyFromEdge() {
+    try {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/daily-quiz`, {
+            headers: {
+                'apikey': SUPABASE_KEY,
+                'Authorization': `Bearer ${SUPABASE_KEY}`
+            }
+        });
+        if (!res.ok) return false;
+        const data = await res.json();
+        if (!data || !data.it) return false;
+        const parse = q => ({
+            ...q,
+            opts: Array.isArray(q.opts) ? q.opts : JSON.parse(q.opts)
+        });
+        DAILY_FROM_EDGE = {
+            date: data.date,
+            it: (data.it || []).map(parse),
+            general: (data.general || []).map(parse),
+            film: (data.film || []).map(parse)
+        };
+        console.log('Daily questions z Edge Function:', DAILY_FROM_EDGE.date);
+        return true;
+    } catch (e) {
+        console.warn('Edge Function nedostupná, fallback na lokální výběr:', e);
+        return false;
+    }
+}
+class ErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = {
+            error: null
+        };
+    }
+    static getDerivedStateFromError(e) {
+        return {
+            error: e
+        };
+    }
+    render() {
+        if (this.state.error) {
+            return React.createElement("div", {
+                style: {
+                    color: '#ff4444',
+                    padding: 20,
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    background: '#0a0a0f',
+                    minHeight: '100vh'
+                }
+            }, React.createElement("div", {
+                style: {
+                    fontSize: 18,
+                    marginBottom: 12
+                }
+            }, "❌ Chyba aplikace"), React.createElement("div", null, this.state.error.message), React.createElement("pre", {
+                style: {
+                    marginTop: 12,
+                    color: '#ff8888',
+                    fontSize: 10,
+                    overflow: 'auto'
+                }
+            }, this.state.error.stack), React.createElement("button", {
+                onClick: () => window.location.reload(),
+                style: {
+                    marginTop: 16,
+                    padding: '8px 16px',
+                    background: '#4488ff',
+                    border: 'none',
+                    color: '#fff',
+                    borderRadius: 6,
+                    cursor: 'pointer'
+                }
+            }, "Obnovit stránku"));
+        }
+        return this.props.children;
+    }
+}
+
+function HubScreen({
+    user,
+    scores,
+    todayKey,
+    onPick,
+    onExit
+}) {
+    var QM = QUIZ_MODES;
+    var modes = [{
+        m: QM.IT,
+        icon: '💻',
+        label: 'IT',
+        desc: 'Programování, sítě, hardware',
+        ac: '#44ffaa',
+        bd: '#1d6b4f',
+        bg: 'linear-gradient(135deg,rgba(68,255,170,0.10),rgba(12,18,15,0.55))'
+    }, {
+        m: QM.GENERAL,
+        icon: '🌍',
+        label: 'Obecný',
+        desc: 'Všeobecné znalosti',
+        ac: '#4db8ff',
+        bd: '#1d5a7e',
+        bg: 'linear-gradient(135deg,rgba(77,184,255,0.10),rgba(12,16,22,0.55))'
+    }, {
+        m: QM.FILM,
+        icon: '🎬',
+        label: 'Filmový',
+        desc: 'Filmy, seriály, herci',
+        ac: '#c87fff',
+        bd: '#5e2a8e',
+        bg: 'linear-gradient(135deg,rgba(200,127,255,0.10),rgba(18,12,22,0.55))'
+    }];
+    var played = function(m) {
+        return user && scores && scores.some(function(s) {
+            return s.user_id === user.id && s.date === todayKey && (s.quiz_mode || QM.IT) === m;
+        });
+    };
+    return React.createElement("div", {
+        style: {
+            minHeight: '78vh',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '36px 16px 28px'
+        }
+    }, React.createElement("div", {
+        style: {
+            textAlign: 'center',
+            marginBottom: 26
+        }
+    }, React.createElement("div", {
+        style: {
+            fontFamily: "'Orbitron',monospace",
+            fontSize: 30,
+            fontWeight: 900,
+            letterSpacing: 4,
+            color: '#eafff7',
+            textShadow: '0 0 24px rgba(68,255,170,0.45)'
+        }
+    }, "INDYGAMES"), React.createElement("div", {
+        style: {
+            marginTop: 10,
+            fontSize: 15,
+            color: '#7fb9a0',
+            letterSpacing: 1
+        }
+    }, "Vyber kategorii denního kvízu")), React.createElement("div", {
+        style: {
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 14,
+            width: '100%',
+            maxWidth: 440
+        }
+    }, modes.map(function(c) {
+        return React.createElement("button", {
+            type:"button",
+            key: c.m,
+            className: "hubcard",
+            onClick: function() {
+                onPick(c.m);
+            },
+            style: {
+                display: 'flex',
+                alignItems: 'center',
+                gap: 16,
+                padding: '18px 20px',
+                borderRadius: 16,
+                cursor: 'pointer',
+                border: '1px solid ' + c.bd,
+                background: c.bg,
+                boxShadow: '0 6px 22px rgba(0,0,0,0.35)'
+            }
+        }, React.createElement("div", {
+            style: {
+                fontSize: 34,
+                filter: 'drop-shadow(0 0 10px ' + c.ac + '88)'
+            }
+        }, c.icon), React.createElement("div", {
+            style: {
+                flex: 1,
+                textAlign: 'left'
+            }
+        }, React.createElement("div", {
+            style: {
+                fontSize: 20,
+                fontWeight: 800,
+                color: '#ffffff',
+                letterSpacing: 0.3
+            }
+        }, c.label), React.createElement("div", {
+            style: {
+                fontSize: 13,
+                color: '#9fb3ab',
+                marginTop: 3
+            }
+        }, c.desc)), React.createElement("div", {
+            style: {
+                fontSize: 13,
+                fontWeight: 700,
+                color: c.ac,
+                whiteSpace: 'nowrap'
+            }
+        }, played(c.m) ? '✓ Splněno' : 'Hrát →'));
+    })), React.createElement("button", {
+        className: "btn",
+        onClick: onExit,
+        style: {
+            marginTop: 26,
+            background: 'transparent',
+            border: '1px solid #2a3a6a',
+            padding: '12px 34px',
+            borderRadius: 10,
+            fontSize: 13,
+            color: '#667799',
+            letterSpacing: 2,
+            cursor: 'pointer',
+            fontFamily: 'inherit'
+        }
+    }, "← ZPĚT NA HLAVNÍ"), React.createElement("style", null, ".hubcard{transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease}.hubcard:hover{transform:translateY(-3px)}.hubcard:active{transform:translateY(-1px)}"));
+}
+
+function App() {
+    const [screen, setScreen] = useState(SCREENS.HUB);
+    const finishBusy=useRef(false);
+    const [user, setUser] = useState(() => ls('itq_user', null));
+    const [scores, setScores] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [questionsLoaded, setQuestionsLoaded] = useState(false);
+    const [currentQuiz, setCurrentQuiz] = useState(null);
+    const [wrongData, setWrongData] = useState(null);
+    const screenRef = useRef(screen);
+    useEffect(() => {
+        screenRef.current = screen;
+    }, [screen]);
+    useEffect(() => {
+        window.history.pushState({
+            app: true
+        }, '');
+        const onPop = () => {
+            window.history.pushState({
+                app: true
+            }, '');
+            if (typeof window.__mapBack === 'function') {
+                window.__mapBack();
+                return;
+            }
+            if (typeof window.__quizBack === 'function') {
+                window.__quizBack();
+                return;
+            }
+            if (typeof window.__minigamesBack === 'function') {
+                window.__minigamesBack();
+                return;
+            }
+            const s = screenRef.current;
+            if (s === SCREENS.HUB || s === SCREENS.HOME || s === SCREENS.LOGIN || s === SCREENS.REGISTER) return;
+            setScreen(SCREENS.HOME);
+        };
+        window.addEventListener('popstate', onPop);
+        return () => window.removeEventListener('popstate', onPop);
+    }, []);
+    const [comboPopup, setComboPopup] = useState(null);
+    const [dbOk, setDbOk] = useState(true);
+    const [timeBonusToday, setTimeBonusToday] = useState(0);
+    const [monthlyChampions, setMonthlyChampions] = useState([]);
+    const [resumableQuiz, setResumableQuiz] = useState(null);
+    const [quizMode, setQuizMode] = useState(QUIZ_MODES.IT);
+    const todayKey = getTodayKey();
+    const yesterdayKey = getYesterdayKey();
+    const todayQuestions = getDailyQuestions(todayKey, quizMode);
+    const hasPlayedToday = !!(user && (ls('ig-v3-done-'+user.id+'-'+todayKey+'-'+quizMode,false) || scores.some(s => s.user_id === user.id && s.date === todayKey && (s.quiz_mode || QUIZ_MODES.IT) === quizMode)));
+    const otherMode = quizMode === QUIZ_MODES.IT ? QUIZ_MODES.GENERAL : QUIZ_MODES.IT;
+    const hasPlayedOtherMode = user && scores.some(s => s.user_id === user.id && s.date === todayKey && (s.quiz_mode || QUIZ_MODES.IT) === otherMode);
+    const hasPlayedModes = {
+        [QUIZ_MODES.IT]: user ? scores.some(s => s.user_id === user.id && s.date === todayKey && (s.quiz_mode || QUIZ_MODES.IT) === QUIZ_MODES.IT) : false,
+        [QUIZ_MODES.GENERAL]: user ? scores.some(s => s.user_id === user.id && s.date === todayKey && s.quiz_mode === QUIZ_MODES.GENERAL) : false,
+        [QUIZ_MODES.FILM]: user ? scores.some(s => s.user_id === user.id && s.date === todayKey && s.quiz_mode === QUIZ_MODES.FILM) : false
+    };
+    useEffect(() => {
+        setQuestionsLoaded(true);
+        loadScores();
+        loadMonthlyChampions();
+        const saved = loadActiveQuiz(getTodayKey(), quizMode);
+        if (saved) setResumableQuiz(saved);
+    }, []);
+    useEffect(() => {
+        if (user) loadTimeBonus();
+    }, [user?.id]);
+    async function loadScores() {
+        try {
+            const {
+                data,
+                error
+            } = await db.from('scores').select('*').order('score', {
+                ascending: false
+            });
+            if (error) {
+                setDbOk(false);
+                return;
+            }
+            setScores(data || []);
+        } catch {
+            setDbOk(false);
+        }
+    }
+    async function loadMonthlyChampions() {
+        try {
+            const {
+                data
+            } = await db.from('monthly_champions').select('*').order('month', {
+                ascending: false
+            }).limit(12);
+            setMonthlyChampions(data || []);
+        } catch {}
+    }
+    async function loadTimeBonus() {
+        try {
+            const {
+                data
+            } = await db.from('scores').select('time_saved').eq('user_id', user.id).eq('date', yesterdayKey).maybeSingle();
+            if (data?.time_saved > 0) {
+                const bonus = Math.min(Math.round(data.time_saved * TIME_BONUS_RATIO), MAX_TIME_BONUS);
+                setTimeBonusToday(bonus);
+            } else {
+                setTimeBonusToday(0);
+            }
+        } catch {
+            setTimeBonusToday(0);
+        }
+    }
+    async function registerUser(name, password, profile) {
+        setLoading(true);
+        const isLogin = profile === null;
+        try {
+            const username = name.trim();
+            const pwd = password.trim();
+            if (isLogin) {
+                const {
+                    data: authData,
+                    error: authErr
+                } = await db.rpc('verify_password', {
+                    p_name: username,
+                    p_password: pwd
+                });
+                if (authErr) {
+                    alert('Chyba ověření: ' + authErr.message);
+                    setLoading(false);
+                    return;
+                }
+                if (!authData || authData.length === 0) {
+                    alert('Špatné jméno nebo heslo!');
+                    setLoading(false);
+                    return;
+                }
+                const u = {
+                    ...authData[0],
+                    premium: false
+                };
+                setUser(u);
+                lss('itq_user', u);
+                setScreen(SCREENS.HOME);
+            } else {
+                const {
+                    data: existing
+                } = await db.from('users').select('id').ilike('name', username).maybeSingle();
+                if (existing) {
+                    alert('Jméno "' + username + '" je již obsazeno. Zvol jiné.');
+                    setLoading(false);
+                    return;
+                }
+                const {
+                    data,
+                    error
+                } = await db.rpc('register_user', {
+                    p_name: username,
+                    p_password: pwd,
+                    p_profile: profile || {}
+                });
+                if (error || !data || data.length === 0) {
+                    alert('Chyba registrace: ' + (error?.message || 'neznámá chyba'));
+                    setLoading(false);
+                    return;
+                }
+                const u = {
+                    ...data[0],
+                    premium: false
+                };
+                setUser(u);
+                lss('itq_user', u);
+                setScreen(SCREENS.HOME);
+            }
+        } catch (e) {
+            alert('Chyba připojení k databázi');
+        }
+        setLoading(false);
+    }
+    async function activatePremium(code) {
+        const clean = code.trim().toUpperCase();
+        try {
+            const {
+                data: codeRow,
+                error
+            } = await db.from('premium_codes').select('*').eq('code', clean).maybeSingle();
+            if (error || !codeRow) return {
+                ok: false,
+                msg: 'Kód neexistuje.'
+            };
+            if (codeRow.used_by) return {
+                ok: false,
+                msg: 'Kód byl již použit.'
+            };
+            await db.from('premium_codes').update({
+                used_by: user.id,
+                used_at: new Date().toISOString()
+            }).eq('code', clean);
+            const {
+                data: updated
+            } = await db.from('users').update({
+                premium: true
+            }).eq('id', user.id).select().single();
+            if (updated) {
+                setUser(updated);
+                lss('itq_user', updated);
+            } else {
+                const u = {
+                    ...user,
+                    premium: true
+                };
+                setUser(u);
+                lss('itq_user', u);
+            }
+            return {
+                ok: true
+            };
+        } catch (e) {
+            return {
+                ok: false,
+                msg: 'Chyba připojení.'
+            };
+        }
+    }
+    async function saveProfile(profileData) {
+        setLoading(true);
+        try {
+            const {
+                data,
+                error
+            } = await db.from('users').update(profileData).eq('id', user.id).select().single();
+            if (data) {
+                setUser(data);
+                lss('itq_user', data);
+            } else {
+                const updated = {
+                    ...user,
+                    ...profileData
+                };
+                setUser(updated);
+                lss('itq_user', updated);
+            }
+        } catch (e) {
+            const updated = {
+                ...user,
+                ...profileData
+            };
+            setUser(updated);
+            lss('itq_user', updated);
+        }
+        setLoading(false);
+        setScreen(SCREENS.HOME);
+    }
+    async function finishQuiz(quiz) {
+        if(finishBusy.current)return;finishBusy.current=true;
+        const normalAnswers=quiz.answers.filter(a=>a.q!=='lucky');
+        const allCorrect=normalAnswers.length===quiz.questions.length&&normalAnswers.length===15&&normalAnswers.every(a=>a.correct);
+        const perfectBonus=allCorrect?2000:0;
+        const finalScore=normalAnswers.reduce((n,a)=>n+(Number.isFinite(a.pts)?a.pts:0),0)+perfectBonus;
+        const date=quiz.savedAt||getTodayKey(),mode=quiz.quiz_mode||quizMode;
+        let saveStatus=quiz.practice?'practice':user?.guest?'local':'saved';
+        const entry={id:quiz.resultId||crypto.randomUUID(),user_id:user?.id,user_name:user?.name,date,score:finalScore,correct:normalAnswers.filter(a=>a.correct).length,total:quiz.questions.length,timestamp:Date.now(),time_saved:Math.max(0,quiz.timeLeft||0),perfect:allCorrect,play_log:quiz.playLog||[],quiz_mode:mode};
+        try {
+            if(!quiz.practice&&!user?.guest){
+                const {data:existing,error:readError}=await db.from('scores').select('id').eq('user_id',user.id).eq('date',date).eq('quiz_mode',mode).limit(1);
+                if(readError)throw readError;
+                if(existing?.length)saveStatus='existing';
+                else {const {error}=await db.from('scores').insert(entry);if(error)throw error;}
+            }
+        } catch(error){saveStatus='error';console.error('Score save failed',error);}
+        const result={...quiz,resultId:entry.id,totalScore:finalScore,perfectBonus,allCorrect,timeSaved:Math.max(0,quiz.timeLeft||0),saveStatus,finished:true};
+        if(!quiz.practice){lss('ig-v3-result-'+user.id+'-'+date+'-'+mode,result);if(saveStatus!=='error')lss('ig-v3-done-'+user.id+'-'+date+'-'+mode,true);lsDel(activeQuizKey(mode));}
+        setResumableQuiz(null);setCurrentQuiz(result);setScreen(SCREENS.RESULT);finishBusy.current=false;
+        if(saveStatus==='saved')loadScores();
+    }
+
+
+    async function tryCoronateMonthlyChampion(currentMonthKey) {
+        try {
+            const prevMonth = getPrevMonthKey();
+            const {
+                data: existing
+            } = await db.from('monthly_champions').select('id').eq('month', prevMonth).maybeSingle();
+            if (existing) return;
+            const {
+                data: prevScores
+            } = await db.from('scores').select('user_id, user_name, score').like('date', `${prevMonth}-%`);
+            if (!prevScores || prevScores.length === 0) return;
+            const agg = {};
+            prevScores.forEach(s => {
+                if (!agg[s.user_id]) agg[s.user_id] = {
+                    user_id: s.user_id,
+                    user_name: s.user_name,
+                    total: 0,
+                    days: 0
+                };
+                agg[s.user_id].total += s.score;
+                agg[s.user_id].days += 1;
+            });
+            const sorted = Object.values(agg).sort((a, b) => b.total - a.total);
+            if (sorted.length === 0) return;
+            const winner = sorted[0];
+            await db.from('monthly_champions').insert({
+                id: `${prevMonth}-${winner.user_id}`,
+                month: prevMonth,
+                user_id: winner.user_id,
+                user_name: winner.user_name,
+                total_score: winner.total,
+                days_played: winner.days
+            });
+        } catch (e) {}
+    }
+    const S = {
+        wrap: {
+            minHeight: '100vh',
+            background: '#0a0a0f',
+            fontFamily: "'Inter', sans-serif",
+            color: '#e0e8ff',
+            position: 'relative',
+            overflowX: 'hidden'
+        },
+        grid: {
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundImage: 'linear-gradient(rgba(30,60,150,0.07) 1px,transparent 1px),linear-gradient(90deg,rgba(30,60,150,0.07) 1px,transparent 1px)',
+            backgroundSize: '50px 50px',
+            pointerEvents: 'none',
+            zIndex: 0
+        },
+        scan: {
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,50,100,0.025) 2px,rgba(0,50,100,0.025) 4px)',
+            pointerEvents: 'none',
+            zIndex: 0
+        },
+        content: {
+            position: 'relative',
+            zIndex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center'
+        }
+    };
+    return React.createElement("div", {
+        style: S.wrap
+    }, React.createElement("style", null, `
+        *{box-sizing:border-box;margin:0;padding:0}
+        input{background:#0d1428;border:1px solid #2a3a6a;color:#e0e8ff;padding:12px 16px;border-radius:8px;font-family:inherit;font-size:16px;width:100%;outline:none;transition:border-color 0.2s}
+        input:focus{border-color:#4488ff;box-shadow:0 0 0 3px rgba(68,136,255,0.15)}
+        .btn{cursor:pointer;border:none;font-family:inherit;letter-spacing:2px;text-transform:uppercase;font-weight:700;transition:all 0.2s}
+        .btn:hover{transform:translateY(-2px);filter:brightness(1.15)}
+        .btn:active{transform:translateY(0)}
+        .glow{text-shadow:0 0 20px #4488ff,0 0 40px #2255cc}
+        @keyframes progressBar{0%{width:0%;margin-left:0}50%{width:60%;margin-left:20%}100%{width:0%;margin-left:100%}}
+        @keyframes targetPop{0%{transform:translate(-50%,-50%) scale(0.3);opacity:0}100%{transform:translate(-50%,-50%) scale(1);opacity:1}}
+        @keyframes floatUp{0%{opacity:1;transform:translate(-50%,-50%)}100%{opacity:0;transform:translate(-50%,-200%)}}
+        @keyframes pulse{0%,100%{box-shadow:0 0 20px rgba(255,50,50,0.3)}50%{box-shadow:0 0 40px rgba(255,50,50,0.6)}}
+        @keyframes scoreReveal{0%{opacity:0;transform:scale(.7) translateY(20px)}100%{opacity:1;transform:scale(1) translateY(0)}}
+        @keyframes scorePulse{0%{transform:scale(.8);opacity:0}60%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+        @keyframes fadeIn{0%{opacity:0}100%{opacity:1}}
+        @keyframes scanLine{0%{transform:translateX(-100%)}1
+    @keyframes comboPulse {
+      0% { transform: scale(.7); opacity: 0; }
+      50% { transform: scale(1.15); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+00%{transform:translateX(100%)}}
+        @keyframes dotPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(1.5)}}
+        @keyframes recordReveal{0%{opacity:0;transform:scale(.5)}100%{opacity:1;transform:scale(1)}}
+        @keyframes confettiFall{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(720deg);opacity:0}}
+        @keyframes spin{0%{transform:scale(0) rotate(-180deg)}100%{transform:scale(1) rotate(0deg)}}
+        @keyframes slideIn{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+        .slide-in{animation:slideIn 0.4s ease}
+        @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-12px)}75%{transform:translateX(12px)}}
+        .shake{animation:shake 0.5s}
+        @keyframes comboPop{
+          0%{transform:scale(0.2) translateY(60px) rotate(-5deg);opacity:0}
+          50%{transform:scale(1.25) translateY(-12px) rotate(2deg);opacity:1}
+          70%{transform:scale(0.92) translateY(4px) rotate(-1deg)}
+          85%{transform:scale(1.06) translateY(-2px)}
+          100%{transform:scale(1) translateY(0) rotate(0);opacity:1}
+        }
+        @keyframes comboFade{
+          0%{opacity:1;transform:scale(1) translateY(0)}
+          80%{opacity:0.8;transform:scale(1.08) translateY(-10px)}
+          100%{opacity:0;transform:scale(0.7) translateY(-40px)}
+        }
+        @keyframes comboToast{
+          0%{transform:translateX(120px) scale(0.8);opacity:0}
+          100%{transform:translateX(0) scale(1);opacity:1}
+        }
+        @keyframes comboToastOut{
+          0%{transform:translateX(0);opacity:1}
+          100%{transform:translateX(120px);opacity:0}
+        }        @keyframes edgeFlash{
+          0%{opacity:0}10%{opacity:1}50%{opacity:0.5}100%{opacity:0}
+        }
+        @keyframes particleFly{
+          0%{transform:translateY(0) translateX(0) scale(1);opacity:1}
+          100%{transform:translateY(-100px) translateX(var(--dx,0px)) scale(0.2);opacity:0}
+        }
+        @keyframes sparkle{0%,100%{opacity:0;transform:scale(0) rotate(0deg)}50%{opacity:1;transform:scale(1) rotate(180deg)}}
+        @keyframes counterBump{0%{transform:scale(1)}30%{transform:scale(1.5)}60%{transform:scale(0.85)}100%{transform:scale(1)}}
+        @keyframes comboStreakIn{0%{transform:scaleX(0);opacity:0}100%{transform:scaleX(1);opacity:1}}
+        @keyframes perfectPulse{0%,100%{box-shadow:0 0 20px #ffd70066}50%{box-shadow:0 0 60px #ffd700cc,0 0 100px #ffd70044}}
+        @keyframes perfectStarSpin{0%{transform:rotate(0deg) scale(1)}50%{transform:rotate(180deg) scale(1.3)}100%{transform:rotate(360deg) scale(1)}}
+        @keyframes perfectRain{0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(720deg);opacity:0}}
+        @keyframes chestShake{0%,100%{transform:rotate(0deg) scale(1)}20%{transform:rotate(-8deg) scale(1.1)}40%{transform:rotate(8deg) scale(1.1)}60%{transform:rotate(-5deg) scale(1.05)}80%{transform:rotate(5deg) scale(1.05)}}
+        @keyframes chestOpen{0%{transform:scale(1) translateY(0)}30%{transform:scale(1.3) translateY(-10px)}60%{transform:scale(0.95) translateY(5px)}100%{transform:scale(1.1) translateY(-5px)}}
+        @keyframes prizePop{0%{transform:scale(0) translateY(20px);opacity:0}60%{transform:scale(1.2) translateY(-5px);opacity:1}100%{transform:scale(1) translateY(0);opacity:1}}
+        @keyframes chestGlow{0%,100%{box-shadow:0 0 10px #ffd70044}50%{box-shadow:0 0 30px #ffd700aa,0 0 60px #ffd70044}}
+        .chest-btn{cursor:pointer;border:none;background:transparent;transition:transform 0.2s}
+        .chest-btn:hover:not(:disabled){transform:translateY(-4px) scale(1.05)}
+        .avatar-upload-wrap{position:relative;display:inline-block;cursor:pointer}
+        .avatar-upload-wrap:hover .avatar-overlay{opacity:1}
+        .avatar-overlay{position:absolute;inset:0;background:rgba(0,0,0,0.55);border-radius:50%;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity 0.2s;font-size:22px}
+        .tab-btn{background:transparent;border:1px solid #2a3a6a;color:#8899bb;padding:8px 20px;border-radius:6px;cursor:pointer;font-family:inherit;font-size:12px;letter-spacing:1px;transition:all 0.2s}
+        .tab-btn.active{background:#1a2a5a;border-color:#4488ff;color:#88aaff}
+        input,select,textarea{background:#0d1428;border:1px solid #2a3a6a;color:#e0e8ff;padding:12px 16px;border-radius:8px;font-family:inherit;font-size:15px;width:100%;outline:none;transition:border-color 0.2s}
+        input:focus,select:focus,textarea:focus{border-color:#4488ff;box-shadow:0 0 0 3px rgba(68,136,255,0.15)}
+        select option{background:#0d1428}
+        .field-label{font-size:11px;color:#4a5a7a;letter-spacing:1px;margin-bottom:5px;text-transform:uppercase}
+      `), React.createElement("div", {
+        style: S.grid
+    }), React.createElement("div", {
+        style: S.scan
+    }), !dbOk && React.createElement("div", {
+        style: {
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            background: '#440000',
+            padding: '10px',
+            textAlign: 'center',
+            zIndex: 999,
+            fontSize: 13,
+            color: '#ff8888'
+        }
+    }, "⚠️ Databáze není připojena — vyplň SUPABASE_URL a SUPABASE_KEY v HTML souboru"), comboPopup && (() => {
+        const cfg = {
+            3: {
+                emoji: '🔥',
+                label: 'SUPER KOMBO',
+                c1: '#ff9900',
+                border: '#ff9900'
+            },
+            4: {
+                emoji: '⚡',
+                label: 'MEGA KOMBO',
+                c1: '#bb44ff',
+                border: '#bb44ff'
+            },
+            5: {
+                emoji: '💥',
+                label: 'ULTRA KOMBO',
+                c1: '#ff2255',
+                border: '#ff2255'
+            }
+        } [comboPopup.level] || {
+            emoji: '🔥',
+            label: 'KOMBO',
+            c1: '#ff9900',
+            border: '#ff9900'
+        };
+        return React.createElement("div", {
+            key: comboPopup.key,
+            style: {
+                position: 'fixed',
+                top: 16,
+                right: 16,
+                zIndex: 150,
+                pointerEvents: 'none',
+                animation: 'comboToast 0.3s cubic-bezier(0.34,1.56,0.64,1) forwards, comboToastOut 0.3s ease 0.85s forwards'
+            }
+        }, React.createElement("div", {
+            style: {
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                background: 'rgba(10,14,35,0.92)',
+                border: `1px solid ${cfg.border}88`,
+                borderRadius: 12,
+                padding: '10px 16px',
+                boxShadow: `0 0 20px ${cfg.border}44`,
+                backdropFilter: 'blur(8px)'
+            }
+        }, React.createElement("span", {
+            style: {
+                fontSize: 22,
+                lineHeight: 1
+            }
+        }, cfg.emoji), React.createElement("div", null, React.createElement("div", {
+            style: {
+                fontFamily: "'Orbitron',sans-serif",
+                fontSize: 11,
+                fontWeight: 900,
+                color: cfg.c1,
+                letterSpacing: 2
+            }
+        }, cfg.label), React.createElement("div", {
+            style: {
+                fontSize: 12,
+                color: cfg.c1,
+                fontWeight: 700,
+                letterSpacing: 1
+            }
+        }, "+", comboPopup.bonus.toLocaleString(), " bodů"))));
+    })(), wrongData && React.createElement("div", {
+        onClick: () => {
+            if (window._quizResumeCallback) window._quizResumeCallback();
+            setWrongData(null);
+        },
+        style: {
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.93)',
+            zIndex: 100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            padding: '20px',
+            overflowY: 'auto'
+        }
+    }, React.createElement("div", {
+        className: "shake",
+        style: {
+            textAlign: 'center',
+            maxWidth: 540,
+            width: '100%',
+            paddingBottom: 10
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 64,
+            marginBottom: 10
+        }
+    }, "💀"), React.createElement("div", {
+        style: {
+            fontSize: 'clamp(15px,2.8vw,21px)',
+            color: '#ff4444',
+            fontWeight: 700,
+            lineHeight: 1.45,
+            marginBottom: 22,
+            padding: '0 8px'
+        }
+    }, wrongData.insult), React.createElement("div", {
+        style: {
+            background: 'rgba(0,80,0,0.4)',
+            border: '1px solid #22aa44',
+            borderRadius: 12,
+            padding: '14px 18px',
+            marginBottom: 12,
+            textAlign: 'left'
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 10,
+            color: '#22aa44',
+            letterSpacing: 2,
+            marginBottom: 6,
+            fontFamily: "'Orbitron',sans-serif"
+        }
+    }, "✅ SPRÁVNÁ ODPOVĚĎ"), React.createElement("div", {
+        style: {
+            fontSize: 16,
+            fontWeight: 700,
+            color: '#88ff88'
+        }
+    }, wrongData.correctAnswer)), React.createElement("div", {
+        style: {
+            background: 'rgba(10,20,60,0.8)',
+            border: '1px solid #2a3a6a',
+            borderRadius: 12,
+            padding: '14px 18px',
+            marginBottom: 14,
+            textAlign: 'left'
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 10,
+            color: '#4488ff',
+            letterSpacing: 2,
+            marginBottom: 8,
+            fontFamily: "'Orbitron',sans-serif"
+        }
+    }, "💡 PROČ JE TO TAK"), React.createElement("div", {
+        style: {
+            fontSize: 14,
+            color: '#b0c4e8',
+            lineHeight: 1.65
+        }
+    }, wrongData.explanation)), React.createElement("div", {
+        style: {
+            fontSize: 13,
+            color: '#445566',
+            fontStyle: 'italic',
+            marginBottom: 18,
+            padding: '0 8px'
+        }
+    }, wrongData.ending), React.createElement("div", {
+        style: {
+            fontSize: 11,
+            color: '#2a3a5a',
+            letterSpacing: 2
+        }
+    }, "— KLIKNI KAMKOLIV PRO POKRAČOVÁNÍ —"))), React.createElement("div", {
+        style: S.content
+    }, !questionsLoaded ? React.createElement("div", {
+        style: {
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: '#0a0a0f',
+            zIndex: 999,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 16
+        }
+    }, React.createElement("div", {
+        style: {
+            fontFamily: "'Orbitron',sans-serif",
+            fontSize: 24,
+            color: '#4488ff',
+            letterSpacing: 4
+        }
+    }, "INDYGAMES"), React.createElement("div", {
+        style: {
+            fontSize: 13,
+            color: '#445566'
+        }
+    }, "Načítám otázky..."), React.createElement("div", {
+        style: {
+            width: 200,
+            height: 3,
+            background: '#1a2040',
+            borderRadius: 2,
+            overflow: 'hidden',
+            marginTop: 8
+        }
+    }, React.createElement("div", {
+        style: {
+            height: '100%',
+            background: '#4488ff',
+            borderRadius: 2,
+            animation: 'progressBar 1.5s ease infinite'
+        }
+    }))) : React.createElement(React.Fragment, null, screen === SCREENS.HUB && React.createElement(HubScreen, {
+        user: user,
+        scores: scores,
+        todayKey: todayKey,
+        onPick: function(m) {
+            setQuizMode(m);
+            setResumableQuiz(loadActiveQuiz(getTodayKey(), m) || null);
+            setScreen(SCREENS.HOME);
+        },
+        onExit: function() {
+            window.location.href = 'index.html';
+        }
+    }), screen === SCREENS.HOME && React.createElement(HomeScreen, {
+        onHub: function() {
+            setScreen(SCREENS.HUB);
+        },
+        user: user,
+        hasPlayedToday: hasPlayedToday,
+        questionsLoaded:questionsLoaded,
+        lastResult:ls('ig-v3-result-'+user?.id+'-'+todayKey+'-'+quizMode,null),
+        onLastResult:()=>{const q=ls('ig-v3-result-'+user?.id+'-'+todayKey+'-'+quizMode,null);if(q){setCurrentQuiz(q);setScreen(SCREENS.RESULT);}},
+        hasPlayedOtherMode: hasPlayedOtherMode,
+        hasPlayedModes: hasPlayedModes,
+        todayKey: todayKey,
+        todayQuestions: todayQuestions,
+        timeBonusToday: timeBonusToday,
+        resumableQuiz: resumableQuiz,
+        quizMode: quizMode,
+        onSwitchMode: m => {
+            setQuizMode(m);
+            setResumableQuiz(loadActiveQuiz(getTodayKey(), m) || null);
+        },
+        onResume: () => {
+            setCurrentQuiz(resumableQuiz);
+            setResumableQuiz(null);
+            setScreen(SCREENS.QUIZ);
+        },
+        onRegister: () => setScreen(SCREENS.REGISTER),
+        onLogin: () => setScreen(SCREENS.LOGIN),
+        onProfile: () => setScreen(SCREENS.PROFILE),
+        onPractice: () => {
+            const newQuiz={questions:window.IndyRules.daily([...window.INDY_NEW_QUESTIONS,...window.INDY_ARCHIVE_QUESTIONS],crypto.randomUUID(),quizMode,15),answers:[],current:0,totalScore:0,timeLeft:300,practice:true,quiz_mode:quizMode};
+            setCurrentQuiz(newQuiz);setScreen(SCREENS.QUIZ);
+        },
+        onStart: () => {
+            if(hasPlayedToday)return;
+            const totalTime = QUIZ_DURATION;
+            const questions = shuffleQuestionsAndAnswers(todayQuestions);
+            const newQuiz = {
+                questions,
+                answers: [],
+                current: 0,
+                timeLeft: totalTime,
+                totalDuration: totalTime,
+                totalScore: 0,
+                timeBonusUsed: 0,
+                rulesVersion:3,
+                savedAt: getTodayKey(),
+                quiz_mode: quizMode
+            };
+            saveActiveQuiz(newQuiz, quizMode);
+            setResumableQuiz(null);
+            setCurrentQuiz(newQuiz);
+            setScreen(SCREENS.QUIZ);
+        },
+        onBoard: () => setScreen(SCREENS.BOARD),
+        onStats: () => setScreen(SCREENS.STATS),
+        onMinigames: () => setScreen(SCREENS.MINIGAMES),
+        onLogout: () => {
+            setUser(null);
+            lss('itq_user', null);
+        },
+        loading: loading
+    }), screen === SCREENS.REGISTER && React.createElement(RegisterScreen, {
+        onRegister: registerUser,
+        onBack: () => setScreen(SCREENS.HOME),
+        loading: loading,
+        initialTab: "register"
+    }), screen === SCREENS.LOGIN && React.createElement(RegisterScreen, {
+        onRegister: registerUser,
+        onBack: () => setScreen(SCREENS.HOME),
+        loading: loading,
+        initialTab: "login"
+    }), screen === SCREENS.PROFILE && user && React.createElement(ProfileScreen, {
+        user: user,
+        onSave: saveProfile,
+        onBack: () => setScreen(SCREENS.HOME),
+        loading: loading
+    }), screen === SCREENS.QUIZ && currentQuiz && React.createElement(QuizScreen, {
+        quiz: currentQuiz,
+        onFinish: finishQuiz,
+        onWrong: q => {
+            if (!q) return;
+            const insult = INSULTS[Math.floor(Math.random() * INSULTS.length)];
+            const ending = INSULT_ENDINGS[Math.floor(Math.random() * INSULTS.length % INSULT_ENDINGS.length)];
+            const correctAnswer = q.opts[q.a];
+            const explanation = q?.explanation || `Správná odpověď je: "${correctAnswer}".`;
+            setWrongData({
+                insult,
+                ending,
+                correctAnswer,
+                explanation
+            });
+        },
+        onCombo: (level, bonus) => {
+            setComboPopup({
+                level,
+                bonus,
+                key: Date.now()
+            });
+            setTimeout(() => setComboPopup(null), 1200);
+        }
+    }), screen === SCREENS.RESULT && currentQuiz && React.createElement(ResultScreen, {
+        quiz: currentQuiz,
+        timeSaved: currentQuiz.timeSaved || 0,
+        onRetrySave:()=>finishQuiz(currentQuiz),
+        onHome: () => setScreen(SCREENS.HOME),
+        onBoard: () => setScreen(SCREENS.BOARD)
+    }), screen === SCREENS.BOARD && React.createElement(BoardScreen, {
+        scores: scores,
+        user: user,
+        todayKey: todayKey,
+        monthlyChampions: monthlyChampions,
+        quizMode: quizMode,
+        onBack: () => setScreen(SCREENS.HOME)
+    }), screen === SCREENS.STATS && user && React.createElement(StatsScreen, {
+        user: user,
+        scores: scores,
+        quizMode: quizMode,
+        onBack: () => setScreen(SCREENS.HOME)
+    }), screen === SCREENS.MINIGAMES && React.createElement(MinigamesScreen, {
+        user: user,
+        onBack: () => setScreen(SCREENS.HOME),
+        onScoreSaved: loadScores
+    }))));
+}
+
+function HomeScreen(props){return React.createElement(window.IndyDailyHome,props);}
+
+function ProfileFields({
+    profile,
+    setProfile
+}) {
+    const p = (k, v) => setProfile(prev => ({
+        ...prev,
+        [k]: v
+    }));
+    return React.createElement("div", {
+        style: {
+            textAlign: 'left',
+            marginTop: 14
+        }
+    }, React.createElement("div", {
+        style: {
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 10
+        }
+    }, React.createElement("div", null, React.createElement("div", {
+        className: "field-label"
+    }, "🏢 Firma"), React.createElement("input", {
+        value: profile.company || '',
+        onChange: e => p('company', e.target.value),
+        placeholder: "ACME Corp...",
+        maxLength: 40
+    })), React.createElement("div", null, React.createElement("div", {
+        className: "field-label"
+    }, "💼 Pozice"), React.createElement("input", {
+        value: profile.position || '',
+        onChange: e => p('position', e.target.value),
+        placeholder: "Senior Click Engineer...",
+        maxLength: 40
+    }))), React.createElement("div", {
+        style: {
+            marginTop: 10
+        }
+    }, React.createElement("div", {
+        className: "field-label"
+    }, "💻 Oblíbený HW"), React.createElement("input", {
+        value: profile.fav_hw || '',
+        onChange: e => p('fav_hw', e.target.value),
+        placeholder: "ThinkPad X1, Cisco ASA, Raspberry Pi...",
+        maxLength: 60
+    })), React.createElement("div", {
+        style: {
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 10,
+            marginTop: 10
+        }
+    }, React.createElement("div", null, React.createElement("div", {
+        className: "field-label"
+    }, "🐧 OS náboženství"), React.createElement("select", {
+        value: profile.os_religion || '',
+        onChange: e => p('os_religion', e.target.value)
+    }, React.createElement("option", {
+        value: ""
+    }, "— nevyplněno —"), React.createElement("option", {
+        value: "linux"
+    }, "Linux (vím co dělám)"), React.createElement("option", {
+        value: "windows"
+    }, "Windows (klikací šaman)"), React.createElement("option", {
+        value: "macos"
+    }, " macOS (prémiový)"), React.createElement("option", {
+        value: "bsd"
+    }, "BSD (hardcore nerd)"), React.createElement("option", {
+        value: "arch"
+    }, "Arch (btw)"))), React.createElement("div", null, React.createElement("div", {
+        className: "field-label"
+    }, "☕ Kávy za den"), React.createElement("select", {
+        value: profile.coffee_cups || '',
+        onChange: e => p('coffee_cups', e.target.value)
+    }, React.createElement("option", {
+        value: ""
+    }, "— nevyplněno —"), React.createElement("option", {
+        value: "0"
+    }, "0 – jsem robot"), React.createElement("option", {
+        value: "1"
+    }, "1 – ranní rituál"), React.createElement("option", {
+        value: "2"
+    }, "2 – normální"), React.createElement("option", {
+        value: "3"
+    }, "3 – závislák"), React.createElement("option", {
+        value: "5"
+    }, "5+ – cévy z kávy"), React.createElement("option", {
+        value: "iv"
+    }, "IV infuze rovnou")))), React.createElement("div", {
+        style: {
+            marginTop: 10
+        }
+    }, React.createElement("div", {
+        className: "field-label"
+    }, "🐛 Styl debugování"), React.createElement("select", {
+        value: profile.debug_style || '',
+        onChange: e => p('debug_style', e.target.value)
+    }, React.createElement("option", {
+        value: ""
+    }, "— nevyplněno —"), React.createElement("option", {
+        value: "printstatements"
+    }, "Print statements – klasika"), React.createElement("option", {
+        value: "debugger"
+    }, "Debugger – profesionál"), React.createElement("option", {
+        value: "stackoverflow"
+    }, "Stack Overflow + modlitba"), React.createElement("option", {
+        value: "rubber"
+    }, "Gumová kachnička"), React.createElement("option", {
+        value: "restart"
+    }, "Restart a doufám"), React.createElement("option", {
+        value: "ai"
+    }, "Ptám se AI a nedůvěřuji"), React.createElement("option", {
+        value: "blame"
+    }, "Blame git, ať to opraví kolega"))), React.createElement("div", {
+        style: {
+            marginTop: 10
+        }
+    }, React.createElement("div", {
+        className: "field-label"
+    }, "🦸 Moje IT superschopnost"), React.createElement("input", {
+        value: profile.superpower || '',
+        onChange: e => p('superpower', e.target.value),
+        placeholder: "Vidím smysl v chybové hlášce 0x80070005...",
+        maxLength: 80
+    })));
+}
+
+function ProfileScreen({
+    user,
+    onSave,
+    onBack,
+    loading
+}) {
+    const [profile, setProfile] = useState({
+        company: user.company || '',
+        position: user.position || '',
+        fav_hw: user.fav_hw || '',
+        os_religion: user.os_religion || '',
+        coffee_cups: user.coffee_cups || '',
+        debug_style: user.debug_style || '',
+        superpower: user.superpower || ''
+    });
+    const [avatarPreview, setAvatarPreview] = useState(user.avatar_url ? avatarSrc(user.avatar_url) : null);
+    const [avatarFile, setAvatarFile] = useState(null);
+    const [avatarUploading, setAvatarUploading] = useState(false);
+    const [avatarError, setAvatarError] = useState('');
+    const [avatarSize, setAvatarSize] = useState('');
+    const fileRef = useRef(null);
+    const [showPwd, setShowPwd] = useState(false);
+    const [oldPwd, setOldPwd] = useState('');
+    const [newPwd, setNewPwd] = useState('');
+    const [newPwd2, setNewPwd2] = useState('');
+    const [pwdMsg, setPwdMsg] = useState('');
+    const [pwdLoading, setPwdLoading] = useState(false);
+    async function changePassword() {
+        if (!oldPwd) {
+            setPwdMsg('Zadej staré heslo.');
+            return;
+        }
+        if (newPwd.length < 4) {
+            setPwdMsg('Nové heslo musí mít aspoň 4 znaky.');
+            return;
+        }
+        if (newPwd !== newPwd2) {
+            setPwdMsg('Nová hesla se neshodují.');
+            return;
+        }
+        setPwdLoading(true);
+        setPwdMsg('');
+        try {
+            const {
+                data: ok
+            } = await db.rpc('verify_password', {
+                p_name: user.name,
+                p_password: oldPwd
+            });
+            if (!ok || ok.length === 0) {
+                setPwdMsg('❌ Staré heslo je špatně.');
+                setPwdLoading(false);
+                return;
+            }
+            const userId = ok[0].id || user.id;
+            const {
+                error
+            } = await db.rpc('change_password', {
+                p_user_id: userId,
+                p_new_password: newPwd
+            });
+            if (error) {
+                setPwdMsg('❌ Chyba: ' + error.message);
+            } else {
+                setPwdMsg('✅ Heslo bylo změněno!');
+                setOldPwd('');
+                setNewPwd('');
+                setNewPwd2('');
+                setShowPwd(false);
+            }
+        } catch (e) {
+            setPwdMsg('❌ Chyba připojení.');
+        }
+        setPwdLoading(false);
+    }
+
+    function pickFile(e) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            setAvatarError('Pouze obrázky (JPG, PNG, WebP)');
+            return;
+        }
+        setAvatarError('');
+        const img = new Image();
+        const reader = new FileReader();
+        reader.onload = ev => {
+            img.onload = () => {
+                const MAX = 800;
+                let w = img.width,
+                    h = img.height;
+                if (w > MAX || h > MAX) {
+                    if (w > h) {
+                        h = Math.round(h * MAX / w);
+                        w = MAX;
+                    } else {
+                        w = Math.round(w * MAX / h);
+                        h = MAX;
+                    }
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                canvas.toBlob(blob => {
+                    setAvatarFile(blob);
+                    setAvatarSize(`${(blob.size/1024).toFixed(0)} KB`);
+                    setAvatarPreview(canvas.toDataURL('image/jpeg', 0.82));
+                }, 'image/jpeg', 0.82);
+            };
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+    async function handleSave() {
+        let avatarUrl = user.avatar_url ? user.avatar_url.split('?')[0] : null;
+        if (avatarFile) {
+            setAvatarUploading(true);
+            try {
+                const path = `${user.id}/avatar`;
+                const {
+                    error: upErr
+                } = await db.storage.from('avatars').upload(path, avatarFile, {
+                    upsert: true,
+                    contentType: 'image/jpeg'
+                });
+                if (upErr) {
+                    setAvatarError('Upload selhal: ' + upErr.message);
+                    setAvatarUploading(false);
+                    return;
+                }
+                const {
+                    data: urlData
+                } = db.storage.from('avatars').getPublicUrl(path);
+                avatarUrl = urlData.publicUrl;
+            } catch (e) {
+                setAvatarError('Upload selhal');
+                setAvatarUploading(false);
+                return;
+            }
+            setAvatarUploading(false);
+        }
+        onSave({
+            ...profile,
+            avatar_url: avatarUrl
+        });
+    }
+    const isWorking = loading || avatarUploading;
+    return React.createElement("div", {
+        style: {
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'center',
+            padding: '20px',
+            overflowY: 'auto'
+        }
+    }, React.createElement("div", {
+        className: "slide-in",
+        style: {
+            width: '100%',
+            maxWidth: 480,
+            textAlign: 'center',
+            paddingTop: 30,
+            paddingBottom: 30
+        }
+    }, React.createElement("div", {
+        style: {
+            fontFamily: "'Orbitron',sans-serif",
+            fontSize: 11,
+            letterSpacing: 4,
+            color: '#4488ff',
+            marginBottom: 16
+        }
+    }, "PROFIL HRÁČE"), React.createElement("div", {
+        style: {
+            marginBottom: 20,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 10
+        }
+    }, React.createElement("div", {
+        className: "avatar-upload-wrap",
+        onClick: () => fileRef.current?.click(),
+        style: {
+            width: 96,
+            height: 96,
+            borderRadius: '50%',
+            border: `2px solid ${avatarPreview?'#4488ff':'#2a3a6a'}`,
+            overflow: 'hidden',
+            flexShrink: 0,
+            background: '#0d1428'
+        }
+    }, avatarPreview ? React.createElement("img", {
+        src: avatarPreview,
+        alt: "avatar",
+        style: {
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover'
+        }
+    }) : React.createElement("div", {
+        style: {
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 36,
+            color: '#2a3a6a'
+        }
+    }, "👤"), React.createElement("div", {
+        className: "avatar-overlay"
+    }, "📷")), React.createElement("input", {
+        ref: fileRef,
+        type: "file",
+        accept: "image/*",
+        style: {
+            display: 'none'
+        },
+        onChange: pickFile
+    }), React.createElement("button", {
+        onClick: () => fileRef.current?.click(),
+        style: {
+            background: 'transparent',
+            border: '1px solid #2a3a6a',
+            color: '#4488ff',
+            fontSize: 11,
+            padding: '5px 16px',
+            borderRadius: 20,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            letterSpacing: 1
+        }
+    }, avatarPreview ? '📷 ZMĚNIT FOTKU' : '📷 PŘIDAT FOTKU'), avatarError && React.createElement("div", {
+        style: {
+            color: '#ff4444',
+            fontSize: 11
+        }
+    }, avatarError), React.createElement("div", {
+        style: {
+            fontSize: 10,
+            color: '#334455'
+        }
+    }, avatarSize ? `Zkomprimováno na ${avatarSize} ✓` : 'Jakákoliv velikost · JPG, PNG, WebP · automaticky zkomprimováno')), React.createElement("div", {
+        style: {
+            fontSize: 20,
+            fontWeight: 700,
+            color: '#fff',
+            marginBottom: 4
+        }
+    }, user.name), user.company && React.createElement("div", {
+        style: {
+            fontSize: 13,
+            color: '#556688',
+            marginBottom: 10
+        }
+    }, user.company, user.position ? ` · ${user.position}` : ''), React.createElement("div", {
+        style: {
+            background: 'rgba(68,136,255,0.06)',
+            border: '1px dashed #2a3a6a',
+            borderRadius: 10,
+            padding: '10px 14px',
+            marginBottom: 18,
+            display: 'flex',
+            gap: 10,
+            alignItems: 'flex-start',
+            textAlign: 'left'
+        }
+    }, React.createElement("span", {
+        style: {
+            fontSize: 18,
+            flexShrink: 0
+        }
+    }, "💡"), React.createElement("div", {
+        style: {
+            fontSize: 12,
+            color: '#556688',
+            lineHeight: 1.55,
+            fontStyle: 'italic'
+        }
+    }, getPlayerFact(user.name))), React.createElement("div", {
+        style: {
+            background: 'rgba(20,35,80,0.6)',
+            border: '1px solid #2a3a6a',
+            borderRadius: 12,
+            padding: 24,
+            textAlign: 'left'
+        }
+    }, React.createElement(ProfileFields, {
+        profile: profile,
+        setProfile: setProfile
+    }), React.createElement("button", {
+        className: "btn",
+        onClick: handleSave,
+        disabled: isWorking,
+        style: {
+            marginTop: 20,
+            width: '100%',
+            background: 'linear-gradient(135deg,#1a3a8a,#2255cc)',
+            padding: '13px',
+            borderRadius: 8,
+            fontSize: 14,
+            color: '#fff',
+            letterSpacing: 3
+        }
+    }, avatarUploading ? '📤 NAHRÁVÁM FOTKU...' : loading ? 'UKLÁDÁM...' : '💾 ULOŽIT PROFIL')), React.createElement("div", {
+        style: {
+            background: 'rgba(20,35,80,0.4)',
+            border: '1px solid #2a3a6a',
+            borderRadius: 12,
+            padding: 20,
+            textAlign: 'left',
+            marginTop: 12
+        }
+    }, React.createElement("button", {
+        onClick: () => {
+            setShowPwd(v => !v);
+            setPwdMsg('');
+        },
+        style: {
+            background: 'transparent',
+            border: 'none',
+            color: '#88aaff',
+            fontSize: 13,
+            cursor: 'pointer',
+            letterSpacing: 1,
+            padding: 0
+        }
+    }, "🔑 ", showPwd ? '▲ Skrýt změnu hesla' : '▼ Změnit heslo'), showPwd && React.createElement("div", {
+        style: {
+            marginTop: 14
+        }
+    }, React.createElement("div", {
+        className: "field-label"
+    }, "Staré heslo"), React.createElement("input", {
+        type: "password",
+        value: oldPwd,
+        onChange: e => setOldPwd(e.target.value),
+        placeholder: "Tvé současné heslo...",
+        maxLength: 50
+    }), React.createElement("div", {
+        className: "field-label",
+        style: {
+            marginTop: 10
+        }
+    }, "Nové heslo"), React.createElement("input", {
+        type: "password",
+        value: newPwd,
+        onChange: e => setNewPwd(e.target.value),
+        placeholder: "Min. 4 znaky...",
+        maxLength: 50
+    }), React.createElement("div", {
+        className: "field-label",
+        style: {
+            marginTop: 10
+        }
+    }, "Nové heslo znovu"), React.createElement("input", {
+        type: "password",
+        value: newPwd2,
+        onChange: e => setNewPwd2(e.target.value),
+        onKeyDown: e => e.key === 'Enter' && changePassword(),
+        placeholder: "Zopakuj nové heslo...",
+        maxLength: 50
+    }), pwdMsg && React.createElement("div", {
+        style: {
+            fontSize: 12,
+            marginTop: 8,
+            color: pwdMsg.startsWith('✅') ? '#44ffaa' : '#ff6666'
+        }
+    }, pwdMsg), React.createElement("button", {
+        className: "btn",
+        onClick: changePassword,
+        disabled: pwdLoading,
+        style: {
+            marginTop: 14,
+            width: '100%',
+            background: 'linear-gradient(135deg,#1a2a5a,#2244aa)',
+            padding: '11px',
+            borderRadius: 8,
+            fontSize: 13,
+            color: '#fff',
+            letterSpacing: 2
+        }
+    }, pwdLoading ? 'MĚNÍM...' : '🔑 ZMĚNIT HESLO'))), React.createElement("button", {
+        onClick: onBack,
+        style: {
+            marginTop: 14,
+            background: 'transparent',
+            border: 'none',
+            color: '#334455',
+            fontSize: 12,
+            cursor: 'pointer',
+            letterSpacing: 1
+        }
+    }, "← ZPĚT")));
+}
+
+function RegisterScreen({
+    onRegister,
+    onBack,
+    loading,
+    initialTab = 'login'
+}) {
+    const [tab, setTab] = useState(initialTab);
+    const [name, setName] = useState('');
+    const [password, setPassword] = useState('');
+    const [showProfile, setShowProfile] = useState(false);
+    const [profile, setProfile] = useState({
+        company: '',
+        position: '',
+        fav_hw: '',
+        os_religion: '',
+        coffee_cups: '',
+        debug_style: '',
+        superpower: ''
+    });
+    const [err, setErr] = useState('');
+
+    function reset() {
+        setName('');
+        setPassword('');
+        setErr('');
+        setShowProfile(false);
+    }
+
+    function submit() {
+        const n = name.trim(),
+            p = password.trim();
+        if (!n || n.length < 2) {
+            setErr('Aspoň 2 znaky pro jméno!');
+            return;
+        }
+        if (n.length > 20) {
+            setErr('Max 20 znaků!');
+            return;
+        }
+        if (!p || p.length < 4) {
+            setErr('Heslo musí mít alespoň 4 znaky!');
+            return;
+        }
+        onRegister(n, p, tab === 'register' ? profile : null);
+    }
+    return React.createElement("div", {
+        style: {
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'center',
+            padding: 20,
+            overflowY: 'auto'
+        }
+    }, React.createElement("div", {
+        className: "slide-in",
+        style: {
+            width: '100%',
+            maxWidth: 440,
+            textAlign: 'center',
+            paddingTop: 40,
+            paddingBottom: 30
+        }
+    }, React.createElement("div", {
+        style: {
+            fontFamily: "'Orbitron', sans-serif",
+            fontSize: 11,
+            letterSpacing: 4,
+            color: '#4488ff',
+            marginBottom: 10
+        }
+    }, "IT QUIZ"), React.createElement("h2", {
+        style: {
+            fontFamily: "'Orbitron', sans-serif",
+            fontSize: 26,
+            fontWeight: 900,
+            color: '#fff',
+            marginBottom: 24
+        }
+    }, "Vítej zpět"), React.createElement("div", {
+        style: {
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 6,
+            marginBottom: 24,
+            background: 'rgba(10,15,40,0.6)',
+            borderRadius: 10,
+            padding: 4,
+            border: '1px solid #1e2a4a'
+        }
+    }, [{
+        k: 'login',
+        l: '↩ Přihlásit se'
+    }, {
+        k: 'register',
+        l: '✦ Registrovat se'
+    }].map(t => React.createElement("button", {
+        key: t.k,
+        onClick: () => {
+            setTab(t.k);
+            reset();
+        },
+        style: {
+            padding: '10px',
+            borderRadius: 8,
+            border: 'none',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            fontSize: 13,
+            fontWeight: 700,
+            letterSpacing: 0.5,
+            transition: 'all 0.2s',
+            background: tab === t.k ? 'linear-gradient(135deg,#1a3a8a,#2255cc)' : 'transparent',
+            color: tab === t.k ? '#fff' : '#4a5a7a',
+            boxShadow: tab === t.k ? '0 0 20px rgba(68,136,255,0.3)' : 'none'
+        }
+    }, t.l))), React.createElement("div", {
+        style: {
+            background: 'rgba(20,35,80,0.6)',
+            border: '1px solid #2a3a6a',
+            borderRadius: 12,
+            padding: 24,
+            textAlign: 'left'
+        }
+    }, tab === 'login' ? React.createElement(React.Fragment, null, React.createElement("div", {
+        style: {
+            fontSize: 12,
+            color: '#445566',
+            marginBottom: 16,
+            lineHeight: 1.5
+        }
+    }, "Zadej přezdívku a heslo svého účtu."), React.createElement("div", {
+        className: "field-label"
+    }, "Přezdívka"), React.createElement("input", {
+        value: name,
+        onChange: e => {
+            setName(e.target.value);
+            setErr('');
+        },
+        placeholder: "Tvá přezdívka...",
+        maxLength: 20,
+        autoFocus: true
+    }), React.createElement("div", {
+        className: "field-label",
+        style: {
+            marginTop: 12
+        }
+    }, "Heslo"), React.createElement("input", {
+        type: "password",
+        value: password,
+        onChange: e => {
+            setPassword(e.target.value);
+            setErr('');
+        },
+        onKeyDown: e => e.key === 'Enter' && submit(),
+        placeholder: "Heslo...",
+        maxLength: 50
+    })) : React.createElement(React.Fragment, null, React.createElement("div", {
+        style: {
+            fontSize: 12,
+            color: '#445566',
+            marginBottom: 16,
+            lineHeight: 1.5
+        }
+    }, "Zvol si přezdívku a heslo. Profil můžeš vyplnit hned nebo kdykoliv později."), React.createElement("div", {
+        className: "field-label"
+    }, "Přezdívka"), React.createElement("input", {
+        value: name,
+        onChange: e => {
+            setName(e.target.value);
+            setErr('');
+        },
+        placeholder: "Tvá přezdívka...",
+        maxLength: 20,
+        autoFocus: true
+    }), React.createElement("div", {
+        className: "field-label",
+        style: {
+            marginTop: 12
+        }
+    }, "Heslo"), React.createElement("input", {
+        type: "password",
+        value: password,
+        onChange: e => {
+            setPassword(e.target.value);
+            setErr('');
+        },
+        onKeyDown: e => e.key === 'Enter' && submit(),
+        placeholder: "Zvol si heslo...",
+        maxLength: 50
+    }), React.createElement("button", {
+        onClick: () => setShowProfile(!showProfile),
+        style: {
+            marginTop: 14,
+            background: 'transparent',
+            border: '1px dashed #2a3a6a',
+            color: '#4488ff',
+            padding: '8px 16px',
+            borderRadius: 8,
+            cursor: 'pointer',
+            fontSize: 12,
+            width: '100%',
+            letterSpacing: 1
+        }
+    }, showProfile ? '▲ SKRÝT PROFIL' : '▼ VYPLNIT PROFIL (nepovinné)'), showProfile && React.createElement(ProfileFields, {
+        profile: profile,
+        setProfile: setProfile
+    })), err && React.createElement("div", {
+        style: {
+            color: '#ff4444',
+            fontSize: 12,
+            marginTop: 10,
+            textAlign: 'center'
+        }
+    }, err), React.createElement("button", {
+        className: "btn",
+        onClick: submit,
+        disabled: loading,
+        style: {
+            marginTop: 18,
+            width: '100%',
+            background: 'linear-gradient(135deg,#1a3a8a,#2255cc)',
+            padding: '13px',
+            borderRadius: 8,
+            fontSize: 14,
+            color: '#fff',
+            letterSpacing: 3,
+            textAlign: 'center'
+        }
+    }, loading ? 'NAČÍTÁM...' : tab === 'login' ? '↩ PŘIHLÁSIT SE' : '✦ VYTVOŘIT ÚČET')), React.createElement("button", {
+        onClick: onBack,
+        style: {
+            marginTop: 14,
+            background: 'transparent',
+            border: 'none',
+            color: '#334455',
+            fontSize: 12,
+            cursor: 'pointer',
+            letterSpacing: 1
+        }
+    }, "← ZPĚT")));
+}
+
+function LuckyBoxSlot({
+    prizes,
+    onPick,
+    locked
+}) {
+    const [opened, setOpened] = useState(null);
+    const [revealed, setRevealed] = useState(false);
+    const calledRef = useRef(false);
+    const prizeColor = pts => pts >= 500 ? '#ffd700' : pts >= 100 ? '#44ff88' : pts === 0 ? '#8899bb' : '#ff4444';
+    const prizeLabel = pts => pts > 0 ? `+${pts}` : String(pts);
+
+    function pick(i) {
+        if (locked || opened !== null || calledRef.current) return;
+        calledRef.current = true;
+        setOpened(i);
+        setTimeout(() => setRevealed(true), 800);
+        setTimeout(() => onPick(prizes[i]), 900);
+    }
+    return React.createElement("div", {
+        style: {
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 16,
+            paddingBottom: 20
+        }
+    }, opened === null && React.createElement("div", {
+        style: {
+            textAlign: 'center',
+            color: '#556688',
+            fontSize: 13,
+            animation: 'slideIn 0.4s ease'
+        }
+    }, "Jedna bedna skrývá jackpot. Jedna zkázu. Vyber moudře... nebo vůbec ne."), React.createElement("div", {
+        style: {
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 16,
+            width: '100%',
+            maxWidth: 380
+        }
+    }, prizes.map((pts, i) => {
+        const isThis = opened === i;
+        const col = prizeColor(pts);
+        const isPositive = pts > 0;
+        const isJackpot = pts === 1000;
+        const isBomb = pts === -500;
+        const showContent = isThis || opened !== null;
+        return React.createElement("button", {
+            key: i,
+            className: "chest-btn",
+            onClick: () => pick(i),
+            disabled: locked || opened !== null,
+            style: {
+                padding: '22px 12px',
+                borderRadius: 16,
+                border: isThis ? `2px solid ${col}` : opened !== null ? `1px solid #1e2a4a` : '2px solid #2a3a6a',
+                background: isThis ? `rgba(${isPositive?'0,80,40':'80,0,0'},0.4)` : opened !== null ? 'rgba(10,15,40,0.6)' : 'rgba(15,25,60,0.85)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 10,
+                animation: isThis ? 'chestOpen 0.5s ease forwards' : 'none',
+                boxShadow: isThis && isJackpot ? '0 0 40px #ffd700aa' : 'none',
+                transition: 'all 0.3s',
+                opacity: opened !== null && !isThis ? 0.6 : 1
+            }
+        }, React.createElement("div", {
+            style: {
+                fontSize: isThis ? 52 : 38,
+                lineHeight: 1,
+                animation: isThis ? 'chestShake 0.4s ease' : 'none',
+                filter: isThis ? `drop-shadow(0 0 12px ${col})` : 'none'
+            }
+        }, opened !== null ? isThis ? isJackpot ? '🏆' : isBomb ? '💣' : isPositive ? '💰' : '🪦' : '📦' : '📦'), opened !== null && React.createElement("div", {
+            style: {
+                fontSize: isThis ? 22 : 15,
+                fontWeight: 900,
+                color: isThis ? col : '#445566',
+                fontFamily: "'Orbitron',sans-serif",
+                letterSpacing: 1,
+                animation: isThis && revealed ? 'prizePop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards' : 'none',
+                opacity: !isThis || revealed ? 1 : 0
+            }
+        }, prizeLabel(pts)), opened === null && React.createElement("div", {
+            style: {
+                fontSize: 11,
+                color: '#445566',
+                letterSpacing: 2
+            }
+        }, "#", i + 1));
+    })), opened !== null && revealed && React.createElement("div", {
+        className: "slide-in",
+        style: {
+            textAlign: 'center',
+            padding: '12px 18px',
+            maxWidth: 380,
+            width: '100%',
+            background: 'rgba(20,30,70,0.7)',
+            border: '1px solid #2a3a6a',
+            borderRadius: 12
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 14,
+            color: prizeColor(prizes[opened]),
+            fontWeight: 600,
+            lineHeight: 1.5,
+            marginBottom: 6
+        }
+    }, getLuckyReaction(prizes[opened])), React.createElement("div", {
+        style: {
+            fontSize: 11,
+            color: '#4a5a7a'
+        }
+    }, "přechod na výsledky...")), opened !== null && !revealed && React.createElement("div", {
+        style: {
+            color: '#4a6a9a',
+            fontSize: 13
+        }
+    }, "otvírám..."));
+}
+
+function QuizScreen(props){return React.createElement(window.IndyDaily,{...props,saveActiveQuiz});}
+
+function ResultScreen(props){return React.createElement(window.IndyDailyResult,props);}
+
+function ArchiveRow({
+    s
+}) {
+    const [open, setOpen] = useState(false);
+    const isPerfect = s.perfect;
+    const hasLog = s.play_log && s.play_log.length > 0;
+    const qPool = (s.quiz_mode || QUIZ_MODES.IT) === QUIZ_MODES.GENERAL ? ALL_GENERAL_QUESTIONS : (s.quiz_mode || QUIZ_MODES.IT) === QUIZ_MODES.FILM ? ALL_FILM_QUESTIONS : ALL_QUESTIONS;
+    const normalLog = hasLog ? s.play_log.filter(e => e.qId !== 'lucky') : [];
+    const luckyLog = hasLog ? s.play_log.filter(e => e.qId === 'lucky') : [];
+    const storedTotal = s.total > 0 ? s.total : 15;
+    const totalNormal = hasLog ? Math.max(normalLog.length, storedTotal) : storedTotal;
+    const correctN = hasLog ? normalLog.filter(e => e.correct).length : s.correct;
+    const pct = totalNormal > 0 ? Math.round(correctN / totalNormal * 100) : 0;
+    const col = pct >= 80 ? '#44ffaa' : pct >= 60 ? '#ffd700' : '#ff8844';
+    const luckyPts = luckyLog.length > 0 ? luckyLog[0].chosen || 0 : null;
+    return React.createElement("div", {
+        style: {
+            marginBottom: 6
+        }
+    }, React.createElement("div", {
+        onClick: () => setOpen(o => !o),
+        style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '10px 14px',
+            cursor: 'pointer',
+            background: open ? 'rgba(20,35,80,0.9)' : 'rgba(12,18,52,0.8)',
+            border: `1px solid ${open?'#4488ff':'#2a3a6a'}`,
+            borderRadius: open ? '8px 8px 0 0' : 8,
+            transition: 'all 0.15s'
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 11,
+            color: '#445566',
+            minWidth: 72,
+            flexShrink: 0
+        }
+    }, s.date), React.createElement("div", {
+        style: {
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            flexWrap: 'wrap'
+        }
+    }, React.createElement("span", {
+        style: {
+            fontSize: 11,
+            fontWeight: 700,
+            color: col
+        }
+    }, correctN, "/", totalNormal, " správně (", pct, "%)"), isPerfect && React.createElement("span", {
+        style: {
+            fontSize: 9,
+            color: '#ffd700',
+            background: 'rgba(255,215,0,0.1)',
+            border: '1px solid #ffd70044',
+            borderRadius: 10,
+            padding: '1px 7px'
+        }
+    }, "💎 PERFECT"), luckyPts !== null && React.createElement("span", {
+        style: {
+            fontSize: 9,
+            color: luckyPts > 0 ? '#ffd700' : luckyPts < 0 ? '#ff4444' : '#8899bb',
+            background: 'rgba(100,50,200,0.1)',
+            border: '1px solid #bb44ff44',
+            borderRadius: 10,
+            padding: '1px 7px'
+        }
+    }, "🎲 ", luckyPts > 0 ? '+' : '', luckyPts), s.time_saved > 0 && React.createElement("span", {
+        style: {
+            fontSize: 9,
+            color: '#44ffaa',
+            background: 'rgba(0,80,50,0.2)',
+            border: '1px solid #44ffaa33',
+            borderRadius: 10,
+            padding: '1px 7px'
+        }
+    }, "⏰ +", s.time_saved, "s")), React.createElement("div", {
+        style: {
+            fontFamily: "'Orbitron',sans-serif",
+            fontSize: 13,
+            fontWeight: 900,
+            color: '#4488ff',
+            flexShrink: 0
+        }
+    }, s.score.toLocaleString()), React.createElement("div", {
+        style: {
+            fontSize: 10,
+            color: '#445566',
+            transition: 'transform 0.2s',
+            transform: open ? 'rotate(180deg)' : 'none',
+            flexShrink: 0
+        }
+    }, "▼")), open && React.createElement("div", {
+        style: {
+            background: 'rgba(8,12,35,0.95)',
+            border: '1px solid #4488ff',
+            borderTop: 'none',
+            borderRadius: '0 0 8px 8px',
+            padding: '10px 14px'
+        }
+    }, hasLog ? React.createElement("div", null, normalLog.map((entry, idx) => {
+        const q = qPool.find(q => String(q.id) === String(entry.qId));
+        const chosenOpt = entry.chosenText || (q && entry.chosen !== undefined ? q.opts[entry.chosen] : null);
+        const correctOpt = q ? q.opts[q.a] : null;
+        return React.createElement("div", {
+            key: idx,
+            style: {
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 8,
+                padding: '6px 0',
+                borderBottom: '1px solid #121830',
+                fontSize: 11
+            }
+        }, React.createElement("span", {
+            style: {
+                flexShrink: 0,
+                fontSize: 13
+            }
+        }, entry.correct ? '✅' : '❌'), React.createElement("div", {
+            style: {
+                flex: 1,
+                minWidth: 0
+            }
+        }, q ? React.createElement(React.Fragment, null, React.createElement("div", {
+            style: {
+                color: '#aabbcc',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                marginBottom: 2
+            }
+        }, q.q), React.createElement("div", {
+            style: {
+                fontSize: 9,
+                color: '#334466'
+            }
+        }, React.createElement("span", {
+            style: {
+                color: '#556688'
+            }
+        }, q.cat), entry.correct ? React.createElement("span", {
+            style: {
+                color: '#44aa44'
+            }
+        }, " · ✓ ", correctOpt) : React.createElement(React.Fragment, null, React.createElement("span", {
+            style: {
+                color: '#aa3333'
+            }
+        }, " · ✗ zvoleno: ", chosenOpt || '?'), React.createElement("span", {
+            style: {
+                color: '#44aa44'
+            }
+        }, " · ✓ správně: ", correctOpt)))) : React.createElement("span", {
+            style: {
+                color: '#445566'
+            }
+        }, "Otázka #", entry.qId)), React.createElement("div", {
+            style: {
+                textAlign: 'right',
+                flexShrink: 0,
+                minWidth: 40
+            }
+        }, React.createElement("div", {
+            style: {
+                fontSize: 9,
+                color: '#334466'
+            }
+        }, entry.time_spent || 0, "s"), React.createElement("div", {
+            style: {
+                fontWeight: 700,
+                color: entry.correct ? '#44ff44' : '#ff4444',
+                fontSize: 11
+            }
+        }, entry.correct ? `+${entry.pts||0}` : '0')));
+    }), luckyLog.length > 0 && React.createElement("div", {
+        style: {
+            marginTop: 8,
+            padding: '8px 10px',
+            background: 'rgba(100,50,200,0.08)',
+            border: '1px solid #bb44ff33',
+            borderRadius: 6
+        }
+    }, luckyLog.map((entry, idx) => {
+        const v = entry.chosen || 0;
+        const lcol = v >= 500 ? '#ffd700' : v > 0 ? '#44ffaa' : v === 0 ? '#8899bb' : '#ff4444';
+        const emoji = v === 1000 ? '🏆' : v === -500 ? '💣' : v > 0 ? '💰' : v === 0 ? '📦' : '🪦';
+        return React.createElement("div", {
+            key: idx,
+            style: {
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: 11
+            }
+        }, React.createElement("span", {
+            style: {
+                fontSize: 16
+            }
+        }, emoji), React.createElement("span", {
+            style: {
+                color: '#8866aa',
+                flex: 1
+            }
+        }, "Lucky Box"), React.createElement("span", {
+            style: {
+                color: lcol,
+                fontWeight: 700,
+                fontFamily: "'Orbitron',sans-serif",
+                fontSize: 12
+            }
+        }, v > 0 ? `+${v}` : String(v)));
+    }))) : React.createElement("span", {
+        style: {
+            color: '#445566',
+            fontSize: 11
+        }
+    }, "Kvíz odehrán před zavedením detailního záznamu. Výsledek: ", correctN, "/", totalNormal, " správně, ", s.score.toLocaleString(), " bodů.")));
+}
+
+function BoardScreen({
+    scores,
+    user,
+    todayKey,
+    monthlyChampions,
+    quizMode,
+    onBack
+}) {
+    const [tab, setTab] = useState('today');
+    const [profileView, setProfileView] = useState(null);
+    const [profileLoading, setProfileLoading] = useState(false);
+    const [avatarCache, setAvatarCache] = useState({});
+    const [profileScores, setProfileScores] = useState([]);
+    const [profileTab, setProfileTab] = useState('stats');
+    const currentMonth = getCurrentMonthKey();
+    const mode = quizMode || QUIZ_MODES.IT;
+    const modeScores = scores.filter(s => (s.quiz_mode || QUIZ_MODES.IT) === mode);
+    const isFilm = mode === QUIZ_MODES.FILM;
+    const todayList = modeScores.filter(s => s.date === todayKey).sort((a, b) => b.score - a.score);
+    const allMap = {};
+    modeScores.forEach(s => {
+        if (!allMap[s.user_id]) allMap[s.user_id] = {
+            id: s.user_id,
+            user_id: s.user_id,
+            name: s.user_name,
+            total: 0,
+            played: 0,
+            best: 0,
+            perfects: 0,
+            totalCorrect: 0,
+            totalWrong: 0
+        };
+        allMap[s.user_id].total += s.score;
+        allMap[s.user_id].played += 1;
+        allMap[s.user_id].best = Math.max(allMap[s.user_id].best, s.score);
+        if (s.perfect) allMap[s.user_id].perfects += 1;
+        allMap[s.user_id].totalCorrect += s.correct || 0;
+        allMap[s.user_id].totalWrong += Math.max(0, (s.total || 15) - (s.correct || 0));
+    });
+    const allList = Object.values(allMap).sort((a, b) => b.total - a.total);
+    const monthMap = {};
+    modeScores.filter(s => s.date.startsWith(currentMonth)).forEach(s => {
+        if (!monthMap[s.user_id]) monthMap[s.user_id] = {
+            id: s.user_id,
+            user_id: s.user_id,
+            name: s.user_name,
+            total: 0,
+            played: 0,
+            best: 0,
+            perfects: 0
+        };
+        monthMap[s.user_id].total += s.score;
+        monthMap[s.user_id].played += 1;
+        monthMap[s.user_id].best = Math.max(monthMap[s.user_id].best, s.score);
+        if (s.perfect) monthMap[s.user_id].perfects += 1;
+    });
+    const monthList = Object.values(monthMap).sort((a, b) => b.total - a.total);
+    const combinedMap = {};
+    scores.forEach(s => {
+        if (!combinedMap[s.user_id]) combinedMap[s.user_id] = {
+            id: s.user_id,
+            user_id: s.user_id,
+            name: s.user_name,
+            total: 0,
+            played: 0,
+            best: 0,
+            it: 0,
+            general: 0,
+            film: 0,
+            totalCorrect: 0,
+            totalWrong: 0
+        };
+        combinedMap[s.user_id].total += s.score;
+        combinedMap[s.user_id].played += 1;
+        combinedMap[s.user_id].best = Math.max(combinedMap[s.user_id].best, s.score);
+        combinedMap[s.user_id].totalCorrect += s.correct || 0;
+        combinedMap[s.user_id].totalWrong += Math.max(0, (s.total || 15) - (s.correct || 0));
+        const m = s.quiz_mode || 'it';
+        combinedMap[s.user_id][m] = (combinedMap[s.user_id][m] || 0) + s.score;
+    });
+    const combinedList = Object.values(combinedMap).sort((a, b) => b.total - a.total);
+    const list = tab === 'today' ? todayList : tab === 'month' ? monthList : tab === 'all' ? allList : tab === 'combined' ? combinedList : [];
+    const rc = ['#ffdd00', '#cccccc', '#cd7f32'];
+    useEffect(() => {
+        const visible = tab === 'today' ? todayList : tab === 'month' ? monthList : tab === 'combined' ? combinedList : allList;
+        const missing = visible.map(e => e.user_id || e.id).filter(id => id && !(id in avatarCache));
+        if (missing.length === 0) return;
+        setAvatarCache(prev => {
+            const next = {
+                ...prev
+            };
+            missing.forEach(id => {
+                next[id] = null;
+            });
+            return next;
+        });
+        db.from('users').select('id,avatar_url').in('id', missing).then(({
+            data
+        }) => {
+            if (!data) return;
+            setAvatarCache(prev => {
+                const next = {
+                    ...prev
+                };
+                data.forEach(u => {
+                    next[u.id] = u.avatar_url || null;
+                });
+                return next;
+            });
+            setCheaterCache(prev => {
+                const next = {
+                    ...prev
+                };
+                return next;
+            });
+        }).catch(() => {});
+    }, [tab, scores]);
+    async function openProfile(userId) {
+        setProfileLoading(true);
+        setProfileScores([]);
+        setProfileTab('stats');
+        try {
+            const [{
+                data: userData
+            }, {
+                data: scoresData
+            }] = await Promise.all([db.from('users').select('*').eq('id', userId).single(), db.from('scores').select('*').eq('user_id', userId).order('date', {
+                ascending: true
+            })]);
+            if (userData) {
+                setAvatarCache(prev => ({
+                    ...prev,
+                    [userId]: userData.avatar_url || null
+                }));
+                setProfileView(userData);
+            } else {
+                setProfileView({
+                    name: '?',
+                    id: userId
+                });
+            }
+            setProfileScores(scoresData || []);
+        } catch (e) {
+            setProfileView({
+                name: '?',
+                id: userId
+            });
+        }
+        setProfileLoading(false);
+    }
+    const OS_LABELS = {
+        linux: '🐧 Linux',
+        windows: '🪟 Windows',
+        macos: ' macOS',
+        bsd: '👹 BSD',
+        arch: '💀 Arch (btw)'
+    };
+    const DEBUG_LABELS = {
+        printstatements: 'Print statements',
+        debugger: 'Debugger – profesionál',
+        stackoverflow: 'Stack Overflow + modlitba',
+        rubber: 'Gumová kachnička',
+        restart: 'Restart a doufám',
+        ai: 'Ptám se AI a nedůvěřuji',
+        blame: 'Blame git'
+    };
+    const COFFEE_LABELS = {
+        '0': '0 – robot',
+        '1': '1☕',
+        '2': '2☕',
+        '3': '3☕',
+        '5': '5+☕ závislák',
+        iv: 'IV infuze rovnou do žíly'
+    };
+    return React.createElement("div", {
+        style: {
+            minHeight: '100vh',
+            padding: 20,
+            maxWidth: 660,
+            margin: '0 auto'
+        }
+    }, profileView && React.createElement("div", {
+        style: {
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: '#0a0a0f',
+            zIndex: 200,
+            overflowY: 'auto'
+        }
+    }, React.createElement("div", {
+        style: {
+            maxWidth: 700,
+            margin: '0 auto',
+            padding: '16px 20px 40px'
+        }
+    }, React.createElement("div", {
+        style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            marginBottom: 20,
+            paddingTop: 12
+        }
+    }, React.createElement("button", {
+        onClick: () => {
+            setProfileView(null);
+            setProfileScores([]);
+            setProfileTab('stats');
+        },
+        style: {
+            background: 'transparent',
+            border: 'none',
+            color: '#4488ff',
+            fontSize: 13,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6
+        }
+    }, "← ZPĚT DO ŽEBŘÍČKU")), React.createElement("div", {
+        style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            marginBottom: 20,
+            padding: '16px 20px',
+            background: 'rgba(15,25,60,0.8)',
+            border: '1px solid #2a3a6a',
+            borderRadius: 14
+        }
+    }, React.createElement("div", {
+        style: {
+            width: 72,
+            height: 72,
+            borderRadius: '50%',
+            border: '2px solid #2a3a6a',
+            overflow: 'hidden',
+            background: '#0a0a1f',
+            flexShrink: 0
+        }
+    }, profileView.avatar_url ? React.createElement("img", {
+        src: avatarSrc(profileView.avatar_url),
+        alt: "",
+        style: {
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover'
+        }
+    }) : React.createElement("div", {
+        style: {
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 28,
+            color: '#2a3a6a'
+        }
+    }, "👤")), React.createElement("div", {
+        style: {
+            flex: 1,
+            minWidth: 0
+        }
+    }, React.createElement("div", {
+        style: {
+            fontFamily: "'Orbitron',sans-serif",
+            fontSize: 20,
+            fontWeight: 900,
+            color: '#fff',
+            marginBottom: 4
+        }
+    }, profileView.name), (profileView.company || profileView.position) && React.createElement("div", {
+        style: {
+            fontSize: 13,
+            color: '#556688'
+        }
+    }, profileView.company && `🏢 ${profileView.company}`, profileView.company && profileView.position ? ' · ' : '', profileView.position && `💼 ${profileView.position}`), (profileView.fav_hw || profileView.os_religion || profileView.debug_style || profileView.coffee_cups) && React.createElement("div", {
+        style: {
+            display: 'flex',
+            gap: 12,
+            flexWrap: 'wrap',
+            marginTop: 4,
+            fontSize: 11,
+            color: '#445566'
+        }
+    }, profileView.os_religion && React.createElement("span", null, OS_LABELS[profileView.os_religion] || profileView.os_religion), profileView.coffee_cups && React.createElement("span", null, "☕ ", COFFEE_LABELS[profileView.coffee_cups] || profileView.coffee_cups), profileView.debug_style && React.createElement("span", null, "🐛 ", DEBUG_LABELS[profileView.debug_style] || profileView.debug_style), profileView.fav_hw && React.createElement("span", null, "💻 ", profileView.fav_hw)), profileView.superpower && React.createElement("div", {
+        style: {
+            fontSize: 11,
+            color: '#334455',
+            marginTop: 3
+        }
+    }, "🦸 ", profileView.superpower))), React.createElement("div", {
+        style: {
+            background: 'rgba(68,136,255,0.06)',
+            border: '1px dashed #2a3a6a',
+            borderRadius: 10,
+            padding: '10px 14px',
+            marginBottom: 20,
+            display: 'flex',
+            gap: 10,
+            alignItems: 'flex-start'
+        }
+    }, React.createElement("span", {
+        style: {
+            fontSize: 18,
+            flexShrink: 0
+        }
+    }, "💡"), React.createElement("div", {
+        style: {
+            fontSize: 12,
+            color: '#556688',
+            lineHeight: 1.55,
+            fontStyle: 'italic'
+        }
+    }, getPlayerFact(profileView.name))), React.createElement("div", {
+        style: {
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 6,
+            marginBottom: 20,
+            background: 'rgba(10,15,40,0.6)',
+            borderRadius: 10,
+            padding: 4,
+            border: '1px solid #1e2a4a'
+        }
+    }, [{
+        k: 'stats',
+        l: '📊 Statistiky'
+    }, {
+        k: 'archive',
+        l: '📋 Archiv kvízů'
+    }].map(t => React.createElement("button", {
+        key: t.k,
+        onClick: () => setProfileTab(t.k),
+        style: {
+            padding: '9px',
+            borderRadius: 8,
+            border: 'none',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: 0.5,
+            transition: 'all 0.2s',
+            background: profileTab === t.k ? 'linear-gradient(135deg,#1a3a8a,#2255cc)' : 'transparent',
+            color: profileTab === t.k ? '#fff' : '#4a5a7a',
+            boxShadow: profileTab === t.k ? '0 0 15px rgba(68,136,255,0.3)' : 'none'
+        }
+    }, t.l))), profileTab === 'archive' && (() => {
+        const viewerPlayedToday = user && scores.some(s => s.user_id === user.id && s.date === getTodayKey());
+        const isOwnProfile = user && profileView && user.id === profileView.id;
+        if (!isOwnProfile && !viewerPlayedToday) {
+            return React.createElement("div", {
+                style: {
+                    textAlign: 'center',
+                    padding: '40px 16px'
+                }
+            }, React.createElement("div", {
+                style: {
+                    fontSize: 36,
+                    marginBottom: 12
+                }
+            }, "🔒"), React.createElement("div", {
+                style: {
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: '#445566',
+                    marginBottom: 8
+                }
+            }, "Archiv je uzamčen"), React.createElement("div", {
+                style: {
+                    fontSize: 12,
+                    color: '#334455',
+                    lineHeight: 1.6
+                }
+            }, "Archiv odpovědí ostatních hráčů", React.createElement("br", null), "se odemkne poté co dnes odehraješ kvíz."));
+        }
+        return profileLoading ? React.createElement("div", {
+            style: {
+                textAlign: 'center',
+                padding: '40px 0',
+                color: '#445566'
+            }
+        }, "⏳ Načítám...") : profileScores.length === 0 ? React.createElement("div", {
+            style: {
+                textAlign: 'center',
+                padding: '40px 0',
+                color: '#334455'
+            }
+        }, "Žádné záznamy.") : React.createElement("div", null, React.createElement("div", {
+            style: {
+                fontSize: 11,
+                color: '#445566',
+                marginBottom: 12,
+                textAlign: 'center'
+            }
+        }, "Celkem ", profileScores.length, " ", profileScores.length === 1 ? 'kvíz' : 'kvízů', " · od nejnovějšího"), [...profileScores].reverse().map((s, idx) => {
+            return React.createElement(ArchiveRow, {
+                key: s.id || idx,
+                s: s
+            });
+        }));
+    })(), profileTab === 'stats' && profileLoading && React.createElement("div", {
+        style: {
+            textAlign: 'center',
+            padding: '60px 0',
+            color: '#445566',
+            fontSize: 14
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 32,
+            marginBottom: 12
+        }
+    }, "⏳"), "Načítám statistiky..."), profileTab === 'stats' && !profileLoading && profileScores.length === 0 && React.createElement("div", {
+        style: {
+            textAlign: 'center',
+            padding: '60px 0'
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 48,
+            marginBottom: 12
+        }
+    }, "🥚"), React.createElement("div", {
+        style: {
+            color: '#445566',
+            fontSize: 14
+        }
+    }, "Zatím žádné odehrané kvízy.")), profileTab === 'stats' && !profileLoading && profileScores.length > 0 && (() => {
+        const ps = profileScores;
+        const pMode = ps[0]?.quiz_mode || QUIZ_MODES.IT;
+        const pIsGeneral = pMode === QUIZ_MODES.GENERAL;
+        const pIsFilm = pMode === QUIZ_MODES.FILM;
+        const qPool = pIsFilm ? ALL_FILM_QUESTIONS : pIsGeneral ? ALL_GENERAL_QUESTIONS : ALL_QUESTIONS;
+        const totalPlayed = ps.length;
+        const totalScore2 = ps.reduce((s, r) => s + r.score, 0);
+        const avgSc = Math.round(totalScore2 / totalPlayed);
+        const bestSc = Math.max(...ps.map(r => r.score));
+        const perfects = ps.filter(r => r.perfect).length;
+        const totCorr = ps.reduce((s, r) => s + (r.correct || 0), 0);
+        const totQs = ps.reduce((s, r) => s + (r.total || 0), 0);
+        const accPct = totQs ? Math.round(totCorr / totQs * 100) : 0;
+        let maxStreak2 = 0,
+            tempS2 = 0,
+            curStreak2 = 0;
+        const days2 = [...new Set(ps.map(r => r.date))].sort();
+        for (let i = 0; i < days2.length; i++) {
+            if (i === 0) {
+                tempS2 = 1;
+            } else {
+                const p = new Date(days2[i - 1]);
+                p.setDate(p.getDate() + 1);
+                tempS2 = p.toISOString().slice(0, 10) === days2[i] ? tempS2 + 1 : 1;
+            }
+            maxStreak2 = Math.max(maxStreak2, tempS2);
+        }
+        const tod2 = getTodayKey();
+        for (let i = days2.length - 1; i >= 0; i--) {
+            const ex = new Date(tod2);
+            ex.setDate(ex.getDate() - (days2.length - 1 - i));
+            if (days2[i] === ex.toISOString().slice(0, 10)) curStreak2++;
+            else break;
+        }
+        const modeAll = scores.filter(s => (s.quiz_mode || QUIZ_MODES.IT) === pMode);
+        const globalAvg = modeAll.length ? Math.round(modeAll.reduce((s, r) => s + r.score, 0) / modeAll.length) : 0;
+        const allPlayers = new Set(modeAll.map(s => s.user_id)).size;
+        const ranked = [...new Set(modeAll.map(s => s.user_id))].map(id => ({
+            id,
+            t: modeAll.filter(s => s.user_id === id).reduce((a, r) => a + r.score, 0)
+        })).sort((a, b) => b.t - a.t);
+        const rank = ranked.findIndex(r => r.id === profileView.id) + 1;
+        const catData = {};
+        let totAnswers = 0,
+            totAnswerTime = 0,
+            fastAns = 0,
+            slowAns = 0,
+            maxSerie = 0,
+            curSerie = 0;
+        ps.forEach(s => {
+            if (!s.play_log) return;
+            s.play_log.forEach(e => {
+                if (e.qId === 'lucky') return;
+                const q = qPool.find(q => String(q.id) === String(e.qId));
+                const cat = q ? q.cat : 'Ostatní';
+                if (!catData[cat]) catData[cat] = {
+                    correct: 0,
+                    total: 0,
+                    totalTime: 0
+                };
+                catData[cat].total++;
+                if (e.correct) {
+                    catData[cat].correct++;
+                    curSerie++;
+                } else {
+                    maxSerie = Math.max(maxSerie, curSerie);
+                    curSerie = 0;
+                }
+                const t = e.time_spent || 0;
+                catData[cat].totalTime += t;
+                totAnswers++;
+                totAnswerTime += t;
+                if (t <= 3) fastAns++;
+                if (t >= 15) slowAns++;
+            });
+        });
+        maxSerie = Math.max(maxSerie, curSerie);
+        const avgT = totAnswers ? (totAnswerTime / totAnswers).toFixed(1) : 0;
+        const fastPct = totAnswers ? Math.round(fastAns / totAnswers * 100) : 0;
+        const slowPct = totAnswers ? Math.round(slowAns / totAnswers * 100) : 0;
+        const catList = Object.entries(catData).filter(([, d]) => d.total >= 2).map(([cat, d]) => ({
+            cat,
+            acc: Math.round(d.correct / d.total * 100),
+            total: d.total,
+            avgTime: d.total ? (d.totalTime / d.total).toFixed(1) : 0
+        })).sort((a, b) => b.acc - a.acc);
+        const avgCatAcc = catList.length ? Math.round(catList.reduce((s, c) => s + c.acc, 0) / catList.length) : 50;
+        const strongCats = catList.filter(c => c.acc > avgCatAcc).slice(0, 4);
+        const weakCats = catList.filter(c => c.acc <= avgCatAcc).sort((a, b) => a.acc - b.acc).slice(0, 4);
+        const SECTORS_IT = {
+            'Sítě & Infrastruktura': ['Sítě', 'WiFi', 'Konektory', 'Telco', 'DC'],
+            'Bezpečnost': ['Bezpečnost', 'Šifrování'],
+            'Cloud & DevOps': ['Cloud', 'Virtualizace', 'Správa'],
+            'Systémy & OS': ['OS', 'Linux', 'Windows'],
+            'Data & Protokoly': ['Databáze', 'Protokoly', 'Email'],
+            'Hardware': ['Hardware', 'Periferie', 'Úložiště', 'Zálohy'],
+            'AI & Moderní tech': ['AI/ML', 'IoT', 'Telco']
+        };
+        const SECTORS_GEN = {
+            'Geografie': ['🌍 Geografie'],
+            'Historie': ['🏛️ Historie'],
+            'Věda': ['🔬 Věda'],
+            'Film & TV': ['🎬 Film & TV'],
+            'Hudba': ['🎵 Hudba'],
+            'Sport': ['⚽ Sport'],
+            'Jídlo': ['🍕 Jídlo'],
+            'Příroda': ['🐾 Příroda'],
+            'Logika': ['🧠 Logika'],
+            'Zajímavosti': ['💡 Zajímavosti']
+        };
+        const SECTORS_FILM_P = {
+            'Citáty': ['🎬 Citáty'],
+            'České filmy': ['🇨🇿 Česko'],
+            'Ocenění': ['🏆 Ocenění'],
+            'Režie': ['🎬 Režie'],
+            'Klasika': ['🌍 Klasika'],
+            'Marvel': ['🦸 Marvel'],
+            'Komedie': ['😂 Komedie'],
+            'Horor': ['👻 Horor'],
+            'Sci-Fi': ['🚀 Sci-Fi'],
+            'Drama': ['💕 Drama'],
+            'Thriller': ['🔍 Thriller'],
+            'Animace': ['🌟 Animace'],
+            'Herci': ['🎭 Herci']
+        };
+        const SECTORS = pIsFilm ? SECTORS_FILM_P : pIsGeneral ? SECTORS_GEN : SECTORS_IT;
+        const sectorData = Object.entries(SECTORS).map(([sector, cats]) => {
+            let cor = 0,
+                tot = 0;
+            if (pIsGeneral) {
+                cats.forEach(c => {
+                    if (catData[c]) {
+                        cor += catData[c].correct;
+                        tot += catData[c].total;
+                    }
+                });
+            } else {
+                cats.forEach(c => {
+                    if (catData[c]) {
+                        cor += catData[c].correct;
+                        tot += catData[c].total;
+                    }
+                });
+            }
+            return {
+                sector,
+                acc: tot ? Math.round(cor / tot * 100) : null,
+                total: tot
+            };
+        }).filter(s => s.total >= 2).sort((a, b) => b.acc - a.acc);
+        let lJack = 0,
+            lBomb = 0,
+            lTot = 0,
+            lPts = 0,
+            lWins = 0,
+            lZeros = 0;
+        ps.forEach(s => {
+            if (!s.play_log) return;
+            s.play_log.filter(e => e.qId === 'lucky').forEach(e => {
+                lTot++;
+                const v = e.chosen || 0;
+                lPts += v;
+                if (v === 1000) lJack++;
+                else if (v === -500) lBomb++;
+                else if (v === 0) lZeros++;
+                else if (v > 0) lWins++;
+            });
+        });
+        const timeScores = ps.filter(s => s.time_saved != null);
+        const avgTimeSaved = timeScores.length ? Math.round(timeScores.reduce((a, s) => a + (s.time_saved || 0), 0) / timeScores.length) : 0;
+
+        function speedRoast(avg) {
+            const a = parseFloat(avg);
+            if (pIsGeneral) {
+                if (a <= 2) return {
+                    e: '⚡',
+                    t: 'Speedrunner vědomostí',
+                    d: 'Odpovídá rychleji než Wikipedie načte stránku.'
+                };
+                if (a <= 4) return {
+                    e: '🚀',
+                    t: 'Encyklopedie na nohou',
+                    d: 'Pod 4 sekundy. Buď to ví, nebo má štěstí.'
+                };
+                if (a <= 7) return {
+                    e: '🎯',
+                    t: 'Rozumný znalec',
+                    d: 'Přemýšlí, ale ne moc dlouho. Zlatá střední cesta.'
+                };
+                if (a <= 12) return {
+                    e: '🐢',
+                    t: 'Hluboký myslitel',
+                    d: 'Vzpomíná kde to četl. Nebo kde to slyšel.'
+                };
+                return {
+                    e: '🦥',
+                    t: 'Filosof v křesle',
+                    d: 'Každá otázka je výzva k zamyšlení. A pak klikne B.'
+                };
+            }
+            if (a <= 2) return {
+                e: '⚡',
+                t: 'Kvantový procesor',
+                d: 'Odpovídá rychleji než si stihne přečíst otázku.'
+            };
+            if (a <= 4) return {
+                e: '🚀',
+                t: 'Rychlý jako NVMe',
+                d: 'Průměr pod 4s. Připraven nebo odhaduje naslepo.'
+            };
+            if (a <= 7) return {
+                e: '🎯',
+                t: 'Rozvážný expert',
+                d: 'Přemýšlí před kliknutím. Zvyk správného admina.'
+            };
+            if (a <= 12) return {
+                e: '🐢',
+                t: 'Důkladný čtenář',
+                d: 'Čte otázku třikrát. Jednou by stačilo.'
+            };
+            return {
+                e: '🦥',
+                t: 'Filosof v IT',
+                d: 'Každá odpověď je existenciální rozhodnutí.'
+            };
+        }
+
+        function accuracyRoast(acc) {
+            if (pIsGeneral) {
+                if (acc >= 95) return {
+                    e: '🧠',
+                    t: 'Živoucí Wikipedie',
+                    d: 'Ví všechno. Ostatní se ho bojí na kvízy.'
+                };
+                if (acc >= 85) return {
+                    e: '📚',
+                    t: 'Vzdělaný člověk',
+                    d: 'Četl knihy. Nebo sleduje Discovery. Každopádně mu to jde.'
+                };
+                if (acc >= 70) return {
+                    e: '💡',
+                    t: 'Solidní přehled',
+                    d: 'Nad průměrem. Na hospodském kvízu by byl užitečný.'
+                };
+                if (acc >= 55) return {
+                    e: '🤔',
+                    t: 'Průměrný středoškolák',
+                    d: 'Polovina správně. Maturitu by asi udělal. Asi.'
+                };
+                if (acc >= 40) return {
+                    e: '😅',
+                    t: 'Optimistický nevzdělanec',
+                    d: 'Aspoň ví kde leží Francie. Doufáme.'
+                };
+                return {
+                    e: '🌍',
+                    t: 'Záhada přírody',
+                    d: 'Náhodné tipování by dopadlo lépe. A to říká hodně.'
+                };
+            }
+            if (acc >= 95) return {
+                e: '🧠',
+                t: 'Kyborg v lidském těle',
+                d: 'Podezřele správně. IT oddělení ho sleduje.'
+            };
+            if (acc >= 85) return {
+                e: '🎯',
+                t: 'Ostrý jako nový SSD',
+                d: 'Nemá odpovědi, on je odpověď.'
+            };
+            if (acc >= 70) return {
+                e: '💪',
+                t: 'Nadprůměrný člověk',
+                d: 'Ve firmě by byl ten co opravuje ostatní.'
+            };
+            if (acc >= 55) return {
+                e: '🤔',
+                t: 'Slušný pokus',
+                d: 'Senior developer styl — polovina správně, polovina kreativně.'
+            };
+            if (acc >= 40) return {
+                e: '😅',
+                t: 'Optimistický začátečník',
+                d: 'Aspoň heslo na WiFi ví. Doufáme.'
+            };
+            return {
+                e: '💀',
+                t: 'Živoucí důkaz chaosu',
+                d: 'Tiskárna by ho přechytračila.'
+            };
+        }
+
+        function streakRoast(s) {
+            if (pIsGeneral) {
+                if (s >= 30) return {
+                    e: '🔥',
+                    t: 'Encyklopedie na steroidech',
+                    d: 'Měsíc denního kvízu. Všeobecná vzdělanost na NPC úrovni.'
+                };
+                if (s >= 14) return {
+                    e: '📅',
+                    t: 'Věrný student světa',
+                    d: `${s} dní v kuse. IQ roste pomaleji než to číslo.`
+                };
+                if (s >= 7) return {
+                    e: '🌱',
+                    t: 'Týdenní znalec',
+                    d: 'Týden bez přerušení. Víc než vydržela dieta.'
+                };
+                if (s >= 3) return {
+                    e: '🐣',
+                    t: 'Začínající polymath',
+                    d: '3 dny. Malý krok pro přehled, velký krok pro vědomosti.'
+                };
+                if (s >= 1) return {
+                    e: '👶',
+                    t: 'Jeden malý krok',
+                    d: 'Aspoň tu je. Svět je plný lidí co neví kde leží Brazílie.'
+                };
+                return {
+                    e: '📺',
+                    t: 'Trochu více televize',
+                    d: 'Streak = 0. I seriály by ho naučily víc.'
+                };
+            }
+            if (s >= 30) return {
+                e: '🔥',
+                t: 'Na dovolené s laptopem',
+                d: 'Normální lidé odpočívají. Tento kvízuje.'
+            };
+            if (s >= 14) return {
+                e: '⚡',
+                t: 'Pravidelný jako cron job',
+                d: `${s} dní v kuse. Terapeut o tom neví.`
+            };
+            if (s >= 7) return {
+                e: '📅',
+                t: 'Solidní návyk',
+                d: 'Týden v kuse. Víc než většina projektů.'
+            };
+            if (s >= 3) return {
+                e: '🌱',
+                t: 'Roste to',
+                d: 'Nezruší to zítra jako gym membership.'
+            };
+            if (s >= 1) return {
+                e: '🐢',
+                t: 'Začátek je těžký',
+                d: 'Aspoň tu je. Na rozdíl od dokumentace.'
+            };
+            return {
+                e: '👻',
+                t: 'Přízrak čtenář',
+                d: 'Streak = 0. Ani cron by ho nenaplánoval.'
+            };
+        }
+        const accR = accuracyRoast(accPct);
+        const spdR = speedRoast(avgT);
+        const strR = streakRoast(curStreak2);
+        const C = {
+            gold: '#ffd700',
+            blue: '#4488ff',
+            green: '#44ffaa',
+            red: '#ff4444',
+            gray: '#556688',
+            purple: '#bb44ff',
+            orange: '#ff9900'
+        };
+        const trainingTips = [];
+        if (pIsGeneral) {
+            if (accPct < 60) trainingTips.push({
+                e: '📖',
+                t: 'Čti více',
+                d: 'Noviny, knihy, Wikipedia — cokoliv. Přehled to ocení.'
+            });
+            if (weakCats.length && weakCats[0].acc < 50) trainingTips.push({
+                e: '🌍',
+                t: weakCats[0].cat.replace(/^[^ ]+ /, ''),
+                d: `${weakCats[0].acc}% — existují knihy, YouTube i věc zvaná "cestování".`
+            });
+            if (parseFloat(avgT) > 12) trainingTips.push({
+                e: '⚡',
+                t: 'Rozhoduj rychleji',
+                d: 'Buď to víš, nebo nevíš. 15 sekund výsledek nezmění.'
+            });
+        } else {
+            if (accPct < 60) trainingTips.push({
+                e: '🎓',
+                t: 'IT základy',
+                d: 'Kurz "Proč je kabel důležitý a jiné záhady"'
+            });
+            if (parseFloat(avgT) > 12) trainingTips.push({
+                e: '⚡',
+                t: 'Rychlost rozhodování',
+                d: 'Trénink rychlého rozhodování — ideálně bez Google'
+            });
+            if (weakCats.length && weakCats[0].acc < 50) trainingTips.push({
+                e: '📚',
+                t: weakCats[0].cat,
+                d: `Přesnost ${weakCats[0].acc}% — tady by pomohlo školení`
+            });
+        }
+        if (perfects === 0 && totalPlayed >= 5) trainingTips.push({
+            e: '💎',
+            t: 'Konzistence',
+            d: 'Na perfect run potřebuje znalosti, ne štěstí'
+        });
+        if (lBomb > lJack && lTot >= 3) trainingTips.push({
+            e: '🎲',
+            t: 'Risk management',
+            d: 'Instinkt na Lucky Box je statisticky tragický'
+        });
+        return React.createElement("div", null, React.createElement("div", {
+            style: {
+                background: 'linear-gradient(135deg,rgba(68,136,255,0.12),rgba(34,85,200,0.06))',
+                border: '1px solid #2a3a6a',
+                borderRadius: 14,
+                padding: '14px 18px',
+                marginBottom: 16,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14
+            }
+        }, React.createElement("span", {
+            style: {
+                fontSize: 38,
+                flexShrink: 0
+            }
+        }, accR.e), React.createElement("div", null, React.createElement("div", {
+            style: {
+                fontFamily: "'Orbitron',sans-serif",
+                fontSize: 14,
+                fontWeight: 900,
+                color: '#88aaff',
+                letterSpacing: 2,
+                marginBottom: 3
+            }
+        }, accR.t), React.createElement("div", {
+            style: {
+                fontSize: 12,
+                color: '#556688',
+                lineHeight: 1.5
+            }
+        }, accR.d))), React.createElement("div", {
+            style: {
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3,1fr)',
+                gap: 8,
+                marginBottom: 8
+            }
+        }, [{
+            e: '🎯',
+            l: 'Přesnost',
+            v: `${accPct}%`,
+            c: accPct >= 70 ? C.green : accPct >= 50 ? C.gold : C.red
+        }, {
+            e: '⚡',
+            l: 'Průměrný čas',
+            v: `${avgT}s`,
+            c: parseFloat(avgT) <= 5 ? C.green : parseFloat(avgT) <= 10 ? C.gold : C.red
+        }, {
+            e: '📊',
+            l: 'Průměr/kvíz',
+            v: avgSc.toLocaleString(),
+            c: avgSc >= globalAvg ? C.green : C.blue
+        }, {
+            e: '🏆',
+            l: 'Nejlepší kvíz',
+            v: bestSc.toLocaleString(),
+            c: C.gold
+        }, {
+            e: '💎',
+            l: 'Perfect runs',
+            v: perfects,
+            c: perfects > 0 ? C.gold : C.gray
+        }, {
+            e: '🔥',
+            l: 'Streak',
+            v: `${curStreak2}d`,
+            c: curStreak2 >= 7 ? C.purple : curStreak2 >= 3 ? C.gold : C.gray
+        }].map(s => React.createElement("div", {
+            key: s.l,
+            style: {
+                background: 'rgba(12,18,50,0.8)',
+                border: '1px solid #1e2a4a',
+                borderRadius: 10,
+                padding: '12px 6px',
+                textAlign: 'center'
+            }
+        }, React.createElement("div", {
+            style: {
+                fontSize: 16,
+                marginBottom: 4
+            }
+        }, s.e), React.createElement("div", {
+            style: {
+                fontFamily: "'Orbitron',sans-serif",
+                fontSize: 14,
+                fontWeight: 900,
+                color: s.c
+            }
+        }, s.v), React.createElement("div", {
+            style: {
+                fontSize: 9,
+                color: '#445566',
+                marginTop: 3
+            }
+        }, s.l)))), React.createElement("div", {
+            style: {
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3,1fr)',
+                gap: 8,
+                marginBottom: 16
+            }
+        }, [{
+            e: '🚀',
+            l: 'Rychlé ans.',
+            v: `${fastPct}%`,
+            c: C.blue,
+            sub: 'do 3s'
+        }, {
+            e: '🐢',
+            l: 'Pomalé ans.',
+            v: `${slowPct}%`,
+            c: slowPct > 40 ? C.red : C.gray,
+            sub: 'nad 15s'
+        }, {
+            e: '🏅',
+            l: 'Rank',
+            v: rank ? `#${rank}` : '—',
+            c: rank <= 3 ? C.gold : rank <= 10 ? C.blue : C.gray,
+            sub: `z ${allPlayers} hráčů`
+        }, {
+            e: '📈',
+            l: 'vs průměr',
+            v: `${avgSc>=globalAvg?'+':''}${avgSc-globalAvg}`,
+            c: avgSc >= globalAvg ? C.green : C.red,
+            sub: `avg ${globalAvg.toLocaleString()} b`
+        }, {
+            e: '⏱️',
+            l: 'Ušetřený čas',
+            v: `${avgTimeSaved}s`,
+            c: avgTimeSaved >= 20 ? C.green : avgTimeSaved >= 10 ? C.gold : C.gray,
+            sub: 'průměr/kvíz'
+        }, {
+            e: '🎯',
+            l: 'Nejdelší série',
+            v: `${maxSerie}×`,
+            c: maxSerie >= 10 ? C.gold : maxSerie >= 5 ? C.blue : C.gray,
+            sub: 'správných za sebou'
+        }].map(s => React.createElement("div", {
+            key: s.l,
+            style: {
+                background: 'rgba(12,18,50,0.8)',
+                border: '1px solid #1e2a4a',
+                borderRadius: 10,
+                padding: '10px 6px',
+                textAlign: 'center'
+            }
+        }, React.createElement("div", {
+            style: {
+                fontSize: 14,
+                marginBottom: 3
+            }
+        }, s.e), React.createElement("div", {
+            style: {
+                fontFamily: "'Orbitron',sans-serif",
+                fontSize: 13,
+                fontWeight: 900,
+                color: s.c
+            }
+        }, s.v), React.createElement("div", {
+            style: {
+                fontSize: 9,
+                color: '#445566',
+                marginTop: 1
+            }
+        }, s.l), s.sub && React.createElement("div", {
+            style: {
+                fontSize: 8,
+                color: '#334455',
+                marginTop: 1
+            }
+        }, s.sub)))), React.createElement("div", {
+            style: {
+                background: 'rgba(12,18,50,0.8)',
+                border: '1px solid #1e2a4a',
+                borderRadius: 12,
+                padding: '12px 16px',
+                marginBottom: 16,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12
+            }
+        }, React.createElement("span", {
+            style: {
+                fontSize: 26,
+                flexShrink: 0
+            }
+        }, spdR.e), React.createElement("div", {
+            style: {
+                flex: 1
+            }
+        }, React.createElement("div", {
+            style: {
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#88aaff',
+                marginBottom: 2
+            }
+        }, spdR.t), React.createElement("div", {
+            style: {
+                fontSize: 11,
+                color: '#556688'
+            }
+        }, spdR.d)), React.createElement("div", {
+            style: {
+                textAlign: 'right',
+                flexShrink: 0
+            }
+        }, React.createElement("div", {
+            style: {
+                fontSize: 9,
+                color: '#334455'
+            }
+        }, "avg čas"), React.createElement("div", {
+            style: {
+                fontFamily: "'Orbitron',sans-serif",
+                fontSize: 18,
+                fontWeight: 900,
+                color: C.blue
+            }
+        }, avgT, "s"))), sectorData.length >= 2 && React.createElement("div", {
+            style: {
+                background: 'rgba(12,18,50,0.8)',
+                border: '1px solid #1e2a4a',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 16
+            }
+        }, React.createElement("div", {
+            style: {
+                fontFamily: "'Orbitron',sans-serif",
+                fontSize: 10,
+                color: '#4488ff',
+                letterSpacing: 2,
+                marginBottom: 14
+            }
+        }, pIsGeneral ? '🌍 JAKÁ TÉMATA MU JDOU' : '🏭 ODVĚTVOVÁ ANALÝZA'), sectorData.map((s, i) => {
+            const col = s.acc >= 80 ? C.green : s.acc >= 60 ? C.gold : s.acc >= 40 ? C.orange : C.red;
+            const emoji = s.acc >= 80 ? '✅' : s.acc >= 60 ? '🟡' : s.acc >= 40 ? '⚠️' : '❌';
+            const label = s.acc >= 80 ? 'Ovládá' : s.acc >= 60 ? 'Solidní' : s.acc >= 40 ? 'Slabší' : 'Potřebuje práci';
+            return React.createElement("div", {
+                key: s.sector,
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    marginBottom: i < sectorData.length - 1 ? 10 : 0,
+                    padding: '5px 0',
+                    borderBottom: i < sectorData.length - 1 ? '1px solid #1a2040' : 'none'
+                }
+            }, React.createElement("span", {
+                style: {
+                    fontSize: 13,
+                    flexShrink: 0
+                }
+            }, emoji), React.createElement("div", {
+                style: {
+                    flex: 1,
+                    minWidth: 0
+                }
+            }, React.createElement("div", {
+                style: {
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 3
+                }
+            }, React.createElement("span", {
+                style: {
+                    fontSize: 12,
+                    color: '#aabbdd',
+                    fontWeight: 600
+                }
+            }, s.sector), React.createElement("span", {
+                style: {
+                    fontSize: 11,
+                    color: col,
+                    fontWeight: 700,
+                    flexShrink: 0,
+                    marginLeft: 8
+                }
+            }, s.acc, "% — ", label)), React.createElement("div", {
+                style: {
+                    background: '#1a2040',
+                    borderRadius: 3,
+                    height: 6,
+                    overflow: 'hidden'
+                }
+            }, React.createElement("div", {
+                style: {
+                    height: '100%',
+                    width: `${s.acc}%`,
+                    background: col,
+                    borderRadius: 3
+                }
+            }))));
+        }), React.createElement("div", {
+            style: {
+                marginTop: 10,
+                fontSize: 11,
+                color: '#445566',
+                textAlign: 'center'
+            }
+        }, sectorData[0] && `💪 Nejsilnější: ${sectorData[0].sector} (${sectorData[0].acc}%)`, sectorData.length > 1 && ` · 📚 Zlepšit: ${sectorData[sectorData.length-1].sector} (${sectorData[sectorData.length-1].acc}%)`)), catList.length >= 2 && React.createElement("div", {
+            style: {
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 8,
+                marginBottom: 16
+            }
+        }, React.createElement("div", {
+            style: {
+                background: 'rgba(0,50,30,0.3)',
+                border: '1px solid #226644',
+                borderRadius: 10,
+                padding: '12px'
+            }
+        }, React.createElement("div", {
+            style: {
+                fontSize: 9,
+                color: '#44ffaa',
+                letterSpacing: 2,
+                marginBottom: 8,
+                fontFamily: "'Orbitron',sans-serif"
+            }
+        }, "✅ SILNÉ STRÁNKY"), strongCats.length === 0 ? React.createElement("div", {
+            style: {
+                fontSize: 11,
+                color: '#334455'
+            }
+        }, "Zatím málo dat") : strongCats.map(c => React.createElement("div", {
+            key: c.cat,
+            style: {
+                display: 'flex',
+                justifyContent: 'space-between',
+                padding: '3px 0',
+                borderBottom: '1px solid #1a3020',
+                fontSize: 11
+            }
+        }, React.createElement("div", {
+            style: {
+                flex: 1,
+                overflow: 'hidden'
+            }
+        }, React.createElement("span", {
+            style: {
+                color: '#8899bb',
+                display: 'block',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+            }
+        }, c.cat), React.createElement("span", {
+            style: {
+                fontSize: 9,
+                color: '#334455'
+            }
+        }, "⏱ ", c.avgTime, "s")), React.createElement("span", {
+            style: {
+                color: C.green,
+                fontWeight: 700,
+                marginLeft: 6,
+                flexShrink: 0
+            }
+        }, c.acc, "%")))), React.createElement("div", {
+            style: {
+                background: 'rgba(60,10,10,0.3)',
+                border: '1px solid #662222',
+                borderRadius: 10,
+                padding: '12px'
+            }
+        }, React.createElement("div", {
+            style: {
+                fontSize: 9,
+                color: '#ff8888',
+                letterSpacing: 2,
+                marginBottom: 8,
+                fontFamily: "'Orbitron',sans-serif"
+            }
+        }, "⚠️ SLABINY"), weakCats.length === 0 ? React.createElement("div", {
+            style: {
+                fontSize: 11,
+                color: '#334455'
+            }
+        }, "Zatím málo dat") : weakCats.map(c => React.createElement("div", {
+            key: c.cat,
+            style: {
+                display: 'flex',
+                justifyContent: 'space-between',
+                padding: '3px 0',
+                borderBottom: '1px solid #301a1a',
+                fontSize: 11
+            }
+        }, React.createElement("div", {
+            style: {
+                flex: 1,
+                overflow: 'hidden'
+            }
+        }, React.createElement("span", {
+            style: {
+                color: '#8899bb',
+                display: 'block',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+            }
+        }, c.cat), React.createElement("span", {
+            style: {
+                fontSize: 9,
+                color: '#334455'
+            }
+        }, "⏱ ", c.avgTime, "s")), React.createElement("span", {
+            style: {
+                color: C.red,
+                fontWeight: 700,
+                marginLeft: 6,
+                flexShrink: 0
+            }
+        }, c.acc, "%"))))), catList.length >= 3 && React.createElement("div", {
+            style: {
+                background: 'rgba(12,18,50,0.8)',
+                border: '1px solid #1e2a4a',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 16
+            }
+        }, React.createElement("div", {
+            style: {
+                fontFamily: "'Orbitron',sans-serif",
+                fontSize: 10,
+                color: '#4488ff',
+                letterSpacing: 2,
+                marginBottom: 12
+            }
+        }, "📊 PŘESNOST + RYCHLOST PER KATEGORIE"), catList.slice(0, 8).map(c => {
+            const col = c.acc >= 80 ? C.green : c.acc >= 60 ? C.gold : C.red;
+            const speedCol = parseFloat(c.avgTime) <= 4 ? C.green : parseFloat(c.avgTime) <= 8 ? C.gold : C.red;
+            return React.createElement("div", {
+                key: c.cat,
+                style: {
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginBottom: 8
+                }
+            }, React.createElement("div", {
+                style: {
+                    fontSize: 10,
+                    color: '#778899',
+                    width: 80,
+                    flexShrink: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                }
+            }, c.cat), React.createElement("div", {
+                style: {
+                    flex: 1,
+                    background: '#1a2040',
+                    borderRadius: 3,
+                    height: 7,
+                    overflow: 'hidden'
+                }
+            }, React.createElement("div", {
+                style: {
+                    height: '100%',
+                    width: `${c.acc}%`,
+                    background: col,
+                    borderRadius: 3,
+                    boxShadow: `0 0 4px ${col}44`
+                }
+            })), React.createElement("div", {
+                style: {
+                    fontSize: 10,
+                    color: col,
+                    fontWeight: 700,
+                    minWidth: 28,
+                    textAlign: 'right'
+                }
+            }, c.acc, "%"), React.createElement("div", {
+                style: {
+                    fontSize: 9,
+                    color: speedCol,
+                    minWidth: 26,
+                    textAlign: 'right',
+                    opacity: 0.8
+                }
+            }, c.avgTime, "s"));
+        }), React.createElement("div", {
+            style: {
+                fontSize: 9,
+                color: '#334455',
+                textAlign: 'right',
+                marginTop: 4
+            }
+        }, "% přesnost · čas/odpověď")), (() => {
+            const last14 = [];
+            for (let i = 13; i >= 0; i--) {
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                const dk = d.toISOString().slice(0, 10);
+                const r = ps.find(s => s.date === dk);
+                last14.push({
+                    date: dk,
+                    score: r?.score || 0,
+                    played: !!r,
+                    perfect: r?.perfect || false
+                });
+            }
+            const maxB = Math.max(...last14.map(d => d.score), 1);
+            return React.createElement("div", {
+                style: {
+                    background: 'rgba(12,18,50,0.8)',
+                    border: '1px solid #1e2a4a',
+                    borderRadius: 12,
+                    padding: 16,
+                    marginBottom: 16
+                }
+            }, React.createElement("div", {
+                style: {
+                    fontFamily: "'Orbitron',sans-serif",
+                    fontSize: 10,
+                    color: '#4488ff',
+                    letterSpacing: 2,
+                    marginBottom: 14
+                }
+            }, "📈 POSLEDNÍCH 14 DNÍ"), React.createElement("div", {
+                style: {
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    gap: 3,
+                    height: 72
+                }
+            }, last14.map((d, i) => {
+                const h = d.played ? Math.max(Math.round(d.score / maxB * 68), 4) : 0;
+                const col = d.perfect ? C.gold : d.played ? C.blue : '#1a2040';
+                return React.createElement("div", {
+                    key: i,
+                    style: {
+                        flex: 1,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 2,
+                        height: '100%',
+                        justifyContent: 'flex-end'
+                    }
+                }, React.createElement("div", {
+                    title: d.played ? `${d.date}: ${d.score.toLocaleString()} b` : 'Nehrál',
+                    style: {
+                        width: '100%',
+                        height: h || 2,
+                        background: col,
+                        borderRadius: '2px 2px 0 0',
+                        opacity: d.played ? 1 : 0.2,
+                        boxShadow: d.played ? `0 0 4px ${col}66` : 'none'
+                    }
+                }), React.createElement("div", {
+                    style: {
+                        fontSize: 7,
+                        color: '#334455'
+                    }
+                }, new Date(d.date).getDate()));
+            })), React.createElement("div", {
+                style: {
+                    display: 'flex',
+                    gap: 12,
+                    marginTop: 6,
+                    fontSize: 10,
+                    color: '#445566',
+                    justifyContent: 'center'
+                }
+            }, React.createElement("span", null, React.createElement("span", {
+                style: {
+                    color: C.gold
+                }
+            }, "■"), " Perfect"), React.createElement("span", null, React.createElement("span", {
+                style: {
+                    color: C.blue
+                }
+            }, "■"), " Odehráno")));
+        })(), lTot >= 1 && React.createElement("div", {
+            style: {
+                background: 'rgba(12,18,50,0.8)',
+                border: '1px solid #1e2a4a',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 16
+            }
+        }, React.createElement("div", {
+            style: {
+                fontFamily: "'Orbitron',sans-serif",
+                fontSize: 10,
+                color: '#4488ff',
+                letterSpacing: 2,
+                marginBottom: 12
+            }
+        }, "🎲 LUCKY BOX PROFIL"), React.createElement("div", {
+            style: {
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4,1fr)',
+                gap: 8,
+                marginBottom: 10
+            }
+        }, [{
+            e: '🏆',
+            l: 'Jackpoty',
+            v: lJack,
+            c: C.gold
+        }, {
+            e: '💣',
+            l: 'Bomby',
+            v: lBomb,
+            c: C.red
+        }, {
+            e: '💰',
+            l: 'Výhry',
+            v: lWins,
+            c: C.green
+        }, {
+            e: '📦',
+            l: 'Celkem',
+            v: lTot,
+            c: C.blue
+        }].map(s => React.createElement("div", {
+            key: s.l,
+            style: {
+                padding: '8px 4px',
+                background: 'rgba(8,12,35,0.6)',
+                borderRadius: 8,
+                textAlign: 'center',
+                border: '1px solid #1a2a4a'
+            }
+        }, React.createElement("div", {
+            style: {
+                fontSize: 18,
+                marginBottom: 3
+            }
+        }, s.e), React.createElement("div", {
+            style: {
+                fontFamily: "'Orbitron',sans-serif",
+                fontSize: 16,
+                fontWeight: 900,
+                color: s.c
+            }
+        }, s.v), React.createElement("div", {
+            style: {
+                fontSize: 9,
+                color: '#445566',
+                marginTop: 2
+            }
+        }, s.l)))), React.createElement("div", {
+            style: {
+                background: 'rgba(8,12,35,0.6)',
+                border: `1px solid ${lPts>=0?'#44ffaa44':'#ff444444'}`,
+                borderRadius: 8,
+                padding: '10px',
+                textAlign: 'center'
+            }
+        }, React.createElement("div", {
+            style: {
+                fontSize: 9,
+                color: '#445566',
+                letterSpacing: 2,
+                marginBottom: 4
+            }
+        }, "CELKOVÝ ZISK / ZTRÁTA Z LUCKY BOXU"), React.createElement("div", {
+            style: {
+                fontFamily: "'Orbitron',sans-serif",
+                fontSize: 22,
+                fontWeight: 900,
+                color: lPts > 0 ? C.green : lPts < 0 ? C.red : C.gray
+            }
+        }, lPts > 0 ? '+' : '', lPts.toLocaleString(), " b"), React.createElement("div", {
+            style: {
+                fontSize: 10,
+                color: '#445566',
+                marginTop: 3
+            }
+        }, lPts > 0 ? `Lucky box ti přinesl ${lPts} bodů navíc` : lPts < 0 ? `Lucky box tě stál ${Math.abs(lPts)} bodů` : 'Lucky box — přesná nula. Karmatická rovnováha.', lJack > lBomb && React.createElement("span", {
+            style: {
+                color: C.gold
+            }
+        }, " · šťastlivec 🍀"), lBomb > lJack && React.createElement("span", {
+            style: {
+                color: C.red
+            }
+        }, " · smolař 💣")))), React.createElement("div", {
+            style: {
+                background: 'rgba(12,18,50,0.8)',
+                border: '1px solid #1e2a4a',
+                borderRadius: 12,
+                padding: '12px 16px',
+                marginBottom: 16,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12
+            }
+        }, React.createElement("span", {
+            style: {
+                fontSize: 26,
+                flexShrink: 0
+            }
+        }, strR.e), React.createElement("div", {
+            style: {
+                flex: 1
+            }
+        }, React.createElement("div", {
+            style: {
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#88aaff',
+                marginBottom: 2
+            }
+        }, strR.t), React.createElement("div", {
+            style: {
+                fontSize: 11,
+                color: '#556688'
+            }
+        }, strR.d)), React.createElement("div", {
+            style: {
+                textAlign: 'right',
+                flexShrink: 0
+            }
+        }, React.createElement("div", {
+            style: {
+                fontSize: 9,
+                color: '#334455'
+            }
+        }, "max streak"), React.createElement("div", {
+            style: {
+                fontFamily: "'Orbitron',sans-serif",
+                fontSize: 16,
+                fontWeight: 900,
+                color: C.purple
+            }
+        }, maxStreak2, "d"))), trainingTips.length > 0 && React.createElement("div", {
+            style: {
+                background: 'rgba(12,18,50,0.8)',
+                border: '1px solid #2a3a6a',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 16
+            }
+        }, React.createElement("div", {
+            style: {
+                fontFamily: "'Orbitron',sans-serif",
+                fontSize: 10,
+                color: '#4488ff',
+                letterSpacing: 2,
+                marginBottom: 12
+            }
+        }, "🎓 DOPORUČENÉ ŠKOLENÍ"), trainingTips.map((t, i) => React.createElement("div", {
+            key: i,
+            style: {
+                display: 'flex',
+                gap: 10,
+                padding: '7px 0',
+                borderBottom: i < trainingTips.length - 1 ? '1px solid #1a2040' : 'none'
+            }
+        }, React.createElement("span", {
+            style: {
+                fontSize: 18,
+                flexShrink: 0
+            }
+        }, t.e), React.createElement("div", null, React.createElement("div", {
+            style: {
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#88aaff'
+            }
+        }, t.t), React.createElement("div", {
+            style: {
+                fontSize: 11,
+                color: '#556688',
+                marginTop: 2
+            }
+        }, t.d))))), React.createElement("div", {
+            style: {
+                background: 'rgba(12,18,50,0.8)',
+                border: '1px dashed #2a3a6a',
+                borderRadius: 12,
+                padding: 16,
+                textAlign: 'center'
+            }
+        }, React.createElement("div", {
+            style: {
+                fontSize: 9,
+                color: '#334455',
+                letterSpacing: 2,
+                marginBottom: 8,
+                fontFamily: "'Orbitron',sans-serif"
+            }
+        }, "CELKOVÝ VERDIKT"), React.createElement("div", {
+            style: {
+                fontSize: 12,
+                color: '#556688',
+                lineHeight: 1.8
+            }
+        }, pIsGeneral ? accPct >= 75 && avgSc >= globalAvg && parseFloat(avgT) <= 6 ? `${profileView.name} ví kde leží Madagaskar, pamatuje si bitvy i chemické vzorce. Ostatní ho nesnáší na hospodských kvízech.` : accPct >= 75 && avgSc >= globalAvg ? `${profileView.name} má výborný přehled a dobré skóre. Jen ta rychlost — ale rozhled se nesází na čas.` : accPct >= 75 ? `${profileView.name} je přesný, ale skóre pokulhává. Víc rychlosti, míň filozofování.` : avgSc >= globalAvg ? `${profileView.name} je rychlý, ale občas střílí od boku. Znalosti se nedají nahradit odhadem.` : `${profileView.name} má co zlepšovat. Existuje věc zvaná kniha. A také Wikipedia. A okna.` : accPct >= 75 && avgSc >= globalAvg && parseFloat(avgT) <= 6 ? `${profileView.name} ví co dělá, dělá to rychle a nepotřebuje Stack Overflow. Ostatní to jen předstírají.` : accPct >= 75 && avgSc >= globalAvg ? `${profileView.name} má znalosti i skóre výborné. Jen ta rychlost — ale kdo se nespěchá, taky někam dojde.` : accPct >= 75 ? `${profileView.name} je přesný, ale skóre by mohlo být vyšší.` : avgSc >= globalAvg ? `${profileView.name} má skóre nad průměrem, ale přesnost to trochu kazí.` : `${profileView.name} má co zlepšovat. To je pozitivní zpráva.`)));
+    })())), React.createElement("div", {
+        className: "slide-in"
+    }, React.createElement("div", {
+        style: {
+            textAlign: 'center',
+            paddingTop: 28,
+            marginBottom: 20
+        }
+    }, React.createElement("div", {
+        style: {
+            fontFamily: "'Orbitron', sans-serif",
+            fontSize: 10,
+            letterSpacing: 4,
+            color: '#4488ff',
+            marginBottom: 6
+        }
+    }, "HALL OF FAME"), React.createElement("h2", {
+        className: "glow",
+        style: {
+            fontFamily: "'Orbitron', sans-serif",
+            fontSize: 32,
+            fontWeight: 900,
+            color: '#fff'
+        }
+    }, "ŽEBŘÍČEK"), React.createElement("div", {
+        style: {
+            fontSize: 12,
+            color: '#445566',
+            marginTop: 4
+        }
+    }, tab === 'combined' ? '🌐 Součet všech kvízů dohromady' : mode === QUIZ_MODES.GENERAL ? '🌍 Obecný kvíz' : mode === QUIZ_MODES.FILM ? '🎬 Filmový kvíz' : '💻 IT kvíz')), React.createElement("div", {
+        style: {
+            display: 'flex',
+            gap: 6,
+            marginBottom: 20,
+            justifyContent: 'center',
+            flexWrap: 'wrap'
+        }
+    }, [{
+        k: 'today',
+        l: 'Dnes'
+    }, {
+        k: 'month',
+        l: `${monthLabel(currentMonth)}`
+    }, {
+        k: 'all',
+        l: 'Celkově'
+    }, {
+        k: 'combined',
+        l: '🌐 Vše'
+    }, {
+        k: 'champions',
+        l: '🏅 Šampioni'
+    }].map(t => React.createElement("button", {
+        key: t.k,
+        className: `tab-btn${tab===t.k?' active':''}`,
+        onClick: () => setTab(t.k)
+    }, t.l))), tab === 'champions' && React.createElement("div", null, React.createElement("div", {
+        style: {
+            textAlign: 'center',
+            marginBottom: 20
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 11,
+            color: '#4a5a7a',
+            letterSpacing: 1
+        }
+    }, "Vítězové měsíčního žebříčku")), monthlyChampions.length === 0 ? React.createElement("div", {
+        style: {
+            textAlign: 'center',
+            padding: '40px 0'
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 40,
+            marginBottom: 12
+        }
+    }, "🏅"), React.createElement("div", {
+        style: {
+            color: '#334455',
+            fontSize: 13
+        }
+    }, "Zatím žádní korunovaní šampioni."), React.createElement("div", {
+        style: {
+            color: '#2a3a5a',
+            fontSize: 11,
+            marginTop: 6
+        }
+    }, "První šampion se korunuje automaticky na začátku nového měsíce.")) : React.createElement("div", {
+        style: {
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10
+        }
+    }, monthlyChampions.map((c, i) => React.createElement("div", {
+        key: c.id,
+        style: {
+            background: i === 0 ? 'linear-gradient(135deg,rgba(255,215,0,0.12),rgba(255,150,0,0.08))' : 'rgba(12,20,52,0.75)',
+            border: `1px solid ${i===0?'#ffd700':'#2a3a6a'}`,
+            borderRadius: 12,
+            padding: '16px 20px'
+        }
+    }, React.createElement("div", {
+        style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 28,
+            flexShrink: 0
+        }
+    }, i === 0 ? '👑' : '🏅'), React.createElement("div", {
+        style: {
+            flex: 1,
+            minWidth: 0
+        }
+    }, React.createElement("div", {
+        style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 3
+        }
+    }, React.createElement("span", {
+        style: {
+            fontFamily: "'Orbitron',sans-serif",
+            fontSize: 13,
+            fontWeight: 900,
+            color: i === 0 ? '#ffd700' : '#88aaff'
+        }
+    }, c.user_name), React.createElement("span", {
+        style: {
+            fontSize: 10,
+            color: '#556688',
+            letterSpacing: 2,
+            background: 'rgba(255,215,0,0.1)',
+            padding: '2px 8px',
+            borderRadius: 20,
+            border: `1px solid ${i===0?'#ffd70044':'#2a3a6a'}`
+        }
+    }, monthLabel(c.month))), React.createElement("div", {
+        style: {
+            fontSize: 11,
+            color: '#445566'
+        }
+    }, c.days_played, " ", c.days_played === 1 ? 'den' : 'dní', " hraní")), React.createElement("div", {
+        style: {
+            textAlign: 'right',
+            flexShrink: 0
+        }
+    }, React.createElement("div", {
+        style: {
+            fontFamily: "'Orbitron',sans-serif",
+            fontSize: 18,
+            fontWeight: 900,
+            color: i === 0 ? '#ffd700' : '#4488ff'
+        }
+    }, c.total_score.toLocaleString()), React.createElement("div", {
+        style: {
+            fontSize: 10,
+            color: '#334466',
+            letterSpacing: 1
+        }
+    }, "BODŮ"))))))), tab !== 'champions' && React.createElement(React.Fragment, null, tab === 'month' && React.createElement("div", {
+        style: {
+            textAlign: 'center',
+            marginBottom: 14,
+            fontSize: 11,
+            color: '#4a5a7a'
+        }
+    }, "Aktuální měsíc — nejlepší se korunuje 1. dne příštího měsíce"), list.length === 0 ? React.createElement("div", {
+        style: {
+            textAlign: 'center',
+            color: '#334455',
+            padding: 50,
+            fontSize: 13
+        }
+    }, tab === 'today' ? 'Dnes ještě nikdo nehrál' : tab === 'month' ? 'Tento měsíc ještě nikdo nehrál' : 'Žádná data') : React.createElement("div", {
+        style: {
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 7
+        }
+    }, list.map((e, i) => {
+        const me = e.user_id === user?.id || e.id === user?.id;
+        const sc = tab === 'today' ? e.score : e.total;
+        const uid = e.user_id || e.id;
+        const isPerfectToday = tab === 'today' && e.perfect;
+        const perfects = e.perfects || 0;
+        return React.createElement("div", {
+            key: uid,
+            style: {
+                background: isPerfectToday ? 'linear-gradient(135deg,rgba(255,215,0,0.12),rgba(255,140,0,0.06))' : me ? 'rgba(68,136,255,0.13)' : 'rgba(12,20,52,0.75)',
+                border: `1px solid ${isPerfectToday?'#ffd700':me?'#4488ff':'#2a3a6a'}`,
+                borderRadius: 10,
+                padding: '13px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                boxShadow: isPerfectToday ? '0 0 20px rgba(255,215,0,0.15)' : 'none'
+            }
+        }, React.createElement("div", {
+            style: {
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 4,
+                flexShrink: 0
+            }
+        }, React.createElement("div", {
+            style: {
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                overflow: 'hidden',
+                border: `1px solid ${isPerfectToday?'#ffd70066':me?'#4488ff44':'#1a2a5a'}`,
+                background: '#0d1428',
+                flexShrink: 0
+            }
+        }, avatarCache[uid] ? React.createElement("img", {
+            src: avatarSrc(avatarCache[uid]),
+            alt: "",
+            style: {
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+            }
+        }) : React.createElement("div", {
+            style: {
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 14,
+                color: '#2a3a5a'
+            }
+        }, i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : React.createElement("span", {
+            style: {
+                fontSize: 11,
+                color: '#334466',
+                fontWeight: 700
+            }
+        }, i + 1))), avatarCache[uid] && React.createElement("div", {
+            style: {
+                fontSize: 10,
+                color: rc[i] || '#334466',
+                fontWeight: 700
+            }
+        }, i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i + 1)), React.createElement("div", {
+            style: {
+                flex: 1,
+                minWidth: 0
+            }
+        }, React.createElement("div", {
+            style: {
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                flexWrap: 'wrap'
+            }
+        }, React.createElement("button", {
+            onClick: () => openProfile(uid),
+            style: {
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
+                textAlign: 'left'
+            }
+        }, React.createElement("span", {
+            style: {
+                fontSize: 14,
+                fontWeight: 700,
+                color: isPerfectToday ? '#ffd700' : me ? '#88aaff' : '#ccdaff',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                textDecoration: 'underline',
+                textDecorationColor: '#2a3a6a',
+                textUnderlineOffset: 3
+            }
+        }, e.user_name || e.name, " ", me && '(ty)')), isPerfectToday && React.createElement("span", {
+            style: {
+                fontSize: 10,
+                background: 'rgba(255,215,0,0.2)',
+                color: '#ffd700',
+                border: '1px solid #ffd70066',
+                borderRadius: 20,
+                padding: '1px 8px',
+                letterSpacing: 0.5,
+                flexShrink: 0
+            }
+        }, "💎 PERFECT"), tab !== 'today' && perfects > 0 && React.createElement("span", {
+            style: {
+                fontSize: 10,
+                background: 'rgba(255,215,0,0.1)',
+                color: '#cc9900',
+                border: '1px solid #ffd70033',
+                borderRadius: 20,
+                padding: '1px 7px',
+                flexShrink: 0
+            }
+        }, "💎 ×", perfects)), tab === 'all' && React.createElement("div", {
+            style: {
+                fontSize: 11,
+                color: '#445566',
+                marginTop: 1
+            }
+        }, e.played, " ", e.played === 1 ? 'kvíz' : 'kvízy', " · nejlepší: ", e.best.toLocaleString(), " b", e.totalCorrect > 0 && React.createElement("span", null, " · ✅ ", e.totalCorrect, " ❌ ", e.totalWrong)), tab === 'combined' && React.createElement("div", {
+            style: {
+                fontSize: 11,
+                color: '#445566',
+                marginTop: 1
+            }
+        }, e.played, " kvízů · ✅ ", e.totalCorrect, " ❌ ", e.totalWrong, e.it > 0 && React.createElement("span", {
+            style: {
+                color: '#88aaff'
+            }
+        }, " · 💻", e.it.toLocaleString()), e.general > 0 && React.createElement("span", {
+            style: {
+                color: '#44cc88'
+            }
+        }, " · 🌍", e.general.toLocaleString()), e.film > 0 && React.createElement("span", {
+            style: {
+                color: '#ff88cc'
+            }
+        }, " · 🎬", e.film.toLocaleString())), tab === 'month' && React.createElement("div", {
+            style: {
+                fontSize: 11,
+                color: '#445566',
+                marginTop: 1
+            }
+        }, e.played, " ", e.played === 1 ? 'den' : 'dní', " • nejlepší: ", e.best.toLocaleString(), " b"), tab === 'today' && React.createElement("div", {
+            style: {
+                fontSize: 11,
+                color: '#445566',
+                marginTop: 1
+            }
+        }, e.correct, "/", Math.max((e.total || 16) - 1, 15), " správně")), React.createElement("div", {
+            style: {
+                textAlign: 'right',
+                flexShrink: 0
+            }
+        }, React.createElement("div", {
+            style: {
+                fontFamily: "'Orbitron', sans-serif",
+                fontSize: 19,
+                fontWeight: 900,
+                color: isPerfectToday ? '#ffd700' : i === 0 ? '#ffdd00' : '#4488ff'
+            }
+        }, sc.toLocaleString()), React.createElement("div", {
+            style: {
+                fontFamily: "'Orbitron', sans-serif",
+                fontSize: 10,
+                color: '#334466',
+                letterSpacing: 1
+            }
+        }, "BODŮ")));
+    }))), React.createElement("div", {
+        style: {
+            textAlign: 'center',
+            marginTop: 28
+        }
+    }, React.createElement("button", {
+        className: "btn",
+        onClick: onBack,
+        style: {
+            background: 'transparent',
+            border: '1px solid #2a3a6a',
+            padding: '11px 30px',
+            borderRadius: 8,
+            fontSize: 12,
+            color: '#88aaff',
+            letterSpacing: 2
+        }
+    }, "← ZPĚT"))));
+}
+
+function StatsScreen({
+    user,
+    scores,
+    quizMode,
+    onBack
+}) {
+    const [localMode, setLocalMode] = useState(quizMode || QUIZ_MODES.IT);
+    const mode = localMode;
+    const isGeneral = mode === QUIZ_MODES.GENERAL;
+    const isFilm = mode === QUIZ_MODES.FILM;
+    const qPool = isFilm ? ALL_FILM_QUESTIONS : isGeneral ? ALL_GENERAL_QUESTIONS : ALL_QUESTIONS;
+    const myScores = scores.filter(s => s.user_id === user.id && (s.quiz_mode || QUIZ_MODES.IT) === mode).sort((a, b) => a.date.localeCompare(b.date));
+    const totalPlayed = myScores.length;
+    const totalScore = myScores.reduce((s, r) => s + r.score, 0);
+    const avgScore = totalPlayed ? Math.round(totalScore / totalPlayed) : 0;
+    const bestScore = totalPlayed ? Math.max(...myScores.map(r => r.score)) : 0;
+    const perfectCount = myScores.filter(r => r.perfect).length;
+    const totalCorrect = myScores.reduce((s, r) => s + (r.correct || 0), 0);
+    const totalQs = myScores.reduce((s, r) => s + (r.total || 0), 0);
+    const accuracy = totalQs ? Math.round(totalCorrect / totalQs * 100) : 0;
+    let maxStreak = 0,
+        tempStreak = 0,
+        currentStreak = 0;
+    const sortedDays = [...new Set(myScores.map(r => r.date))].sort();
+    for (let i = 0; i < sortedDays.length; i++) {
+        if (i === 0) {
+            tempStreak = 1;
+        } else {
+            const prev = new Date(sortedDays[i - 1]);
+            prev.setDate(prev.getDate() + 1);
+            tempStreak = prev.toISOString().slice(0, 10) === sortedDays[i] ? tempStreak + 1 : 1;
+        }
+        maxStreak = Math.max(maxStreak, tempStreak);
+    }
+    const today = getTodayKey();
+    for (let i = sortedDays.length - 1; i >= 0; i--) {
+        const exp = new Date(today);
+        exp.setDate(exp.getDate() - (sortedDays.length - 1 - i));
+        if (sortedDays[i] === exp.toISOString().slice(0, 10)) currentStreak++;
+        else break;
+    }
+    const questionPool = isFilm ? ALL_FILM_QUESTIONS : isGeneral ? ALL_GENERAL_QUESTIONS : ALL_QUESTIONS;
+    const catData = {};
+    let totalAnswers = 0,
+        totalAnswerTime = 0,
+        fastAnswers = 0,
+        slowAnswers = 0;
+    let maxAnswerStreak = 0,
+        curAnswerStreak = 0;
+    myScores.forEach(s => {
+        if (!s.play_log || !s.play_log.length) return;
+        s.play_log.forEach(e => {
+            if (e.qId === 'lucky') return;
+            const q = questionPool.find(q => String(q.id) === String(e.qId));
+            const cat = q ? q.cat : 'Ostatní';
+            if (!catData[cat]) catData[cat] = {
+                correct: 0,
+                total: 0,
+                totalTime: 0
+            };
+            catData[cat].total++;
+            if (e.correct) catData[cat].correct++;
+            const t = e.time_spent || 0;
+            catData[cat].totalTime += t;
+            totalAnswers++;
+            totalAnswerTime += t;
+            if (t <= 3) fastAnswers++;
+            if (t >= 15) slowAnswers++;
+            if (e.correct) {
+                curAnswerStreak++;
+            } else {
+                maxAnswerStreak = Math.max(maxAnswerStreak, curAnswerStreak);
+                curAnswerStreak = 0;
+            }
+        });
+        maxAnswerStreak = Math.max(maxAnswerStreak, curAnswerStreak);
+    });
+    const avgAnswerTime = totalAnswers ? (totalAnswerTime / totalAnswers).toFixed(1) : 0;
+    const fastPct = totalAnswers ? Math.round(fastAnswers / totalAnswers * 100) : 0;
+    const slowPct = totalAnswers ? Math.round(slowAnswers / totalAnswers * 100) : 0;
+    const catList = Object.entries(catData).filter(([, d]) => d.total >= 2).map(([cat, d]) => ({
+        cat,
+        acc: Math.round(d.correct / d.total * 100),
+        total: d.total,
+        avgTime: d.total ? (d.totalTime / d.total).toFixed(1) : 0
+    })).sort((a, b) => b.acc - a.acc);
+    const avgCatAcc = catList.length ? Math.round(catList.reduce((s, c) => s + c.acc, 0) / catList.length) : 50;
+    const topCats = catList.filter(c => c.acc > avgCatAcc).slice(0, 4);
+    const weakCats = catList.filter(c => c.acc <= avgCatAcc).sort((a, b) => a.acc - b.acc).slice(0, 4);
+    const SECTORS_IT = {
+        'Sítě & Infrastruktura': ['Sítě', 'WiFi', 'Konektory', 'Telco', 'DC'],
+        'Bezpečnost': ['Bezpečnost', 'Šifrování'],
+        'Cloud & DevOps': ['Cloud', 'Virtualizace', 'Správa'],
+        'Systémy & OS': ['OS', 'Linux', 'Windows'],
+        'Data & Protokoly': ['Databáze', 'Protokoly', 'Email'],
+        'Hardware': ['Hardware', 'Periferie', 'Úložiště', 'Zálohy'],
+        'AI & Moderní tech': ['AI/ML', 'IoT', 'Telco']
+    };
+    const SECTORS_GENERAL = {
+        'Geografie': ['🌍 Geografie'],
+        'Historie': ['🏛️ Historie'],
+        'Věda': ['🔬 Věda'],
+        'Film & TV': ['🎬 Film & TV'],
+        'Hudba': ['🎵 Hudba'],
+        'Sport': ['⚽ Sport'],
+        'Jídlo': ['🍕 Jídlo'],
+        'Příroda': ['🐾 Příroda'],
+        'Logika': ['🧠 Logika'],
+        'Zajímavosti': ['💡 Zajímavosti']
+    };
+    const SECTORS_FILM = {
+        'Citáty': ['🎬 Citáty'],
+        'České filmy': ['🇨🇿 Česko'],
+        'Ocenění': ['🏆 Ocenění'],
+        'Režie': ['🎬 Režie'],
+        'Klasika': ['🌍 Klasika'],
+        'Marvel': ['🦸 Marvel'],
+        'Komedie': ['😂 Komedie'],
+        'Horor': ['👻 Horor'],
+        'Sci-Fi': ['🚀 Sci-Fi'],
+        'Drama': ['💕 Drama'],
+        'Thriller': ['🔍 Thriller'],
+        'Animace': ['🌟 Animace'],
+        'Herci': ['🎭 Herci']
+    };
+    const SECTORS = isFilm ? SECTORS_FILM : isGeneral ? SECTORS_GENERAL : SECTORS_IT;
+    const sectorData = Object.entries(SECTORS).map(([sector, cats]) => {
+        let correct = 0,
+            total = 0;
+        cats.forEach(c => {
+            Object.entries(catData).forEach(([cat, d]) => {
+                if (cat === c || cat.includes(c.replace(/^[^ ]+ /, ''))) {
+                    correct += d.correct;
+                    total += d.total;
+                }
+            });
+        });
+        return {
+            sector,
+            acc: total ? Math.round(correct / total * 100) : null,
+            total
+        };
+    }).filter(s => s.total >= 2).sort((a, b) => b.acc - a.acc);
+    const lucky = {
+        total: 0,
+        wins: 0,
+        losses: 0,
+        jackpots: 0,
+        bombs: 0,
+        zeros: 0,
+        totalPts: 0
+    };
+    myScores.forEach(s => {
+        if (!s.play_log) return;
+        s.play_log.filter(e => e.qId === 'lucky').forEach(e => {
+            lucky.total++;
+            const v = e.chosen || 0;
+            lucky.totalPts += v;
+            if (v === 1000) lucky.jackpots++;
+            else if (v === -500) lucky.bombs++;
+            else if (v === 0) lucky.zeros++;
+            else if (v > 0) lucky.wins++;
+            else lucky.losses++;
+        });
+    });
+    const timeScores = myScores.filter(s => s.time_saved != null);
+    const avgTimeSaved = timeScores.length ? Math.round(timeScores.reduce((a, s) => a + (s.time_saved || 0), 0) / timeScores.length) : 0;
+    const modeAll = scores.filter(s => (s.quiz_mode || QUIZ_MODES.IT) === mode);
+    const allAvg = modeAll.length ? Math.round(modeAll.reduce((s, r) => s + r.score, 0) / modeAll.length) : 0;
+    const allPlayers = new Set(modeAll.map(s => s.user_id)).size;
+    const myRank = [...new Set(modeAll.map(s => s.user_id))].map(uid => ({
+        uid,
+        t: modeAll.filter(s => s.user_id === uid).reduce((a, r) => a + r.score, 0)
+    })).sort((a, b) => b.t - a.t).findIndex(r => r.uid === user.id) + 1;
+
+    function speedRoast(avg) {
+        const a = parseFloat(avg);
+        if (isGeneral) {
+            if (a <= 2) return {
+                e: '⚡',
+                t: 'Klikací automat',
+                d: 'Odpovídáš rychleji než přečteš otázku. Buď jsi génius, nebo máš zavřené oči a klikáš naslepo. Výsledky napovídají.'
+            };
+            if (a <= 4) return {
+                e: '🚀',
+                t: 'Překvapivě funkční',
+                d: 'Pod 4 sekundy. Někdo zřejmě četl aspoň jednu knížku. Nebo titulky k filmům. Počítáme obojí.'
+            };
+            if (a <= 7) return {
+                e: '🐌',
+                t: 'Průměrný člověk',
+                d: 'Přemýšlíš kolem 7 sekund. Průměr. Jako všechno ostatní v tvém životě.'
+            };
+            if (a <= 12) return {
+                e: '🦴',
+                t: 'Mozek se zahřívá',
+                d: '12 sekund na otázku z obecného přehledu. Buď přemýšlíš hodně, nebo hodně málo. Výsledky mluví za sebe.'
+            };
+            return {
+                e: '🐠',
+                t: 'Zlatá rybka',
+                d: 'Víc než 12 sekund na otázku. Buď čteš pomalu, nebo čteš otázku vícekrát v naději že se změní. Nezmění.'
+            };
+        }
+        if (a <= 2) return {
+            e: '⚡',
+            t: 'Kvantový procesor',
+            d: 'Odpovídáš rychleji než si stihneš přečíst otázku. Hazard nebo génius?'
+        };
+        if (a <= 4) return {
+            e: '🚀',
+            t: 'Rychlý jako NVMe',
+            d: 'Průměr pod 4s. Jsi připravený. Nebo odhazuješ naslepo.'
+        };
+        if (a <= 7) return {
+            e: '🎯',
+            t: 'Rozvážný expert',
+            d: 'Přemýšlíš před kliknutím. Starý zvyk správného admina.'
+        };
+        if (a <= 12) return {
+            e: '🐢',
+            t: 'Důkladný čtenář',
+            d: 'Čteš otázku třikrát. Jednou by stačilo, ale respektujeme pečlivost.'
+        };
+        return {
+            e: '🦥',
+            t: 'Filosof v IT',
+            d: 'Každá odpověď je existenciální rozhodnutí. Nebo jsi šel uvařit kávu.'
+        };
+    }
+
+    function accuracyRoast(acc) {
+        if (isGeneral) {
+            if (acc >= 95) return {
+                e: '🧠',
+                t: 'Podezřele chytrý',
+                d: '95 % přesnost v obecném kvízu. Buď jsi výjimečně vzdělaný, nebo máš výjimečně dobrou paměť na náhodné věci. Každopádně ostatní tě nesnáší na teambuildingu.'
+            };
+            if (acc >= 85) return {
+                e: '📚',
+                t: 'Ten co četl knížky',
+                d: '85 % přesnost. Zřejmě jsi v životě otevřel knihu. Nebo aspoň Wikipedia doporučené články. Vzácný druh.'
+            };
+            if (acc >= 70) return {
+                e: '💡',
+                t: 'Nadprůměrný smrtelník',
+                d: '70 % přesnost. Nad průměrem — ale ten průměr je tak nízko, že je to trochu smutné. Přesto gratulujeme.'
+            };
+            if (acc >= 55) return {
+                e: '🤷',
+                t: 'Náhodou správně',
+                d: '55 % přesnost. Statisticky jen o málo lepší než náhodné tipování. Ale aspoň se snažíš. Nebo ne?'
+            };
+            if (acc >= 40) return {
+                e: '🪨',
+                t: 'Vzdělanostní beton',
+                d: '40 % přesnost. Pevný, nepropustný pro nové informace. Kde leží Afrika? Kdoví.'
+            };
+            return {
+                e: '🌵',
+                t: 'Poušť vědomostí',
+                d: 'Pod 40 %. Sucho. Nic neroste. Naposledy ses učil ve škole a i tam to bylo sporné. Ale kvíz hraješ, takže něco.'
+            };
+        }
+        if (acc >= 95) return {
+            e: '🧠',
+            t: 'Kyborg v lidském těle',
+            d: 'Podezřele správně. IT oddělení tě sleduje.'
+        };
+        if (acc >= 85) return {
+            e: '🎯',
+            t: 'Ostrý jako nový SSD',
+            d: 'Nemáš odpovědi, ty jsi odpověď.'
+        };
+        if (acc >= 70) return {
+            e: '💪',
+            t: 'Nadprůměrný člověk',
+            d: 'Ve firmě bys byl ten co opravuje ostatní.'
+        };
+        if (acc >= 55) return {
+            e: '🤔',
+            t: 'Slušný pokus',
+            d: 'Senior developer styl — polovina správně, polovina kreativně.'
+        };
+        if (acc >= 40) return {
+            e: '😅',
+            t: 'Optimistický začátečník',
+            d: 'Aspoň heslo na WiFi víš. Doufáme.'
+        };
+        return {
+            e: '💀',
+            t: 'Živoucí důkaz chaosu',
+            d: 'Tiskárna by tě přechytračila.'
+        };
+    }
+
+    function streakRoast(s) {
+        if (isGeneral) {
+            if (s >= 30) return {
+                e: '🔥',
+                t: 'Závislák na vědomostech',
+                d: `${s} dní v kuse. V práci na tě čekají emaily. Rodina si zvykla. Terapeut ví o kvízu víc než o tobě.`
+            };
+            if (s >= 14) return {
+                e: '📅',
+                t: 'Pravidelný jako léky',
+                d: `${s} dní. Přísně vzato — toto je jedinkrát kdy "pravidelně" nezní pozitivně. Ale IQ roste. Pomalu.`
+            };
+            if (s >= 7) return {
+                e: '🌱',
+                t: 'Týden naděje',
+                d: '7 dní v kuse. Začínáš budovat návyk. Nebo prokrastinuješ od něčeho důležitějšího. Pravděpodobně to druhé.'
+            };
+            if (s >= 3) return {
+                e: '🐣',
+                t: 'Tři dny slavný',
+                d: '3 dny. Skoro jako rekord. Uvidíme jestli to vydržíš déle než gym membership ze Silvestra.'
+            };
+            if (s >= 1) return {
+                e: '👶',
+                t: 'Odhodlaný nováček',
+                d: 'Aspoň jeden den. To je víc než spousta lidí kteří si „chtěli rozšířit přehled" a pak sledovali Netflix.'
+            };
+            return {
+                e: '📺',
+                t: 'Streak? Jaký streak?',
+                d: 'Nula dní v kuse. Vzdělanost nevznikne sama od sebe. I když — podle tvých výsledků možná neškodí.'
+            };
+        }
+        if (s >= 30) return {
+            e: '🔥',
+            t: 'Na dovolené s laptopem',
+            d: 'Normální lidé odpočívají. Ty kvízuješ.'
+        };
+        if (s >= 14) return {
+            e: '⚡',
+            t: 'Pravidelný jako cron job',
+            d: `${s} dní v kuse. Tvůj terapeut o tom neví.`
+        };
+        if (s >= 7) return {
+            e: '📅',
+            t: 'Solidní návyk',
+            d: 'Týden v kuse. Víc než většina projektů.'
+        };
+        if (s >= 3) return {
+            e: '🌱',
+            t: 'Roste to',
+            d: 'Nezruš to zítra jako gym membership.'
+        };
+        if (s >= 1) return {
+            e: '🐢',
+            t: 'Začátek je těžký',
+            d: 'Aspoň jsi tady. Na rozdíl od dokumentace.'
+        };
+        return {
+            e: '👻',
+            t: 'Přízrak čtenář',
+            d: 'Streak = 0. Ani cron by tě nenaplánoval.'
+        };
+    }
+    const accR = accuracyRoast(accuracy);
+    const spdR = speedRoast(avgAnswerTime);
+    const strR = streakRoast(currentStreak);
+    const C = {
+        gold: '#ffd700',
+        blue: '#4488ff',
+        green: '#44ffaa',
+        red: '#ff4444',
+        gray: '#556688',
+        purple: '#bb44ff',
+        orange: '#ff9900'
+    };
+    const trainingTips = [];
+    if (isGeneral) {
+        if (accuracy < 60) trainingTips.push({
+            e: '📖',
+            t: 'Čti cokoliv',
+            d: 'Noviny, knihy, Wikipedia, záložky ve WC — cokoliv. Aktuální stav je alarmující.'
+        });
+        if (weakCats.length && weakCats[0].acc < 50) trainingTips.push({
+            e: '🌍',
+            t: weakCats[0].cat.replace(/^[^ ]+ /, ''),
+            d: `${weakCats[0].acc}% přesnost. To není slabina, to je díra. Doporučujeme Google, nebo aspoň otevřít okno a podívat se na svět.`
+        });
+        if (parseFloat(avgAnswerTime) > 12) trainingTips.push({
+            e: '⚡',
+            t: 'Rozhoduj rychleji',
+            d: 'Buď to víš, nebo nevíš. 12 sekund nezmění fakt, že to nevíš.'
+        });
+        if (perfectCount === 0 && totalPlayed >= 5) trainingTips.push({
+            e: '💎',
+            t: 'Perfect run? Vzdálený sen',
+            d: 'Po pěti kvízech stále žádný perfect. Stačí 15/15. Ani jednou. Zamyšlení hodné.'
+        });
+        if (lucky.bombs > lucky.jackpots && lucky.total >= 3) trainingTips.push({
+            e: '🎲',
+            t: 'Smolař roku',
+            d: 'Lucky Box tě nenávidí. Nebo ty jeho. Každopádně — statisticky tragické.'
+        });
+    } else {
+        if (accuracy < 60) trainingTips.push({
+            e: '🎓',
+            t: 'IT základy',
+            d: 'Kurz "Proč je kabel důležitý a jiné záhady"'
+        });
+        if (parseFloat(avgAnswerTime) > 12) trainingTips.push({
+            e: '⚡',
+            t: 'Rychlost rozhodování',
+            d: 'Trénink rychlého rozhodování — ideálně bez Google a kávy'
+        });
+        if (perfectCount === 0 && totalPlayed >= 5) trainingTips.push({
+            e: '💎',
+            t: 'Konzistence',
+            d: 'Na perfect run potřebuješ znalosti, ne štěstí'
+        });
+        if (weakCats.length && weakCats[0].acc < 50) trainingTips.push({
+            e: '📚',
+            t: weakCats[0].cat,
+            d: `Přesnost ${weakCats[0].acc}% — tady by pomohlo pořádné školení`
+        });
+        if (lucky.bombs > lucky.jackpots && lucky.total >= 3) trainingTips.push({
+            e: '🎲',
+            t: 'Risk management',
+            d: 'Tvůj instinkt na Lucky Box je statisticky tragický'
+        });
+        if (currentStreak === 0 && totalPlayed >= 3) trainingTips.push({
+            e: '📅',
+            t: 'Pravidelnost',
+            d: 'Nepravidelné hraní = nepravidelné znalosti'
+        });
+    }
+    return React.createElement("div", {
+        style: {
+            minHeight: '100vh',
+            padding: '20px',
+            maxWidth: 700,
+            margin: '0 auto'
+        }
+    }, React.createElement("div", {
+        className: "slide-in"
+    }, React.createElement("div", {
+        style: {
+            textAlign: 'center',
+            paddingTop: 24,
+            marginBottom: 16
+        }
+    }, React.createElement("div", {
+        style: {
+            fontFamily: "'Orbitron',sans-serif",
+            fontSize: 10,
+            letterSpacing: 4,
+            color: '#4488ff',
+            marginBottom: 6
+        }
+    }, "ANALÝZA HRÁČE"), React.createElement("h2", {
+        className: "glow",
+        style: {
+            fontFamily: "'Orbitron',sans-serif",
+            fontSize: 28,
+            fontWeight: 900,
+            color: '#fff',
+            marginBottom: 4
+        }
+    }, "MÉ STATISTIKY"), React.createElement("div", {
+        style: {
+            fontSize: 12,
+            color: '#445566',
+            marginBottom: 16
+        }
+    }, user.name)), React.createElement("div", {
+        style: {
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr 1fr',
+            gap: 6,
+            marginBottom: 20,
+            background: 'rgba(10,15,40,0.6)',
+            borderRadius: 10,
+            padding: 4,
+            border: '1px solid #1e2a4a'
+        }
+    }, [{
+        m: QUIZ_MODES.IT,
+        l: '💻 IT'
+    }, {
+        m: QUIZ_MODES.GENERAL,
+        l: '🌍 Obecný'
+    }, {
+        m: QUIZ_MODES.FILM,
+        l: '🎬 Film'
+    }].map(({
+        m,
+        l
+    }) => React.createElement("button", {
+        key: m,
+        onClick: () => setLocalMode(m),
+        style: {
+            padding: '10px',
+            borderRadius: 8,
+            border: 'none',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            fontSize: 13,
+            fontWeight: 700,
+            transition: 'all 0.2s',
+            background: localMode === m ? 'linear-gradient(135deg,#1a3a8a,#2255cc)' : 'transparent',
+            color: localMode === m ? '#fff' : '#4a5a7a',
+            boxShadow: localMode === m ? '0 0 20px rgba(68,136,255,0.3)' : 'none'
+        }
+    }, l))), React.createElement("div", {
+        style: {
+            fontSize: 12,
+            color: '#445566',
+            textAlign: 'center',
+            marginBottom: 16
+        }
+    }, user.name, " · ", myScores.length, " ", myScores.length === 1 ? 'kvíz' : 'kvízů'), totalPlayed === 0 ? React.createElement("div", {
+        style: {
+            textAlign: 'center',
+            padding: '60px 0'
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 48,
+            marginBottom: 16
+        }
+    }, "🥚"), React.createElement("div", {
+        style: {
+            color: '#445566',
+            fontSize: 14
+        }
+    }, "Zatím žádná data."), React.createElement("div", {
+        style: {
+            color: '#334455',
+            fontSize: 12,
+            marginTop: 6
+        }
+    }, "Zahraj první kvíz a uvidíš co z tebe vyleze.")) : React.createElement(React.Fragment, null, React.createElement("div", {
+        style: {
+            background: 'linear-gradient(135deg,rgba(68,136,255,0.12),rgba(34,85,200,0.06))',
+            border: '1px solid #2a3a6a',
+            borderRadius: 14,
+            padding: '16px 20px',
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14
+        }
+    }, React.createElement("span", {
+        style: {
+            fontSize: 42,
+            flexShrink: 0
+        }
+    }, accR.e), React.createElement("div", null, React.createElement("div", {
+        style: {
+            fontFamily: "'Orbitron',sans-serif",
+            fontSize: 15,
+            fontWeight: 900,
+            color: '#88aaff',
+            letterSpacing: 2,
+            marginBottom: 4
+        }
+    }, accR.t), React.createElement("div", {
+        style: {
+            fontSize: 12,
+            color: '#556688',
+            lineHeight: 1.5
+        }
+    }, accR.d))), React.createElement("div", {
+        style: {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3,1fr)',
+            gap: 8,
+            marginBottom: 8
+        }
+    }, [{
+        e: '🎯',
+        l: 'Přesnost',
+        v: `${accuracy}%`,
+        c: accuracy >= 70 ? C.green : accuracy >= 50 ? C.gold : C.red
+    }, {
+        e: '⚡',
+        l: 'Průměrný čas',
+        v: `${avgAnswerTime}s`,
+        c: parseFloat(avgAnswerTime) <= 5 ? C.green : parseFloat(avgAnswerTime) <= 10 ? C.gold : C.red
+    }, {
+        e: '📊',
+        l: 'Průměr/kvíz',
+        v: avgScore.toLocaleString(),
+        c: avgScore >= allAvg ? C.green : C.blue
+    }, {
+        e: '🏆',
+        l: 'Nejlepší kvíz',
+        v: bestScore.toLocaleString(),
+        c: C.gold
+    }, {
+        e: '💎',
+        l: 'Perfect runs',
+        v: perfectCount,
+        c: perfectCount > 0 ? C.gold : C.gray
+    }, {
+        e: '🔥',
+        l: 'Streak',
+        v: `${currentStreak}d`,
+        c: currentStreak >= 7 ? C.purple : currentStreak >= 3 ? C.gold : C.gray
+    }].map(s => React.createElement("div", {
+        key: s.l,
+        style: {
+            background: 'rgba(12,18,50,0.8)',
+            border: '1px solid #1e2a4a',
+            borderRadius: 10,
+            padding: '12px 6px',
+            textAlign: 'center'
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 18,
+            marginBottom: 4
+        }
+    }, s.e), React.createElement("div", {
+        style: {
+            fontFamily: "'Orbitron',sans-serif",
+            fontSize: 15,
+            fontWeight: 900,
+            color: s.c
+        }
+    }, s.v), React.createElement("div", {
+        style: {
+            fontSize: 9,
+            color: '#445566',
+            marginTop: 3
+        }
+    }, s.l)))), React.createElement("div", {
+        style: {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3,1fr)',
+            gap: 8,
+            marginBottom: 16
+        }
+    }, [{
+        e: '🚀',
+        l: 'Rychlé odpovědi',
+        v: `${fastPct}%`,
+        c: C.blue,
+        sub: 'do 3s'
+    }, {
+        e: '🐢',
+        l: 'Pomalé odpovědi',
+        v: `${slowPct}%`,
+        c: slowPct > 40 ? C.red : C.gray,
+        sub: 'nad 15s'
+    }, {
+        e: '🏅',
+        l: 'Rank',
+        v: myRank ? `#${myRank}` : '—',
+        c: myRank <= 3 ? C.gold : myRank <= 10 ? C.blue : C.gray,
+        sub: `z ${allPlayers} hráčů`
+    }, {
+        e: '📈',
+        l: 'vs průměr',
+        v: `${avgScore>=allAvg?'+':''}${avgScore-allAvg}`,
+        c: avgScore >= allAvg ? C.green : C.red,
+        sub: `avg ${allAvg.toLocaleString()} b`
+    }, {
+        e: '⏱️',
+        l: 'Ušetřený čas',
+        v: `${avgTimeSaved}s`,
+        c: avgTimeSaved >= 20 ? C.green : avgTimeSaved >= 10 ? C.gold : C.gray,
+        sub: 'průměr/kvíz'
+    }, {
+        e: '🎯',
+        l: 'Nejdelší série',
+        v: `${maxAnswerStreak}×`,
+        c: maxAnswerStreak >= 10 ? C.gold : maxAnswerStreak >= 5 ? C.blue : C.gray,
+        sub: 'správných za sebou'
+    }].map(s => React.createElement("div", {
+        key: s.l,
+        style: {
+            background: 'rgba(12,18,50,0.8)',
+            border: '1px solid #1e2a4a',
+            borderRadius: 10,
+            padding: '10px 6px',
+            textAlign: 'center'
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 16,
+            marginBottom: 3
+        }
+    }, s.e), React.createElement("div", {
+        style: {
+            fontFamily: "'Orbitron',sans-serif",
+            fontSize: 14,
+            fontWeight: 900,
+            color: s.c
+        }
+    }, s.v), React.createElement("div", {
+        style: {
+            fontSize: 9,
+            color: '#445566',
+            marginTop: 1
+        }
+    }, s.l), s.sub && React.createElement("div", {
+        style: {
+            fontSize: 8,
+            color: '#334455',
+            marginTop: 1
+        }
+    }, s.sub)))), React.createElement("div", {
+        style: {
+            background: 'rgba(12,18,50,0.8)',
+            border: '1px solid #1e2a4a',
+            borderRadius: 12,
+            padding: '12px 16px',
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12
+        }
+    }, React.createElement("span", {
+        style: {
+            fontSize: 28,
+            flexShrink: 0
+        }
+    }, spdR.e), React.createElement("div", null, React.createElement("div", {
+        style: {
+            fontSize: 12,
+            fontWeight: 700,
+            color: '#88aaff',
+            marginBottom: 2
+        }
+    }, spdR.t), React.createElement("div", {
+        style: {
+            fontSize: 11,
+            color: '#556688'
+        }
+    }, spdR.d)), React.createElement("div", {
+        style: {
+            marginLeft: 'auto',
+            textAlign: 'right',
+            flexShrink: 0
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 9,
+            color: '#334455',
+            marginBottom: 2
+        }
+    }, "průměrný čas"), React.createElement("div", {
+        style: {
+            fontFamily: "'Orbitron',sans-serif",
+            fontSize: 18,
+            fontWeight: 900,
+            color: C.blue
+        }
+    }, avgAnswerTime, "s"))), sectorData.length >= 2 && React.createElement("div", {
+        style: {
+            background: 'rgba(12,18,50,0.8)',
+            border: '1px solid #1e2a4a',
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 16
+        }
+    }, React.createElement("div", {
+        style: {
+            fontFamily: "'Orbitron',sans-serif",
+            fontSize: 10,
+            color: '#4488ff',
+            letterSpacing: 2,
+            marginBottom: 14
+        }
+    }, isGeneral ? '🌍 JAKÁ TÉMATA TI JDOU' : '🏭 JAKÁ ODVĚTVÍ TI JDOU'), sectorData.map((s, i) => {
+        const col = s.acc >= 80 ? C.green : s.acc >= 60 ? C.gold : s.acc >= 40 ? C.orange : C.red;
+        const emoji = s.acc >= 80 ? '✅' : s.acc >= 60 ? '🟡' : s.acc >= 40 ? '⚠️' : '❌';
+        const label = s.acc >= 80 ? 'Ovládáš' : s.acc >= 60 ? 'Solidní' : s.acc >= 40 ? 'Slabší' : 'Potřebuje práci';
+        return React.createElement("div", {
+            key: s.sector,
+            style: {
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                marginBottom: i < sectorData.length - 1 ? 10 : 0,
+                padding: '6px 0',
+                borderBottom: i < sectorData.length - 1 ? '1px solid #1a2040' : 'none'
+            }
+        }, React.createElement("span", {
+            style: {
+                fontSize: 14,
+                flexShrink: 0
+            }
+        }, emoji), React.createElement("div", {
+            style: {
+                flex: 1,
+                minWidth: 0
+            }
+        }, React.createElement("div", {
+            style: {
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 4
+            }
+        }, React.createElement("span", {
+            style: {
+                fontSize: 12,
+                color: '#aabbdd',
+                fontWeight: 600
+            }
+        }, s.sector), React.createElement("span", {
+            style: {
+                fontSize: 11,
+                color: col,
+                fontWeight: 700,
+                flexShrink: 0,
+                marginLeft: 8
+            }
+        }, s.acc, "% — ", label)), React.createElement("div", {
+            style: {
+                background: '#1a2040',
+                borderRadius: 3,
+                height: 6,
+                overflow: 'hidden'
+            }
+        }, React.createElement("div", {
+            style: {
+                height: '100%',
+                width: `${s.acc}%`,
+                background: col,
+                borderRadius: 3,
+                boxShadow: `0 0 4px ${col}44`
+            }
+        }))));
+    }), React.createElement("div", {
+        style: {
+            marginTop: 12,
+            fontSize: 11,
+            color: '#445566',
+            textAlign: 'center'
+        }
+    }, sectorData[0] && `💪 Nejsilnější: ${sectorData[0].sector} (${sectorData[0].acc}%)`, sectorData.length > 1 && ` · 📚 Zlepšit: ${sectorData[sectorData.length-1].sector} (${sectorData[sectorData.length-1].acc}%)`)), catList.length >= 2 && React.createElement("div", {
+        style: {
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 8,
+            marginBottom: 16
+        }
+    }, React.createElement("div", {
+        style: {
+            background: 'rgba(0,50,30,0.3)',
+            border: '1px solid #226644',
+            borderRadius: 10,
+            padding: '12px'
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 9,
+            color: '#44ffaa',
+            letterSpacing: 2,
+            marginBottom: 8,
+            fontFamily: "'Orbitron',sans-serif"
+        }
+    }, "✅ SILNÉ STRÁNKY"), topCats.map(c => React.createElement("div", {
+        key: c.cat,
+        style: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '4px 0',
+            borderBottom: '1px solid #1a3020',
+            fontSize: 11
+        }
+    }, React.createElement("div", {
+        style: {
+            flex: 1,
+            overflow: 'hidden'
+        }
+    }, React.createElement("span", {
+        style: {
+            color: '#8899bb',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            display: 'block'
+        }
+    }, c.cat), React.createElement("span", {
+        style: {
+            fontSize: 9,
+            color: '#334455'
+        }
+    }, "⏱ ", c.avgTime, "s průměr")), React.createElement("span", {
+        style: {
+            color: C.green,
+            fontWeight: 700,
+            marginLeft: 8,
+            flexShrink: 0
+        }
+    }, c.acc, "%")))), React.createElement("div", {
+        style: {
+            background: 'rgba(60,10,10,0.3)',
+            border: '1px solid #662222',
+            borderRadius: 10,
+            padding: '12px'
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 9,
+            color: '#ff8888',
+            letterSpacing: 2,
+            marginBottom: 8,
+            fontFamily: "'Orbitron',sans-serif"
+        }
+    }, "⚠️ SLABINY"), weakCats.map(c => React.createElement("div", {
+        key: c.cat,
+        style: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '4px 0',
+            borderBottom: '1px solid #301a1a',
+            fontSize: 11
+        }
+    }, React.createElement("div", {
+        style: {
+            flex: 1,
+            overflow: 'hidden'
+        }
+    }, React.createElement("span", {
+        style: {
+            color: '#8899bb',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            display: 'block'
+        }
+    }, c.cat), React.createElement("span", {
+        style: {
+            fontSize: 9,
+            color: '#334455'
+        }
+    }, "⏱ ", c.avgTime, "s průměr")), React.createElement("span", {
+        style: {
+            color: C.red,
+            fontWeight: 700,
+            marginLeft: 8,
+            flexShrink: 0
+        }
+    }, c.acc, "%"))))), catList.length >= 3 && React.createElement("div", {
+        style: {
+            background: 'rgba(12,18,50,0.8)',
+            border: '1px solid #1e2a4a',
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 16
+        }
+    }, React.createElement("div", {
+        style: {
+            fontFamily: "'Orbitron',sans-serif",
+            fontSize: 10,
+            color: '#4488ff',
+            letterSpacing: 2,
+            marginBottom: 12
+        }
+    }, "📊 PŘESNOST + RYCHLOST PER KATEGORIE"), catList.slice(0, 8).map(c => {
+        const col = c.acc >= 80 ? C.green : c.acc >= 60 ? C.gold : C.red;
+        const speedCol = parseFloat(c.avgTime) <= 4 ? C.green : parseFloat(c.avgTime) <= 8 ? C.gold : C.red;
+        return React.createElement("div", {
+            key: c.cat,
+            style: {
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                marginBottom: 8
+            }
+        }, React.createElement("div", {
+            style: {
+                fontSize: 10,
+                color: '#778899',
+                width: 76,
+                flexShrink: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+            }
+        }, c.cat), React.createElement("div", {
+            style: {
+                flex: 1,
+                background: '#1a2040',
+                borderRadius: 3,
+                height: 7,
+                overflow: 'hidden'
+            }
+        }, React.createElement("div", {
+            style: {
+                height: '100%',
+                width: `${c.acc}%`,
+                background: col,
+                borderRadius: 3,
+                boxShadow: `0 0 4px ${col}44`
+            }
+        })), React.createElement("div", {
+            style: {
+                fontSize: 10,
+                color: col,
+                fontWeight: 700,
+                minWidth: 28,
+                textAlign: 'right'
+            }
+        }, c.acc, "%"), React.createElement("div", {
+            style: {
+                fontSize: 9,
+                color: speedCol,
+                minWidth: 28,
+                textAlign: 'right',
+                opacity: 0.8
+            }
+        }, c.avgTime, "s"));
+    }), React.createElement("div", {
+        style: {
+            fontSize: 9,
+            color: '#334455',
+            textAlign: 'right',
+            marginTop: 4
+        }
+    }, "% přesnost · čas/odpověď")), (() => {
+        const last14 = [];
+        for (let i = 13; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dk = d.toISOString().slice(0, 10);
+            const r = myScores.find(s => s.date === dk);
+            last14.push({
+                date: dk,
+                score: r?.score || 0,
+                played: !!r,
+                perfect: r?.perfect || false
+            });
+        }
+        const maxB = Math.max(...last14.map(d => d.score), 1);
+        return React.createElement("div", {
+            style: {
+                background: 'rgba(12,18,50,0.8)',
+                border: '1px solid #1e2a4a',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 16
+            }
+        }, React.createElement("div", {
+            style: {
+                fontFamily: "'Orbitron',sans-serif",
+                fontSize: 10,
+                color: '#4488ff',
+                letterSpacing: 2,
+                marginBottom: 14
+            }
+        }, "📈 POSLEDNÍCH 14 DNÍ"), React.createElement("div", {
+            style: {
+                display: 'flex',
+                alignItems: 'flex-end',
+                gap: 3,
+                height: 72
+            }
+        }, last14.map((d, i) => {
+            const h = d.played ? Math.max(Math.round(d.score / maxB * 68), 4) : 0;
+            const col = d.perfect ? C.gold : d.played ? C.blue : '#1a2040';
+            return React.createElement("div", {
+                key: i,
+                style: {
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 2,
+                    height: '100%',
+                    justifyContent: 'flex-end'
+                }
+            }, React.createElement("div", {
+                title: d.played ? `${d.date}: ${d.score.toLocaleString()} b` : 'Nehrál',
+                style: {
+                    width: '100%',
+                    height: h || 2,
+                    background: col,
+                    borderRadius: '2px 2px 0 0',
+                    opacity: d.played ? 1 : 0.2,
+                    boxShadow: d.played ? `0 0 4px ${col}66` : 'none'
+                }
+            }), React.createElement("div", {
+                style: {
+                    fontSize: 7,
+                    color: '#334455'
+                }
+            }, new Date(d.date).getDate()));
+        })), React.createElement("div", {
+            style: {
+                display: 'flex',
+                gap: 12,
+                marginTop: 6,
+                fontSize: 10,
+                color: '#445566',
+                justifyContent: 'center'
+            }
+        }, React.createElement("span", null, React.createElement("span", {
+            style: {
+                color: C.gold
+            }
+        }, "■"), " Perfect"), React.createElement("span", null, React.createElement("span", {
+            style: {
+                color: C.blue
+            }
+        }, "■"), " Odehráno")));
+    })(), lucky.total >= 1 && React.createElement("div", {
+        style: {
+            background: 'rgba(12,18,50,0.8)',
+            border: '1px solid #1e2a4a',
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 16
+        }
+    }, React.createElement("div", {
+        style: {
+            fontFamily: "'Orbitron',sans-serif",
+            fontSize: 10,
+            color: '#4488ff',
+            letterSpacing: 2,
+            marginBottom: 12
+        }
+    }, "🎲 LUCKY BOX PROFIL"), React.createElement("div", {
+        style: {
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4,1fr)',
+            gap: 8,
+            marginBottom: 10
+        }
+    }, [{
+        e: '🏆',
+        l: 'Jackpoty',
+        v: lucky.jackpots,
+        c: C.gold
+    }, {
+        e: '💣',
+        l: 'Bomby',
+        v: lucky.bombs,
+        c: C.red
+    }, {
+        e: '💰',
+        l: 'Výhry',
+        v: lucky.wins,
+        c: C.green
+    }, {
+        e: '📦',
+        l: 'Celkem',
+        v: lucky.total,
+        c: C.blue
+    }].map(s => React.createElement("div", {
+        key: s.l,
+        style: {
+            padding: '8px 4px',
+            background: 'rgba(8,12,35,0.6)',
+            borderRadius: 8,
+            textAlign: 'center',
+            border: '1px solid #1a2a4a'
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 18,
+            marginBottom: 3
+        }
+    }, s.e), React.createElement("div", {
+        style: {
+            fontFamily: "'Orbitron',sans-serif",
+            fontSize: 16,
+            fontWeight: 900,
+            color: s.c
+        }
+    }, s.v), React.createElement("div", {
+        style: {
+            fontSize: 9,
+            color: '#445566',
+            marginTop: 2
+        }
+    }, s.l)))), React.createElement("div", {
+        style: {
+            background: 'rgba(8,12,35,0.6)',
+            border: `1px solid ${lucky.totalPts>=0?'#44ffaa44':'#ff444444'}`,
+            borderRadius: 8,
+            padding: '10px',
+            textAlign: 'center'
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 9,
+            color: '#445566',
+            letterSpacing: 2,
+            marginBottom: 4
+        }
+    }, "CELKOVÝ ZISK / ZTRÁTA Z LUCKY BOXU"), React.createElement("div", {
+        style: {
+            fontFamily: "'Orbitron',sans-serif",
+            fontSize: 24,
+            fontWeight: 900,
+            color: lucky.totalPts > 0 ? C.green : lucky.totalPts < 0 ? C.red : C.gray
+        }
+    }, lucky.totalPts > 0 ? '+' : '', lucky.totalPts.toLocaleString(), " b"), React.createElement("div", {
+        style: {
+            fontSize: 10,
+            color: '#556688',
+            marginTop: 4
+        }
+    }, lucky.totalPts > 0 ? `Lucky box ti přinesl ${lucky.totalPts} bodů navíc` : lucky.totalPts < 0 ? `Lucky box tě stál ${Math.abs(lucky.totalPts)} bodů` : 'Lucky box — přesná nula. Karmatická rovnováha.', lucky.jackpots > lucky.bombs && React.createElement("span", {
+        style: {
+            color: C.gold
+        }
+    }, " · šťastlivec 🍀"), lucky.bombs > lucky.jackpots && React.createElement("span", {
+        style: {
+            color: C.red
+        }
+    }, " · smolař 💣")))), React.createElement("div", {
+        style: {
+            background: 'rgba(12,18,50,0.8)',
+            border: '1px solid #1e2a4a',
+            borderRadius: 12,
+            padding: '12px 16px',
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12
+        }
+    }, React.createElement("span", {
+        style: {
+            fontSize: 26,
+            flexShrink: 0
+        }
+    }, strR.e), React.createElement("div", {
+        style: {
+            flex: 1
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 12,
+            fontWeight: 700,
+            color: '#88aaff',
+            marginBottom: 2
+        }
+    }, strR.t), React.createElement("div", {
+        style: {
+            fontSize: 11,
+            color: '#556688'
+        }
+    }, strR.d)), React.createElement("div", {
+        style: {
+            textAlign: 'right',
+            flexShrink: 0
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 9,
+            color: '#334455'
+        }
+    }, "max streak"), React.createElement("div", {
+        style: {
+            fontFamily: "'Orbitron',sans-serif",
+            fontSize: 16,
+            fontWeight: 900,
+            color: C.purple
+        }
+    }, maxStreak, "d"))), trainingTips.length > 0 && React.createElement("div", {
+        style: {
+            background: 'rgba(12,18,50,0.8)',
+            border: '1px solid #2a3a6a',
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 16
+        }
+    }, React.createElement("div", {
+        style: {
+            fontFamily: "'Orbitron',sans-serif",
+            fontSize: 10,
+            color: '#4488ff',
+            letterSpacing: 2,
+            marginBottom: 12
+        }
+    }, "🎓 CO BY TI POMOHLO (aka školení která nutně potřebuješ)"), trainingTips.map((t, i) => React.createElement("div", {
+        key: i,
+        style: {
+            display: 'flex',
+            gap: 10,
+            padding: '7px 0',
+            borderBottom: i < trainingTips.length - 1 ? '1px solid #1a2040' : 'none'
+        }
+    }, React.createElement("span", {
+        style: {
+            fontSize: 18,
+            flexShrink: 0
+        }
+    }, t.e), React.createElement("div", null, React.createElement("div", {
+        style: {
+            fontSize: 12,
+            fontWeight: 700,
+            color: '#88aaff'
+        }
+    }, t.t), React.createElement("div", {
+        style: {
+            fontSize: 11,
+            color: '#556688',
+            marginTop: 2
+        }
+    }, t.d))))), (() => {
+        const str = [];
+        if (accuracy >= 75) str.push({
+            e: '🎯',
+            t: 'Přesnost nad průměrem',
+            d: `${accuracy}% — Stříháš otázky jako patch cable.`
+        });
+        if (perfectCount >= 2) str.push({
+            e: '💎',
+            t: `${perfectCount}× perfect run`,
+            d: 'Buď génius, nebo výborná paměť. Obojí respektujeme.'
+        });
+        if (parseFloat(avgAnswerTime) <= 4) str.push({
+            e: '⚡',
+            t: 'Blesk v klávesnici',
+            d: `Průměr ${avgAnswerTime}s — odpovídáš rychleji než se většina přihlásí do VPN.`
+        });
+        if (avgScore >= allAvg) str.push({
+            e: '📈',
+            t: 'Nad průměrem',
+            d: `+${avgScore-allAvg} b vs ostatní. Někdo tě platí víc než si zaslouží.`
+        });
+        if (maxAnswerStreak >= 8) str.push({
+            e: '🔗',
+            t: `Max série ${maxAnswerStreak}×`,
+            d: 'Tohle je výkon. Nebo ti nahrávaly otázky z oblíbené kategorie.'
+        });
+        if (sectorData.length && sectorData[0].acc >= 80) str.push({
+            e: '🏭',
+            t: `Expert: ${sectorData[0].sector}`,
+            d: `${sectorData[0].acc}% — tady bys mohl školit ostatní.`
+        });
+        if (str.length === 0) return null;
+        return React.createElement("div", {
+            style: {
+                background: 'rgba(0,50,30,0.3)',
+                border: '1px solid #226644',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 16
+            }
+        }, React.createElement("div", {
+            style: {
+                fontFamily: "'Orbitron',sans-serif",
+                fontSize: 10,
+                color: '#44ffaa',
+                letterSpacing: 2,
+                marginBottom: 12
+            }
+        }, "✅ CO TI JDE (zaslouží si uznání)"), str.map((t, i) => React.createElement("div", {
+            key: i,
+            style: {
+                display: 'flex',
+                gap: 10,
+                padding: '7px 0',
+                borderBottom: i < str.length - 1 ? '1px solid #1a3020' : 'none'
+            }
+        }, React.createElement("span", {
+            style: {
+                fontSize: 18,
+                flexShrink: 0
+            }
+        }, t.e), React.createElement("div", null, React.createElement("div", {
+            style: {
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#44ffaa'
+            }
+        }, t.t), React.createElement("div", {
+            style: {
+                fontSize: 11,
+                color: '#338866',
+                marginTop: 2
+            }
+        }, t.d)))));
+    })(), React.createElement("div", {
+        style: {
+            background: 'rgba(12,18,50,0.8)',
+            border: '1px dashed #2a3a6a',
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 16,
+            textAlign: 'center'
+        }
+    }, React.createElement("div", {
+        style: {
+            fontSize: 9,
+            color: '#334455',
+            letterSpacing: 2,
+            marginBottom: 8,
+            fontFamily: "'Orbitron',sans-serif"
+        }
+    }, "CELKOVÝ VERDIKT"), React.createElement("div", {
+        style: {
+            fontSize: 12,
+            color: '#556688',
+            lineHeight: 1.8
+        }
+    }, isGeneral ? accuracy >= 75 && avgScore >= allAvg && parseFloat(avgAnswerTime) <= 6 ? `${user.name}, víš kde leží Madagaskar, pamatuješ si bitvy i chemické vzorce a ještě to říkáš rychle. Ostatní tě nesnáší na kvízech a mají proč.` : accuracy >= 75 && avgScore >= allAvg ? `${user.name}, přesnost výborná, skóre slušné. Jen ta rychlost — ale chápeme, přemýšlení nějaký čas trvá. Aspoň u tebe.` : accuracy >= 75 ? `${user.name}, vědomosti máš, ale skóre je průměrné. Buď klikáš pomalu, nebo oslavuješ každou správnou odpověď příliš dlouho.` : avgScore >= allAvg ? `${user.name}, rychlý jsi — ale tipuješ. Rychlé špatné odpovědi jsou pořád špatné odpovědi. Jen rychleji.` : `${user.name}, výsledky jsou... zajímavé. Existuje věc zvaná kniha. Taky internet. Taky škola. Třeba jsi to minul.` : accuracy >= 75 && avgScore >= allAvg && parseFloat(avgAnswerTime) <= 6 ? `${user.name}, jsi ten člověk ve firmě co opravdu ví co dělá, dělá to rychle a nepotřebuje Stack Overflow. Ostatní to jen předstírají.` : accuracy >= 75 && avgScore >= allAvg ? `${user.name}, znalosti i skóre máš výborné. Jen ta rychlost — ale kdo se nespěchá, taky někam dojde.` : accuracy >= 75 && parseFloat(avgAnswerTime) <= 6 ? `${user.name}, rychlý a přesný. Jen to skóre by mohlo být vyšší.` : accuracy >= 75 ? `${user.name}, přesnost výborná, zbytek má potenciál. Potenciál se ale nenapíše do CV.` : avgScore >= allAvg ? `${user.name}, skóre nad průměrem, ale přesnost to trochu kazí.` : `${user.name}, máš co zlepšovat — to je pozitivní zpráva.`))), React.createElement("div", {
+        style: {
+            textAlign: 'center',
+            marginBottom: 24
+        }
+    }, React.createElement("button", {
+        className: "btn",
+        onClick: onBack,
+        style: {
+            background: 'transparent',
+            border: '1px solid #2a3a6a',
+            padding: '11px 30px',
+            borderRadius: 8,
+            fontSize: 12,
+            color: '#88aaff',
+            letterSpacing: 2
+        }
+    }, "← ZPĚT"))));
+}
+function MinigamesScreen(){useEffect(()=>{location.href='minihry.html';},[]);return null;}
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(React.createElement(ErrorBoundary, null, React.createElement(App, null)));

@@ -27,7 +27,7 @@ const {
     useEffect,
     useRef
 } = React;
-const APP_VERSION = 'v3.3-20261020';
+const APP_VERSION = 'v3.4-20261020';
 console.log('%c[INDYGAMES] ' + APP_VERSION, 'background:#1a3a8a;color:#fff;padding:4px 10px;border-radius:4px;font-weight:bold');
 const QUIZ_DURATION = 120;
 const QUESTIONS_PER_QUIZ = 15;
@@ -10941,6 +10941,7 @@ function MinigamesScreen({
     const GAMES = [
  {key:'meteorrun',emoji:'🚀',title:'Meteorický únik · NOVÉ',desc:'Uhýbej meteoritům · sbírej krystaly · 60 sekund',color:'#44ddff',game:'meteorrun'},
  {key:'codehunt',emoji:'🔐',title:'Lov na kombinaci · NOVÉ',desc:'Odhal tajný kód · 4 barvy · 8 pokusů',color:'#72e3bc',game:'codehunt'},
+ {key:'naval',emoji:'⚓',title:'Skupinové lodě · NOVÉ',desc:'2–8 hráčů · týmy · superzbraně · vlastní nástrahy',color:'#67dbe0',game:'naval',multiplayer:true},
  {key:'colorduel',emoji:'🎨',title:'Barevný souboj · NOVÉ',desc:'Online pro 2–8 · barva písma proti významu slova',color:'#ffa3dc',game:'colorduel',multiplayer:true},
  {key:'memoryduel',emoji:'🧠',title:'Paměťový duel · NOVÉ',desc:'Online pro 2–8 · zapamatuj si mizející kód',color:'#b2a1ff',game:'memoryduel',multiplayer:true}, {
         key: 'sw',
@@ -11073,7 +11074,7 @@ function MinigamesScreen({
         className: "slide-in",
         style: {
             width: '100%',
-            maxWidth: 480,
+            maxWidth: screen === 'naval' ? 1100 : 480,
             margin: '0 auto',
             textAlign: 'center',
             position: 'relative'
@@ -11167,7 +11168,7 @@ function MinigamesScreen({
             fontSize: 12,
             color: '#886699'
         }
-    }, "Barevný souboj, paměťový duel, slepá mapa a další"))), React.createElement("button", {
+    }, "Skupinové lodě, barevný souboj, paměťový duel a další"))), React.createElement("button", {
         onClick: onBack,
         style: {
             background: 'transparent',
@@ -11416,7 +11417,7 @@ function MinigamesScreen({
             letterSpacing: 1,
             marginTop: 8
         }
-    }, "← ZPĚT")), ['meteorrun','codehunt','colorduel','memoryduel'].includes(screen) && React.createElement(window.IndyArcade,{game:screen,db,user,onExit:()=>setScreen('menu')}), screen === 'sw' && !swResult && React.createElement(StopwatchGame, {
+    }, "← ZPĚT")), ['meteorrun','codehunt','colorduel','memoryduel','naval'].includes(screen) && React.createElement(window.IndyArcade,{game:screen,db,user,onExit:()=>setScreen('menu')}), screen === 'sw' && !swResult && React.createElement(StopwatchGame, {
         onResult: (pts, detail) => {
             setSwResult({
                 pts,

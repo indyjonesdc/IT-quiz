@@ -76,3 +76,15 @@ Výchozí commit této opravy: `62b299d1d313e75e6c4bb3975f4a5a9619f0bb6c`. Před
 Minové pole nahrazeno sólovou logickou hrou Lov na kombinaci: čtyři různé barvy ze šesti, osm pokusů, zpětná vazba pro správné barvy a pozice. Barevné žetony mají také čísla. Rozehraná hra a rekord se ukládají v zařízení, restart rozehrané hry vyžaduje potvrzení. Vzhled používá původní společný skin miniher.
 
 Ověření: 13 testů pravidel, kvízů, Meteorického úniku a duelů; test skutečného React UI pro zpětnou vazbu, dvojité odeslání, obnovení hry, výhru, prohru a poškozené uložení; inicializace 11 původních her a nabídky.
+
+## v3.4 – Skupinové lodě
+
+Nová online hra pro 2–8 hráčů: každý proti každému, dva týmy s individuálními flotilami, nebo dva týmy se společnou flotilou a střídajícími se členy. Mapa 8×8, lodě délky 4/3/2, ruční i náhodné rozmístění. Kapitán rozmísťuje společnou flotilu; každý hráč přidává až dvě vlastní nástrahy (mina, rušička, vír).
+
+Volitelné superzbraně: radar 3×3 (2 použití), plošná střela 2×2 a torpédo délky 4 (po jednom použití). Náhodné skryté předměty doplňují munici nebo přinášejí riziko. Účinky jsou jednorázové, munice je omezená na nejvýše 3 kusy od druhu. Radar spotřebuje tah, zprávy vidí pouze vlastní tým. Klasická hra může všechny doplňky vypnout.
+
+Vlastní námořní rozhraní: textura moře, vektorové siluety lodí, animace zaměřování, radaru a výstřelu, dvousloupcové velitelství na desktopu, responzivní mobilní ovládání, zvuky s vypínačem a podpora omezeného pohybu.
+
+Síť: hostitel vyhodnocuje pravidla, klientské příkazy mají identifikátory a kontrolu tahu/partie, přenos osobních pohledů je šifrovaný ECDH/AES-GCM. Soupeřům se neposílají neodhalené lodě, nástrahy ani radarové zprávy. Jde o přátelské místnosti s důvěryhodným hostitelem, nikoli serverový soutěžní anti-cheat. Hostitel musí nechat okno otevřené; obnovení stránky nevytváří trvalý návrat do partie. Příprava 120 s, tah 45 s, tři zmeškané tahy hráče vyřadí. Výpadky se obnovují pomocí snímků stavu a opakování nepotvrzených příkazů.
+
+Ověření: 20 automatických testů včetně geometrie flotil, týmů, společných nástrah, skrytých dat, všech předmětů, dvojitých akcí, vítězství i vzájemného zničení, časových limitů a čtyř šifrovaných klientů. React UI test od lobby přes rozmístění a nástrahy po výstřel. Živý test dvou nezávislých klientů přes produkční Supabase Realtime v izolované QA místnosti.

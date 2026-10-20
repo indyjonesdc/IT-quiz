@@ -97,3 +97,11 @@ Mapa rozšířena z 8×8 (64) na 18×18 (324 políček, 5,06× větší plocha).
 - Hostitel vybírá 12×12, 18×18, 24×24 nebo 30×30; automatická velikost podle počtu hráčů.
 - Každá flotila má vlastní mapu, zásah se týká jen vybraného soupeře.
 - Souřadnice až AD30, dynamická geometrie a ověření pěti shodných flotil.
+
+## v3.7 – společné moře a překryté flotily
+- Jedna společná mapa, bez výběru cílového hráče. Lodě různých flotil se mohou překrývat.
+- Výstřel poškodí všechny dosud nezasažené části lodí na daném místě, včetně vlastních a spojeneckých.
+- Vícenásobné zásahy mají oznámení se jmény, počty a značkami ×2 / ×3 přímo na mapě.
+- Spojenecké flotily jsou vidět a každá má vlastní barvu s legendou; překryvy mají více barevných značek.
+- Nástrahy mohou zasáhnout spolu s cizí lodí; minové poškození nezablokuje střelbu na nezasažené překryté lodě.
+- Velikosti 12×12 až 30×30 i volba automaticky zůstávají.

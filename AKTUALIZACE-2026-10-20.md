@@ -70,3 +70,9 @@ Kontrola 3.1: v prohlížeči prošla nabídka bez Neonu, zobrazení všech čty
 Produkční větev je `main`; nasazení probíhá přes GitHub Pages. Uživatel schválil aktualizaci i nasazení. Produkční HTML nezapíná automatického hosta, veřejný testovací náhled ano a má noindex. Databáze ani oprávnění se v této opravě nemění.
 
 Výchozí commit této opravy: `62b299d1d313e75e6c4bb3975f4a5a9619f0bb6c`. Před aktualizací hlavní větve se kontroluje její aktuální SHA. Po nasazení ověřit úspěšný Pages workflow, shodu změněných souborů a otevření hry na produkční doméně.
+
+## v3.3 – Lov na kombinaci
+
+Minové pole nahrazeno sólovou logickou hrou Lov na kombinaci: čtyři různé barvy ze šesti, osm pokusů, zpětná vazba pro správné barvy a pozice. Barevné žetony mají také čísla. Rozehraná hra a rekord se ukládají v zařízení, restart rozehrané hry vyžaduje potvrzení. Vzhled používá původní společný skin miniher.
+
+Ověření: 13 testů pravidel, kvízů, Meteorického úniku a duelů; test skutečného React UI pro zpětnou vazbu, dvojité odeslání, obnovení hry, výhru, prohru a poškozené uložení; inicializace 11 původních her a nabídky.

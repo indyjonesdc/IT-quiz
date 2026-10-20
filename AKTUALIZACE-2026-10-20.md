@@ -1,14 +1,18 @@
 # IndyGames – aktualizace 20. 10. 2026
 
-Stav: ověřená aktualizace připravená k produkčnímu nasazení po obnovení oprávnění GitHubu.
-Náhled: https://review-v3.indygames-preview.pages.dev
-Deployment: e111029f-ba8b-4186-9966-49ef80f4a44e (Cloudflare: success).
-Výchozí GitHub repozitář: indyjonesdc/IT-quiz, main 17ebcf0135f0906b3e53981f723c36d325f03cac.
-Součástí je také dříve připravené bezplatné Cloudflare Web Analytics.
+Stav: verze 3.1 navazuje na nasazenou aktualizaci 3.0 (GitHub commit 62b299d1d313e75e6c4bb3975f4a5a9619f0bb6c).
+Produkce: https://indygames.cz/ (GitHub Pages, repozitář indyjonesdc/IT-quiz, větev main).
+
+## Změny 3.1 podle zpětné vazby
+
+- 2048 Neon je odstraněn z nabídky i z běžícího kódu.
+- Nahrazuje ho **Meteorický únik**: 60sekundový let, tři dráhy, tři životy, krystaly se sériovým bonusem a štít. Obtížnost postupně roste; každá vlna ponechává bezpečnou dráhu. Šipky / A D, tlačítka, klepnutí na dráhu a přejetí prstem. Ruční pauza i automatická pauza při odchodu ze záložky. Rekord v zařízení.
+- Všechny čtyři nové hry používají vzhled původních miniher: Orbitron, tmavé panely, modré akcenty, kompaktní skóre a stejný styl tlačítek. Styly jsou omezené na minihry.
+- Nová verze souborů a cache pro načtení aktualizace.
 
 ## Nové hry
 
-- **2048 Neon (sólo):** slučování dlaždic, šipky, dotyková gesta a tlačítka, rozehraná hra a rekord v zařízení, vyhodnocení konce hry.
+- **Meteorický únik (sólo):** uhýbání meteoritům, sbírání krystalů, štít a 60sekundová výzva.
 - **Minové pole (sólo):** 8 × 8 polí / 10 min, první odkrytí včetně sousedů bezpečné, odkrývání prázdných oblastí, vlaječky i na mobilu, čas a rekord v zařízení.
 - **Barevný souboj (online):** 2–8 hráčů, šestiznakové kódy, osm kol, rozhoduje barva textu, nikoli jeho význam.
 - **Paměťový duel (online):** 2–8 hráčů, osm kol, délka mizejícího kódu postupně roste od 3 do 6 číslic.
@@ -41,22 +45,20 @@ Online duely validuje hostitel místnosti: identifikátor zápasu a kola, čas p
 
 ## Ověření a meze
 
-Prošlo 9 automatických testů pravidel a multiplayer stavů (v adresáři `web`: `node --test tests/*.test.cjs`), včetně všech 64 možných prvních tahů Minového pole, slučování 2048, časových hranic, duplicitní odpovědi, osmi kol a odvety.
+Prošlo 12 automatických testů (`node --test tests/*.test.cjs`): bezpečné vlny Meteorického úniku, kolize, štít, nezranitelnost po zásahu, série krystalů, shodné výsledky při různém FPS, pauza, konec letu a jednorázový bonus; dále všech 64 prvních tahů Minového pole, denní otázky a časové hranice, multiplayer s osmi koly a odvetou.
 
 V DOM testech prošlo ovládání nových sólo her, obnova a dokončení kvízu, procvičení chyb a celý průchod aplikací přes všech 15 otázek až po denní zámek a znovuotevření výsledku. Původních 11 her a nabídka byly ověřeny na inicializaci; nejde o dohrání všech variant každé původní hry.
 
 Oba nové online duely navíc prošly přes skutečný Supabase Realtime: dva nezávislí klienti, všech osm kol, shodné konečné skóre. Testy neukládaly výsledky do produkčních žebříčků.
 
-Náhled prošel kontrolou ve skutečném desktopovém prohlížeči: tah a skóre 2048, bezpečné odkrytí Minového pole, otázka a vysvětlení denního kvízu, nabídky obou duelů. Barevný souboj byl ověřen i ve dvou záložkách: připojení, společná kola, odeslání odpovědí, shodné vyhodnocení a oznámení ukončení hostitelem. Upraven kontrast odkrytých polí a vyhodnocených odpovědí. Samostatná vizuální kontrola na skutečném mobilním zařízení neproběhla.
+Náhled prošel kontrolou ve skutečném desktopovém prohlížeči: v předchozí verzi tah a skóre 2048, bezpečné odkrytí Minového pole, otázka a vysvětlení denního kvízu, nabídky obou duelů. Barevný souboj byl ověřen i ve dvou záložkách: připojení, společná kola, odeslání odpovědí, shodné vyhodnocení a oznámení ukončení hostitelem. Upraven kontrast odkrytých polí a vyhodnocených odpovědí. Samostatná vizuální kontrola na skutečném mobilním zařízení neproběhla.
 
 Připojený Supabase účet nemá administrátorský přístup k projektu nueprvtkefezraibnlyo. Nebyly tedy ověřeny ani změněny RLS, serverové funkce, Google OAuth a databázový unikátní limit výsledků. Klientská kontrola jednoho výsledku sama nezaručuje ochranu proti souběžným nebo úmyslně upraveným požadavkům.
 
+Kontrola 3.1: v prohlížeči prošla nabídka bez Neonu, zobrazení všech čtyř nových her v původním stylu, první tah Minového pole, start Meteorického úniku, pohyb šipkou a automatická pauza. Cloudový prohlížeč mezi interakcemi přerušuje vykreslování, takže souvislý celý let byl ověřen DOM testem s řízenými snímky: konec po třetím zásahu, uložení rekordu, restart, klepnutí/přejetí prstem, pauza a zrušení animace při odchodu. Mobilní rozvržení je responzivní; fyzický mobil nebyl použit.
+
 ## Nasazení
 
-Celý obsah adresáře `web/` v ZIPu patří do kořene stávajícího webu, zejména i nový adresář `assets/`. Bez něj se stránky nespustí. Zachovat doménu a existující Supabase projekt. Nejsou potřeba migrace databáze.
+Produkční větev je `main`; nasazení probíhá přes GitHub Pages. Uživatel schválil aktualizaci i nasazení. Produkční HTML nezapíná automatického hosta, veřejný testovací náhled ano a má noindex. Databáze ani oprávnění se v této opravě nemění.
 
-Uživatel výslovně schválil nasazení. Oprávnění GitHubu byla obnovena a vytvoření větve codex/indygames-v3-20261020 již prošlo. Hlavní web běží přes GitHub Pages z větve main.
-
-Veřejný náhled na Cloudflare byl po schválení nahrán a nasazen úspěšně. Automaticky používá hosta náhledu a má noindex. Produkční zdrojové HTML v tomto repozitáři automatické přihlášení hosta neobsahuje.
-
-Nasazení: commit změn navazující na main, aktualizace main, kontrola úspěšného GitHub Pages deploymentu a souborů na indygames.cz. Pro návrat lze obnovit výchozí commit 17ebcf0135f0906b3e53981f723c36d325f03cac; databáze nebyla měněna.
+Výchozí commit této opravy: `62b299d1d313e75e6c4bb3975f4a5a9619f0bb6c`. Před aktualizací hlavní větve se kontroluje její aktuální SHA. Po nasazení ověřit úspěšný Pages workflow, shodu změněných souborů a otevření hry na produkční doméně.

@@ -27,7 +27,7 @@ const {
     useEffect,
     useRef
 } = React;
-const APP_VERSION = 'v3.0-20261020';
+const APP_VERSION = 'v3.1-20261020';
 console.log('%c[INDYGAMES] ' + APP_VERSION, 'background:#1a3a8a;color:#fff;padding:4px 10px;border-radius:4px;font-weight:bold');
 const QUIZ_DURATION = 120;
 const QUESTIONS_PER_QUIZ = 15;
@@ -10939,7 +10939,7 @@ function MinigamesScreen({
         }
     };
     const GAMES = [
- {key:'neon2048',emoji:'🔷',title:'2048 Neon · NOVÉ',desc:'Spojuj dlaždice · šipky i gesta · uložený postup',color:'#8d9bff',game:'neon2048'},
+ {key:'meteorrun',emoji:'🚀',title:'Meteorický únik · NOVÉ',desc:'Uhýbej meteoritům · sbírej krystaly · 60 sekund',color:'#44ddff',game:'meteorrun'},
  {key:'minefield',emoji:'💣',title:'Minové pole · NOVÉ',desc:'Logická výzva · bezpečný první tah · 8 × 8',color:'#72e3bc',game:'minefield'},
  {key:'colorduel',emoji:'🎨',title:'Barevný souboj · NOVÉ',desc:'Online pro 2–8 · barva písma proti významu slova',color:'#ffa3dc',game:'colorduel',multiplayer:true},
  {key:'memoryduel',emoji:'🧠',title:'Paměťový duel · NOVÉ',desc:'Online pro 2–8 · zapamatuj si mizející kód',color:'#b2a1ff',game:'memoryduel',multiplayer:true}, {
@@ -11131,7 +11131,7 @@ function MinigamesScreen({
             fontSize: 12,
             color: '#667799'
         }
-    }, "Zastav čas, terče, rovnováha, tower builder, katana master"))), React.createElement("button", {
+    }, "Meteorický únik, minové pole, zastav čas a další"))), React.createElement("button", {
         onClick: () => {
             setMgMode('multi');
             setScreen('menu');
@@ -11167,7 +11167,7 @@ function MinigamesScreen({
             fontSize: 12,
             color: '#886699'
         }
-    }, "Slepá mapa, Kvízová aréna a 5 z 10 · online"))), React.createElement("button", {
+    }, "Barevný souboj, paměťový duel, slepá mapa a další"))), React.createElement("button", {
         onClick: onBack,
         style: {
             background: 'transparent',
@@ -11416,7 +11416,7 @@ function MinigamesScreen({
             letterSpacing: 1,
             marginTop: 8
         }
-    }, "← ZPĚT")), ['neon2048','minefield','colorduel','memoryduel'].includes(screen) && React.createElement(window.IndyArcade,{game:screen,db,user,onExit:()=>setScreen('menu')}), screen === 'sw' && !swResult && React.createElement(StopwatchGame, {
+    }, "← ZPĚT")), ['meteorrun','minefield','colorduel','memoryduel'].includes(screen) && React.createElement(window.IndyArcade,{game:screen,db,user,onExit:()=>setScreen('menu')}), screen === 'sw' && !swResult && React.createElement(StopwatchGame, {
         onResult: (pts, detail) => {
             setSwResult({
                 pts,

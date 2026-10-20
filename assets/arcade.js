@@ -5,17 +5,46 @@ const read=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d;}catch{retu
 const write=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}};
 const button=(text,fn,cls='',disabled=false)=>h('button',{type:'button',className:'btnx '+cls,onClick:fn,disabled},text);
 const metric=(name,value)=>h('div',{className:'metric'},h('div',{className:'muted'},name),h('div',{className:'big'},value));
-function Shell({title,desc,onExit,children}){return h('section',{className:'ig'},h('div',{className:'row'},h('span',{className:'eyebrow'},'INDYGAMES / NOVÁ VÝZVA'),button('← Zpět',onExit,'subtle')),h('h2',null,title),h('p',null,desc),children);}
-function Neon2048({onExit}){
- const fresh=()=>({board:C.spawn2048(C.spawn2048(Array(16).fill(0))),score:0,moves:0});
- const [game,setGame]=S(()=>{const g=read('ig-2048-v1',null);return g&&Array.isArray(g.board)&&g.board.length===16&&g.board.every(n=>Number.isInteger(n)&&n>=0)&&Number.isFinite(g.score)?g:fresh();});
- const ref=R(game),touch=R(null);ref.current=game;
- const [best,setBest]=S(()=>read('ig-2048-best',0)),[confirm,setConfirm]=S(false);
- const over=!C.canMove(game.board),won=game.board.some(n=>n>=2048);
- function move(dir){const g=ref.current,result=C.move2048(g.board,dir);if(!result.changed)return;const next={board:C.spawn2048(result.board),score:g.score+result.score,moves:g.moves+1};ref.current=next;setGame(next);write('ig-2048-v1',next);if(next.score>best){setBest(next.score);write('ig-2048-best',next.score);}}
- E(()=>{const key=e=>{const d={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down'}[e.key];if(d&&!/INPUT|TEXTAREA|BUTTON/.test(e.target.tagName)){e.preventDefault();move(d);}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);});
- function reset(){const g=fresh();ref.current=g;setGame(g);write('ig-2048-v1',g);setConfirm(false);}
- return h(Shell,{title:'2048 Neon',desc:'Spojuj stejné dlaždice. Každý tah posune celé pole; cílem je 2048. Rozehraná hra se ukládá v tomto zařízení.',onExit},h('div',{className:'metrics'},metric('SKÓRE',game.score),metric('REKORD V ZAŘÍZENÍ',best)),h('div',{className:'panel'},h('div',{className:'board2048',role:'group','aria-label':'Hrací pole 2048',tabIndex:0,onPointerDown:e=>{touch.current={x:e.clientX,y:e.clientY};e.currentTarget.setPointerCapture?.(e.pointerId);},onPointerCancel:()=>touch.current=null,onPointerUp:e=>{const p=touch.current;touch.current=null;if(!p)return;const x=e.clientX-p.x,y=e.clientY-p.y;if(Math.max(Math.abs(x),Math.abs(y))<24)return;move(Math.abs(x)>Math.abs(y)?x>0?'right':'left':y>0?'down':'up');}},game.board.map((v,i)=>h('div',{key:i,className:'tile2048','aria-label':v?String(v):'prázdné',style:v?{background:`hsl(${220-Math.log2(v)*12} 60% ${22+Math.min(Math.log2(v),11)*2}%)`}:{}},v||''))),h('div',{className:'directions'},[['←','left'],['↑','up'],['↓','down'],['→','right']].map(([label,dir])=>h('button',{key:dir,className:'btnx','aria-label':{left:'Doleva',up:'Nahoru',down:'Dolů',right:'Doprava'}[dir],onClick:()=>move(dir)},label))),h('div',{className:'muted'},'Ovládání: šipky, přejetí prstem nebo tlačítka.')),over&&h('div',{className:'notice',role:'status'},'Konec hry — žádný další tah není možný.'),!over&&won&&h('div',{className:'notice success',role:'status'},'2048 dosaženo! Můžeš pokračovat za vyšším rekordem.'),confirm?h('div',{className:'notice'},'Začít od začátku?',h('div',{className:'row'},button('Ano, novou hru',reset,'primary'),button('Pokračovat',()=>setConfirm(false)))):button('Nová hra',()=>game.moves&&!over?setConfirm(true):reset(),'subtle'));
+function Shell({title,desc,onExit,children}){return h('section',{className:'ig ig-game'},h('div',{className:'row game-nav'},h('span',{className:'eyebrow'},'INDYGAMES / ARKÁDA'),button('← Zpět',onExit,'subtle')),h('h2',null,title),h('p',{className:'game-description'},desc),children);}
+function MeteorRun({onExit}){
+ const M=window.IndyMeteor,[g,setG]=S(()=>M.create()),ref=R(g),field=R(null),last=R(null),touch=R(null);
+ const [best,setBest]=S(()=>Math.max(0,Number(read('ig-meteor-best',0))||0));
+ function update(next){ref.current=next;setG(next);}
+ function move(dir){update(M.move(ref.current,dir));}
+ function pause(reason='Čas stojí. Pokračuj, až budeš připravený.'){if(ref.current.phase==='playing'){last.current=null;update({...ref.current,phase:'paused',pauseReason:typeof reason==='string'?reason:'Okno přestalo být aktivní. Čas stojí.'});}}
+ function start(){last.current=null;update({...M.create(),phase:'playing'});field.current?.focus({preventScroll:true});}
+ function resume(){last.current=null;update({...ref.current,phase:'playing'});field.current?.focus({preventScroll:true});}
+ E(()=>{
+   let raf;const tick=now=>{const current=ref.current;if(current.phase==='playing'){
+     if(last.current!==null){const delta=now-last.current;
+       // A frozen/background tab must never jump straight into a collision.
+       if(delta>1000){pause('Let se po přerušení automaticky pozastavil. Čas stojí.');}else update(M.advance(current,delta));}
+     last.current=ref.current.phase==='playing'?now:null;
+   }else last.current=null;raf=requestAnimationFrame(tick);};raf=requestAnimationFrame(tick);
+   const key=e=>{if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;
+     if(['ArrowLeft','a','A','ArrowRight','d','D'].includes(e.key)&&ref.current.phase==='playing'){e.preventDefault();move(['ArrowLeft','a','A'].includes(e.key)?-1:1);}
+     if((e.key==='Escape'||e.key==='p'||e.key==='P')&&!e.repeat){if(ref.current.phase==='playing')pause();else if(ref.current.phase==='paused')resume();}
+   };
+   const hidden=()=>{if(document.hidden)pause();};
+   window.addEventListener('keydown',key);window.addEventListener('blur',pause);document.addEventListener('visibilitychange',hidden);
+   return()=>{cancelAnimationFrame(raf);window.removeEventListener('keydown',key);window.removeEventListener('blur',pause);document.removeEventListener('visibilitychange',hidden);};
+ },[]);
+ E(()=>{if(['won','lost'].includes(g.phase)){const pts=M.score(g);if(pts>best){setBest(pts);write('ig-meteor-best',pts);}}},[g.phase]);
+ const active=g.phase==='playing',finished=['won','lost'].includes(g.phase),points=M.score(g),remaining=Math.ceil((M.DURATION-g.time)/1000);
+ function sprite(o){const x=60+o.lane*120,y=o.y*4;return h('g',{key:o.id,transform:`translate(${x} ${y})`},o.kind==='rock'?h(React.Fragment,null,h('path',{d:'M-21-8 -10-23 10-20 24-4 17 17 -5 23 -24 9Z',fill:'#492f3c',stroke:'#ff805e',strokeWidth:2}),h('circle',{cx:-6,cy:-6,r:6,fill:'#251e30'}),h('circle',{cx:9,cy:8,r:4,fill:'#251e30'})):o.kind==='crystal'?h(React.Fragment,null,h('path',{d:'M0-18 12 0 0 18 -12 0Z',fill:'#143e62',stroke:'#44ddff',strokeWidth:2}),h('path',{d:'M0-12 0 12 M-8 0 8 0',stroke:'#9ff5ff',strokeWidth:2})):h(React.Fragment,null,h('path',{d:'M0-19 15-12 12 7 0 19 -12 7 -15-12Z',fill:'#173e37',stroke:'#44ffaa',strokeWidth:2}),h('path',{d:'M-6 0 -1 5 7-6',fill:'none',stroke:'#a5ffcf',strokeWidth:3})));}
+ return h(Shell,{title:'Meteorický únik',desc:'Tři dráhy. Tři životy. Zvládneš 60 sekund v pásu meteoritů?',onExit},
+   h('div',{className:'metrics meteor-metrics'},metric('SKÓRE',points.toLocaleString('cs-CZ')),metric('DO CÍLE',remaining+' s'),metric('ŽIVOTY','♥'.repeat(g.lives)+'♡'.repeat(3-g.lives))),
+   h('div',{className:'meteor-hud'},h('span',null,g.shield?'◈ ŠTÍT AKTIVNÍ':'◈ ŠTÍT NENÍ'),h('span',{className:g.combo>=3?'combo-active':''},'KRYSTALY ×'+Math.max(1,Math.min(g.combo,5)))),
+   h('div',{className:'meteor-field',tabIndex:0,ref:field,role:'group','aria-label':'Meteorický únik – hrací pole','aria-describedby':'meteor-controls',onPointerDown:e=>{if(!active)return;touch.current={x:e.clientX,y:e.clientY};e.currentTarget.setPointerCapture?.(e.pointerId);},onPointerCancel:()=>touch.current=null,onPointerUp:e=>{const p=touch.current;touch.current=null;if(!p||ref.current.phase!=='playing')return;const dx=e.clientX-p.x;if(Math.abs(dx)>24)move(dx>0?1:-1);else{const rect=e.currentTarget.getBoundingClientRect();const lane=Math.max(0,Math.min(2,Math.floor((e.clientX-rect.left)/rect.width*3)));update({...ref.current,lane});}field.current?.focus({preventScroll:true});}},
+     h('svg',{viewBox:'0 0 360 400','aria-hidden':true},h('rect',{width:360,height:400,fill:'#080c1c'}),[120,240].map(x=>h('line',{key:x,x1:x,x2:x,y1:0,y2:400,stroke:'#1a2948',strokeDasharray:'4 12'})),Array.from({length:32},(_,i)=>h('circle',{key:'star'+i,cx:(i*73+17)%360,cy:(i*53+g.time*(.013+(i%3)*.009))%400,r:i%4===0?1.4:.7,fill:'#88aaff',opacity:.25+(i%3)*.15})),
+       (g.phase==='ready'?[{id:'demo1',kind:'rock',lane:0,y:25},{id:'demo2',kind:'crystal',lane:1,y:13},{id:'demo3',kind:'rock',lane:2,y:45}]:g.objects).map(sprite),
+       h('g',{className:'meteor-ship','data-lane':g.lane,transform:`translate(${60+g.lane*120} 336)`,opacity:g.time<g.invulnerableUntil&&Math.floor(g.time/120)%2?.4:1},g.shield&&h('ellipse',{rx:34,ry:40,fill:'rgba(68,255,170,.08)',stroke:'#44ffaa',strokeWidth:2}),h('path',{d:'M-6 18 0 40 6 18',fill:'#ffb766',opacity:active?.7+(Math.floor(g.time/80)%3)*.1:.7}),h('path',{d:'M0-27 11 4 26 20 6 16 0 22 -6 16 -26 20 -11 4Z',fill:'#182956',stroke:'#80bcff',strokeWidth:2}),h('path',{d:'M0-13 5 4 -5 4Z',fill:'#44ddff'}))),
+     h('div',{className:'meteor-event',role:'status'},active&&g.eventUntil>g.time?g.event:''),
+     !active&&h('div',{className:'meteor-overlay'},h('div',{className:'meteor-dialog'},h('div',{className:'eyebrow'},finished?'VÝSLEDEK LETU':g.phase==='paused'?'PAUZA':'PŘIPRAVEN KE STARTU'),h('h3',null,finished?(g.phase==='won'?'Únik se povedl!':'Loď je na kusy!'):g.phase==='paused'?'Nadechni se.':'Leť. Uhýbej. Sbírej.'),finished?h(React.Fragment,null,h('div',{className:'big'},points.toLocaleString('cs-CZ')+' b'),h('p',null,g.crystals+' krystalů · nejlepší série '+g.bestCombo),g.phase==='won'&&h('p',{className:'meteor-bonus'},'Bonus za dolet +'+(1000+g.lives*250)+' b')):h('p',null,g.phase==='paused'?g.pauseReason:'Uhni oranžovým meteoritům. Modré krystaly dávají body, zelený štít tě ochrání.'),button(finished?'Zkusit znovu':g.phase==='paused'?'Pokračovat v letu':'Spustit let',finished||g.phase==='ready'?start:resume,'primary')))),
+   h('div',{className:'meteor-controls',id:'meteor-controls'},button('← Doleva',()=>move(-1),'',!active||g.lane===0),button('Ⅱ Pauza',pause,'subtle',!active),button('Doprava →',()=>move(1),'',!active||g.lane===2)),
+   h('p',{className:'muted meteor-help'},'Šipky / A D · na mobilu klepni na dráhu nebo přejeď prstem. P / Esc = pauza.'),
+   h('div',{className:'meteor-record'},'🏆 Rekord v zařízení: '+best.toLocaleString('cs-CZ')+' b'),
+   h('details',null,h('summary',null,'Jak získat víc bodů'),h('p',{className:'muted'},'Let: 20 bodů za sekundu. Krystal: 50 bodů × série, nejvýše ×5. Vynechaný krystal nebo zásah bez štítu sérii ukončí. Štít pohltí jeden zásah. Za dolet získáš 1 000 bodů a dalších 250 za každý zbývající život. Rekord se ukládá v tomto zařízení.')));
 }
 function Minefield({onExit}){
  const fresh=()=>({board:null,open:new Set(),flags:new Set(),state:'ready',started:0,elapsed:0});
@@ -67,5 +96,5 @@ function Duel({kind,user,db,onExit}){
  room.phase==='reveal'&&h('div',{className:'panel'},h('h3',null,'Vyhodnocení kola'),h('p',null,'Správně: ',h('strong',null,kind==='color'?C.colors[r.color].name:r.answer)),room.results.map(p=>h('div',{className:'player',key:p.id},h('span',null,p.name),h('strong',null,'+'+p.points))),room.host?button(room.roundIndex===7?'Konečné výsledky':'Další kolo →',()=>ctrl.current.next(),'primary'):h('p',null,'Další kolo spustí hostitel.')),
  room.phase==='final'&&h('div',{className:'notice success'},h('h3',null,'🏆 Konec zápasu'),h('p',null,'Při stejném počtu bodů hráči sdílejí pořadí.'),room.host&&button('Odveta',()=>ctrl.current.start(),'primary',room.players.filter(p=>p.online).length<2)),room.phase==='closed'&&h('div',{className:'notice'},'Hostitel ukončil místnost. Můžeš založit novou.'),h('div',{className:'players'},room.players?.slice().sort((a,b)=>b.score-a.score).map(p=>h('div',{className:'player',key:p.id},h('span',null,p.name,p.id===room.myId?' (ty)':'',!p.online?' · odpojen':' '),h('strong',null,p.score+' b')))),button('Opustit místnost',leave,'subtle')));
 }
-window.IndyArcade=function({game,...props}){return game==='neon2048'?h(Neon2048,props):game==='minefield'?h(Minefield,props):h(Duel,{...props,kind:game==='colorduel'?'color':'memory'});};
+window.IndyArcade=function({game,...props}){return game==='meteorrun'?h(MeteorRun,props):game==='minefield'?h(Minefield,props):h(Duel,{...props,kind:game==='colorduel'?'color':'memory'});};
 })();

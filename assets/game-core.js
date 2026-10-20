@@ -4,9 +4,6 @@
   function random(seed){let s=seed>>>0;return()=>((s=(Math.imul(s,1664525)+1013904223)>>>0)/4294967296);}
   function hash(s){let n=2166136261;for(const c of s)n=Math.imul(n^c.charCodeAt(0),16777619);return n>>>0;}
   function shuffle(arr,rng=Math.random){const a=arr.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
-  function move2048(board,dir){const out=board.slice();let score=0;for(let l=0;l<4;l++){const ids=Array.from({length:4},(_,i)=>dir==='left'?l*4+i:dir==='right'?l*4+3-i:dir==='up'?i*4+l:(3-i)*4+l);const line=ids.map(i=>board[i]).filter(Boolean),merged=[];for(let i=0;i<line.length;i++){if(line[i]===line[i+1]){merged.push(line[i]*2);score+=line[i]*2;i++;}else merged.push(line[i]);}ids.forEach((id,i)=>out[id]=merged[i]||0);}return{board:out,score,changed:out.some((v,i)=>v!==board[i])};}
-  function spawn2048(board,rng=Math.random){const empty=board.map((v,i)=>v?null:i).filter(v=>v!==null);if(!empty.length)return board;const b=board.slice();b[empty[Math.floor(rng()*empty.length)]]=rng()<.9?2:4;return b;}
-  const canMove=board=>['left','right','up','down'].some(d=>move2048(board,d).changed);
   function neighbors(i,n=8){const x=i%n,y=Math.floor(i/n),a=[];for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++)if((dx||dy)&&x+dx>=0&&x+dx<n&&y+dy>=0&&y+dy<n)a.push((y+dy)*n+x+dx);return a;}
   function mines(first,n=8,count=10,rng=Math.random){const safe=new Set([first,...neighbors(first,n)]);const locations=shuffle(Array.from({length:n*n},(_,i)=>i).filter(i=>!safe.has(i)),rng).slice(0,count);return Array.from({length:n*n},(_,i)=>locations.includes(i)?-1:neighbors(i,n).filter(j=>locations.includes(j)).length);}
   function revealMine(board,open,flags,i,n=8){const next=new Set(open);if(flags.has(i)||next.has(i))return{open:next,lost:false};if(board[i]===-1)return{open:next,lost:true};const stack=[i];while(stack.length){const x=stack.pop();if(next.has(x)||flags.has(x))continue;next.add(x);if(board[x]===0)neighbors(x,n).filter(j=>board[j]>=0&&!next.has(j)).forEach(j=>stack.push(j));}return{open:next,lost:false};}
@@ -15,5 +12,5 @@
   const colors=[{name:'MODRÁ',hex:'#65aaff'},{name:'RŮŽOVÁ',hex:'#ff78bc'},{name:'ZELENÁ',hex:'#64efb0'},{name:'ŽLUTÁ',hex:'#ffe180'}];
   function duelRound(kind,index,rng=Math.random){if(kind==='color'){const color=Math.floor(rng()*4),word=(color+1+Math.floor(rng()*3))%4;return{kind,index,color,word,answer:String(color),showMs:1500,answerMs:10000};}const code=Array.from({length:3+Math.floor(index/2)},()=>Math.floor(rng()*10)).join('');return{kind,index,code,answer:code,showMs:4500,answerMs:12000};}
   function duelPoints(round,answer,ms){return String(answer)===round.answer?500+Math.round(500*Math.max(0,Math.min(1,ms/round.answerMs))):0;}
-  return{day,random,hash,shuffle,move2048,spawn2048,canMove,neighbors,mines,revealMine,quizPoints,daily,colors,duelRound,duelPoints};
+  return{day,random,hash,shuffle,neighbors,mines,revealMine,quizPoints,daily,colors,duelRound,duelPoints};
 });

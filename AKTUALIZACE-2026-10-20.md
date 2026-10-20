@@ -111,3 +111,8 @@ Mapa rozšířena z 8×8 (64) na 18×18 (324 políček, 5,06× větší plocha).
 - Mapa se přizpůsobuje výšce i šířce; zbraně a palba jsou v samostatném panelu.
 - Příprava flotil má širší mapu, náhled umístění lodě a ovládání šipkami.
 - Zvýraznění oblasti zbraně při najetí, barevné ukazatele stavu flotil a kompaktní oznámení.
+
+## 3.9 – grafika flotil a oceánu
+- Detailní kovové lodě, paluby, můstky a dvojité dělové věže.
+- Texturovaný oceán, jemné osvětlení, animovaný oheň a kouř zásahů.
+- Sjednocené kovové panely a ovládání, zachovaná velká plocha a barvy flotil.

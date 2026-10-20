@@ -48,3 +48,31 @@ body:has(.naval-expanded) .donate-fab{display:none!important}
 .naval-expanded .naval-ocean-layout{align-items:stretch;grid-template-rows:minmax(0,1fr)}.naval-expanded .naval-ocean-panel{height:100%;box-sizing:border-box}.naval-expanded .naval-viewport{height:0}.ig-game.naval.naval-expanded.naval-placing{position:fixed;left:0;transform:none;width:100vw}.naval-expanded.naval-placing .naval-viewport{height:0;min-height:0}.naval-place-actions{display:grid;gap:8px;margin:15px 0}.naval-command>.primary{width:100%;min-height:45px}.naval-command>p{font-size:13px}.naval-expanded .naval-ocean-sidebar>.panel>p{font-size:12px}.naval-placing .naval-traps{display:grid;grid-template-columns:1fr}.naval-expanded .naval-ocean-sidebar{height:100%;box-sizing:border-box}
 @media(max-width:600px) and (orientation:portrait){.naval-expanded .naval-ocean-panel{height:62dvh;min-height:300px}.naval-expanded .naval-ocean-sidebar{height:auto}.naval-expanded .naval-viewport{height:0}.naval-expanded.naval-placing .naval-viewport{height:0;min-height:0}.naval-place-actions{grid-template-columns:1fr 1fr}}
 .naval-viewport .naval-cell{aspect-ratio:auto;width:100%;height:100%;box-sizing:border-box}
+
+/* Art pass: lit steel vessels on textured open water. */
+.ig-game.naval.naval-expanded{background:radial-gradient(ellipse at 12% 0%,#234553 0,transparent 50%),linear-gradient(140deg,#101e28,#060e17)}
+.ig-game.naval .naval-ocean-panel{border-color:#567579;border-radius:10px;background:linear-gradient(125deg,#344c52,#162b36 28%,#0b202d);box-shadow:inset 0 1px #cce4db30,inset 0 -1px #000a,0 12px 35px #0005}
+.naval-viewport .naval-grid{background:#134b5c url('naval-ocean.svg') center/cover;box-shadow:inset 0 0 90px #00172588}
+.naval-grid:before{inset:26px 0 0 26px;opacity:.22;background:radial-gradient(ellipse at 25% 25%,#c0fff266,transparent 55%);animation:naval-sealight 12s ease-in-out infinite alternate}
+.ig-game.naval .naval-cell{background:transparent;border-color:#b3e3da20;border-radius:0}
+.ig-game.naval .naval-cell.ship{background:transparent;border-color:#c6e8dc2b}
+.ig-game.naval .naval-cell:hover:not(:disabled){background:#c7fff31c;border-color:#dbfff3;box-shadow:inset 0 0 18px #b0fff326}
+.naval-ships{filter:drop-shadow(1px 4px 3px #00151ddd)}
+.naval-axis{color:#c3dbd3;text-shadow:0 1px 3px #001c2a;font-family:ui-monospace,monospace;font-size:11px}
+.ig-game.naval .naval-cell.miss{background:radial-gradient(ellipse,transparent 16%,#b5e4df77 19%,transparent 25%,transparent 38%,#b5e4df33 41%,transparent 47%);color:#c1e1df;font-size:22px}
+.ig-game.naval .naval-cell.hit{background:radial-gradient(ellipse,#ffbd6433,#3f19155c 65%,transparent);border-color:#f2aa6b88}
+.naval-firemark{width:42%;height:64%;max-width:22px;max-height:30px;position:relative;border-radius:65% 30% 65% 45%;transform:rotate(15deg);background:radial-gradient(ellipse at 55% 75%,#fff7b6 0 12%,#ffc052 30%,#f16b23 57%,#c52d1288 72%,transparent 75%);filter:drop-shadow(0 0 5px #ff761c);animation:naval-fireglow .8s ease-in-out infinite alternate}
+.naval-firemark:after{content:'';position:absolute;width:65%;height:80%;left:8%;top:-40%;border-radius:50%;background:radial-gradient(ellipse,#152126aa,transparent 70%);animation:naval-smoke 2.4s ease-out infinite}
+.ig-game.naval .naval-cell.sunk{background:radial-gradient(ellipse,#0c192ad9,#112d37aa);color:#b5b8ad;border-color:#62767b88}
+.ig-game.naval .naval-command,.ig-game.naval .naval-ocean-sidebar>.panel{background:linear-gradient(145deg,#293f48,#142732 55%,#10212c);border-color:#567078;box-shadow:inset 0 1px #c1dcd51c,0 8px 24px #0004}
+.naval-command>h3,.naval-ocean-sidebar h3{color:#e2e8dc!important;font-size:11px!important;letter-spacing:2px!important;padding-bottom:10px;border-bottom:1px solid #a7c8c421}
+.ig-game.naval .naval-command .naval-weapons .btnx{background:linear-gradient(#344c55,#1b303c);border-color:#56727b;box-shadow:inset 0 1px #d3e7db1a,0 3px 5px #0003}
+.ig-game.naval .naval-command .naval-weapons .primary{background:linear-gradient(135deg,#e6c891,#af8950);border-color:#ffe4ab;color:#17232a;box-shadow:inset 0 1px #fff3cf,0 0 20px #ebc87e18}
+.ig-game.naval .naval-fire .primary{background:linear-gradient(#ebce92,#b78d4e);border-color:#f8dda3;text-shadow:0 1px #fff5cf66;box-shadow:inset 0 1px #fff5ca,0 4px 0 #745b35,0 7px 16px #0005}
+.naval-expanded>.game-nav .eyebrow{color:#e6ddbd;letter-spacing:3px;font-weight:800}
+.ig-game.naval.naval-expanded>.naval-status.your-turn{border-color:#8bb8a2;background:linear-gradient(100deg,#264e48,#142c32 70%);box-shadow:inset 3px 0 #b5e1bb}
+.naval-fleet-row{padding-left:8px;padding-right:8px}.naval-fleet-row:before,.naval-fleet-row:after{left:8px;max-width:calc(100% - 16px)}
+@keyframes naval-sealight{to{opacity:.5;transform:translate(12px,6px)}}
+@keyframes naval-fireglow{to{transform:rotate(-10deg) scale(.9,1.12);filter:drop-shadow(0 0 9px #ff9d26)}}
+@keyframes naval-smoke{to{transform:translate(-8px,-15px) scale(1.6);opacity:0}}
+@media(prefers-reduced-motion:reduce){.naval-grid:before,.naval-firemark,.naval-firemark:after{animation:none!important}}

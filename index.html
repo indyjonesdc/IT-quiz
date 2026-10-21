@@ -214,49 +214,36 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
   }
 
   // ─── Přihlášení přes Google (Supabase OAuth → napojení na tabulku users) ───
+  function googleBusy(busy){
+    const btn=document.getElementById('googleBtn');
+    btn.disabled=busy;btn.style.opacity=busy?'.65':'1';
+    btn.setAttribute('aria-busy',String(busy));
+  }
   async function googleSignIn(){
     if (!db) return showErr('Databáze není připojena.');
+    googleBusy(true);showErr('');
     try {
-      const { error } = await db.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: location.origin + location.pathname }
-      });
-      if (error) showErr('Google: ' + error.message);
-    } catch(e){ showErr('Google přihlášení se nezdařilo.'); }
+      const {error}=await db.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname}});
+      if(error)throw error;
+    } catch(e){googleBusy(false);showErr('Google přihlášení se nepodařilo spustit. Zkus to znovu.');}
   }
 
-  let _bridging = false;
+  let _bridging=false,_bridgedId=null;
   async function bridgeGoogle(session){
-    if (_bridging || ls('itq_user', null)) return;
-    if (!session || !session.user || !session.user.email) return;
-    _bridging = true;
+    if(_bridging||!session?.user||_bridgedId===session.user.id)return;
+    _bridging=true;googleBusy(true);showErr('Dokončuji přihlášení přes Google…');
     try {
-      const email = session.user.email;
-      const meta = session.user.user_metadata || {};
-      const gname = (meta.full_name || meta.name || email.split('@')[0] || 'Hráč').slice(0,20);
-      let user = null;
-      // 1) existující účet podle e-mailu
-      const { data: found } = await db.rpc('get_user_by_email', { p_email: email });
-      if (found && found.length) { user = found[0]; }
-      else {
-        // 2) nový účet (bez hesla, přihlašuje se přes Google)
-        let name = gname;
-        try {
-          const { data: taken } = await db.from('users').select('id').ilike('name', name).maybeSingle();
-          if (taken) name = (gname.slice(0,13) + '_' + Math.random().toString(36).slice(2,6));
-        } catch(e){}
-        const pwd = 'g' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-        const { data: reg, error } = await db.rpc('register_user', {
-          p_name: name, p_password: pwd,
-          p_profile: { google: true, email: email, avatar: meta.avatar_url || meta.picture || null }
-        });
-        if (error || !reg || !reg.length) { _bridging = false; return showErr('Google účet nešlo vytvořit: ' + (error?.message || '')); }
-        user = reg[0];
-      }
-      try { await db.auth.signOut(); } catch(e){}            // appka dál jede přes itq_user
-      try { history.replaceState(null, '', location.pathname); } catch(e){}
-      loginDone({ ...user, premium: false });
-    } catch(e){ _bridging = false; }
+      // The database derives the identity from the verified access token.
+      const {data:user,error}=await db.rpc('google_login');
+      if(error||!user?.id||!user?.name)throw error||new Error('Chybí herní profil');
+      history.replaceState(null,'',location.pathname);
+      _bridgedId=session.user.id;
+      loginDone({...user,premium:false});
+      // Existing games use their legacy player session. Do not block login on sign-out.
+      db.auth.signOut({scope:'local'}).catch(()=>{});
+    } catch(e){
+      showErr('Dokončení Google přihlášení se nezdařilo. Zkus přihlášení znovu.');
+    } finally {_bridging=false;googleBusy(false);}
   }
 
   function showHub(user){
@@ -282,11 +269,24 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
 
   // ─── Při načtení: pokud už přihlášen, rovnou hub; jinak zkus návrat z Googlu ───
   (function init(){
-    const u = ls('itq_user', null);
-    if (u && u.name) { showHub(u); }
-    else if (db) {
-      db.auth.onAuthStateChange((evt, session) => { if (session) bridgeGoogle(session); });
-      db.auth.getSession().then(({ data }) => { if (data && data.session) bridgeGoogle(data.session); }).catch(()=>{});
+    const u=ls('itq_user',null);
+    const callback=new URLSearchParams(location.hash.slice(1));
+    const query=new URLSearchParams(location.search);
+    const oauthError=callback.has('error')||query.has('error');
+    const oauthReturn=oauthError||callback.has('access_token')||query.has('code');
+    if(oauthError){
+      showErr('Google přihlášení bylo zrušeno nebo odmítnuto. Zkus to znovu.');
+      history.replaceState(null,'',location.pathname);
+    }
+    if(u?.name&&!oauthReturn)showHub(u);
+    if(db&&(!u?.name||u.guest||oauthReturn)&&!oauthError){
+      // Never start another Supabase operation inside the auth callback lock.
+      const schedule=session=>{if(session)setTimeout(()=>bridgeGoogle(session),0);};
+      db.auth.onAuthStateChange((evt,session)=>{if(evt==='SIGNED_IN'||evt==='INITIAL_SESSION')schedule(session);});
+      db.auth.getSession().then(({data,error})=>{
+        if(error){showErr('Návrat z Googlu se nepodařilo ověřit. Přihlas se znovu.');return;}
+        schedule(data?.session);
+      }).catch(()=>showErr('Přihlášení se nepodařilo načíst. Zkus obnovit stránku.'));
     }
     ['name','password'].forEach(id =>
       document.getElementById(id).addEventListener('keydown', e => { if(e.key==='Enter') submitAuth(); })

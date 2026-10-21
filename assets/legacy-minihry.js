@@ -7225,6 +7225,7 @@ function MiniBoard({
 }) {
     const [board, setBoard] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [loadError,setLoadError]=useState(false);
     const [expanded, setExpanded] = useState(null);
     useEffect(() => {
         async function load() {
@@ -10855,8 +10856,9 @@ function MinigamesScreen({
     const [newRecord, setNewRecord] = useState(null);
     const myBestRef = useRef({});
     useEffect(() => {
+        if(screen!=='menu')return;
         async function loadLeaders() {
-            const games = ['stopwatch', 'targets', 'balance', 'tower', 'slash', 'mapbattle', 'quizbattle', 'stopbattle', 'fiveten', 'worldmap'];
+            const games = ['meteorrun','codehunt','naval','colorduel','memoryduel','stopwatch', 'targets', 'balance', 'tower', 'slash', 'mapbattle', 'quizbattle', 'stopbattle', 'fiveten', 'worldmap'];
             const result = {};
             const myBest = {};
             for (const game of games) {
@@ -10881,7 +10883,7 @@ function MinigamesScreen({
             myBestRef.current = myBest;
         }
         loadLeaders();
-    }, []);
+    }, [screen]);
     async function handleSave(game, pts, detail) {
         setSaving(true);
         const prevPersonal = myBestRef.current[game] || 0;
@@ -10939,11 +10941,11 @@ function MinigamesScreen({
         }
     };
     const GAMES = [
- {key:'meteorrun',emoji:'🚀',title:'Meteorický únik · NOVÉ',desc:'Uhýbej meteoritům · sbírej krystaly · 60 sekund',color:'#44ddff',game:'meteorrun'},
- {key:'codehunt',emoji:'🔐',title:'Lov na kombinaci · NOVÉ',desc:'Odhal tajný kód · 4 barvy · 8 pokusů',color:'#72e3bc',game:'codehunt'},
- {key:'naval',emoji:'⚓',title:'Skupinové lodě · NOVÉ',desc:'2–8 hráčů · týmy · superzbraně · vlastní nástrahy',color:'#67dbe0',game:'naval',multiplayer:true},
- {key:'colorduel',emoji:'🎨',title:'Barevný souboj · NOVÉ',desc:'Online pro 2–8 · barva písma proti významu slova',color:'#ffa3dc',game:'colorduel',multiplayer:true},
- {key:'memoryduel',emoji:'🧠',title:'Paměťový duel · NOVÉ',desc:'Online pro 2–8 · zapamatuj si mizející kód',color:'#b2a1ff',game:'memoryduel',multiplayer:true}, {
+ {key:'meteorrun',emoji:'🚀',title:'Meteorický únik · NOVÉ',desc:'Uhýbej meteoritům · sbírej krystaly · 60 sekund',color:'#44ddff',boardKey:'board_meteorrun',game:'meteorrun'},
+ {key:'codehunt',emoji:'🔐',title:'Lov na kombinaci · NOVÉ',desc:'Odhal tajný kód · 4 barvy · 8 pokusů',color:'#72e3bc',boardKey:'board_codehunt',game:'codehunt'},
+ {key:'naval',emoji:'⚓',title:'Skupinové lodě · NOVÉ',desc:'2–8 hráčů · týmy · superzbraně · vlastní nástrahy',color:'#67dbe0',boardKey:'board_naval',game:'naval',multiplayer:true},
+ {key:'colorduel',emoji:'🎨',title:'Barevný souboj · NOVÉ',desc:'Online pro 2–8 · barva písma proti významu slova',color:'#ffa3dc',boardKey:'board_colorduel',game:'colorduel',multiplayer:true},
+ {key:'memoryduel',emoji:'🧠',title:'Paměťový duel · NOVÉ',desc:'Online pro 2–8 · zapamatuj si mizející kód',color:'#b2a1ff',boardKey:'board_memoryduel',game:'memoryduel',multiplayer:true}, {
         key: 'sw',
         emoji: '⏱',
         title: 'Zastavte čas',
@@ -11559,7 +11561,7 @@ function MinigamesScreen({
         user: user,
         onExit: () => setScreen('menu'),
         soloOnly: true
-    }), screen === 'board_sw' && React.createElement(MiniBoard, {
+    }), GAMES.filter(g=>['meteorrun','codehunt','naval','colorduel','memoryduel'].includes(g.key)&&screen===g.boardKey).map(g=>React.createElement(MiniBoard,{key:g.key,game:g.game,title:g.emoji+' '+g.title.replace(' · NOVÉ',''),color:g.color,onBack:()=>setScreen('menu')})), screen === 'board_sw' && React.createElement(MiniBoard, {
         game: "stopwatch",
         title: "⏱ ZASTAVTE ČAS",
         color: "#4488ff",

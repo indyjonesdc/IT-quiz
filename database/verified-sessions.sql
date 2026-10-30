@@ -91,3 +91,8 @@ CREATE POLICY verified_scores_delete ON public.scores AS RESTRICTIVE FOR DELETE 
 CREATE POLICY verified_minigame_insert ON public.minigame_scores AS RESTRICTIVE FOR INSERT TO anon,authenticated WITH CHECK(indy_private.has_player_session(user_id));
 CREATE POLICY verified_minigame_update ON public.minigame_scores AS RESTRICTIVE FOR UPDATE TO anon,authenticated USING(indy_private.has_player_session(user_id)) WITH CHECK(indy_private.has_player_session(user_id));
 CREATE POLICY verified_minigame_delete ON public.minigame_scores AS RESTRICTIVE FOR DELETE TO anon,authenticated USING(indy_private.has_player_session(user_id));
+
+-- Subsequent deployed hardening (30 October 2026): only safe profile columns.
+REVOKE EXECUTE ON FUNCTION public.verify_password(text,text),public.register_user(text,text,jsonb) FROM PUBLIC,anon,authenticated;
+REVOKE UPDATE ON public.users FROM PUBLIC,anon,authenticated;
+GRANT UPDATE(name,company,"position",fav_hw,os_religion,coffee_cups,debug_style,superpower,avatar_url) ON public.users TO anon,authenticated;

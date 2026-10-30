@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="cs">
 <head>
+<script src="assets/secure-session.js?v=20261030"></script>
 <meta charset="UTF-8"/>
 <link rel="preconnect" href="https://cdnjs.cloudflare.com"/>
 <link rel="preconnect" href="https://cdn.jsdelivr.net"/>
@@ -174,7 +175,7 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
     const p = document.getElementById('password').value.trim();
     if (n.length < 2) return showErr('Aspoň 2 znaky pro jméno!');
     if (n.length > 20) return showErr('Max 20 znaků!');
-    if (p.length < 4) return showErr('Heslo musí mít alespoň 4 znaky!');
+    if (p.length < (tab === 'register' ? 8 : 4)) return showErr('Pro nový účet zvol heslo alespoň s 8 znaky!');
     if (!db) return showErr('Databáze není připojena.');
 
     const btn = document.getElementById('submit');
@@ -255,7 +256,8 @@ body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;bac
     document.getElementById('hub').classList.add('show');
   }
 
-  function logout(){
+  async function logout(){
+    await window.indyVerifiedLogout();
     lss('itq_user', null);
     location.reload();
   }
@@ -411,5 +413,6 @@ var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],
 <!-- End Cloudflare Web Analytics -->
 
 <footer aria-label="Provozovatel" style="position:relative;z-index:1;padding:24px 16px;text-align:center;font:12px/1.7 system-ui,sans-serif;color:#c3c8d4;background:#0a0a0f">Provozovatel: Lukáš Reisinger · IČO 30171598<br>Sídlo: Dandova 2619/13, 193 00 Praha</footer>
+<footer style="padding:12px;text-align:center;font:13px/1.5 system-ui"><a href="soukromi.html" style="color:#aabfff">Provozovatel, soukromí a pravidla</a></footer>
 </body>
 </html>

@@ -1,5 +1,5 @@
 // Same-origin network-first cache. Never replace a missing script with HTML.
-const CACHE='indygames-v3.10.1-20261021';
+const CACHE='indygames-security-20261030';
 self.addEventListener('install',()=>self.skipWaiting());
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('indygames-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{
